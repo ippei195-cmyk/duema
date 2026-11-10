@@ -7461,34 +7461,34 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
 .so-zh .chev svg{transition:transform .15s}.so-z.col .so-zh .chev svg{transform:rotate(-90deg)}
 .so-z.col .so-zc{display:none}
 .so-zh .sp{flex:1}
-.so-zc{display:flex;flex-wrap:wrap;gap:6px;min-height:96px;align-content:flex-start;padding-top:4px}
+.so-zc{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;min-height:calc(var(--cw)*88/63 + 18px);padding:9px 8px;margin-top:4px;border:1px dashed var(--line);border-radius:8px;background:#0002;overflow:hidden}
+.solo{--cl:clamp(60px,6.4vw,108px);--cs:clamp(44px,4.3vw,66px)}
+.so-z{--cw:var(--cs)}.so-z.battle,.so-z.hand{--cw:var(--cl)}
+.so-zc .sc:hover{z-index:5}.so-zc .sc{transition:transform .15s,margin .15s}
 .so-zc .wm{margin:auto;color:var(--muted);opacity:.5;font-size:12px}
-.so-row{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:8px}
+.so-row{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:8px}
 .so-pile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer}
 .so-pile .so-zh{align-self:stretch;justify-content:center}
-.so-pile .pc{position:relative;width:64px;height:89px;border-radius:6px;overflow:hidden;border:1px solid #000}
+.so-pile{--cw:var(--cs)}.so-pile .pc{position:relative;width:var(--cw);height:calc(var(--cw)*88/63);border-radius:6px;overflow:hidden;border:1px solid #000}
 .so-pile .pc .pn{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;background:#000c;color:#fff;font-family:var(--f-mono);font-weight:700;font-size:15px;padding:2px 7px;border-radius:6px}
-.so-pile .empty{width:64px;height:89px;border:1px dashed var(--line);border-radius:6px;display:grid;place-items:center;color:var(--muted);font-size:11px}
-.sc{position:relative;width:64px;height:89px;border-radius:6px;overflow:hidden;flex:0 0 auto;background:#000;border:1px solid #000;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:transform .15s}
+.so-pile .empty{width:var(--cw);height:calc(var(--cw)*88/63);border:1px dashed var(--line);border-radius:6px;display:grid;place-items:center;color:var(--muted);font-size:11px}
+.sc{position:relative;width:var(--cw,64px);height:calc(var(--cw,64px)*88/63);border-radius:6px;overflow:hidden;flex:0 0 auto;background:#000;border:1px solid #000;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:transform .15s}
 .sc img,.sc .atl{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;pointer-events:none}
 .sc .tf{position:absolute;inset:0}
 .sc.back,.so-back{background:repeating-linear-gradient(45deg,#2a3f78 0 6px,#33498a 6px 12px);border-color:#1b2850}
 .sc.back::after{content:"";position:absolute;inset:5px;border:2px solid #c9a24a99;border-radius:4px}
-.sc.tapped{transform:rotate(90deg);margin:0 12px}
+.so-zc .sc.tapped{transform:rotate(90deg);margin-left:calc(var(--cw)*.2 + 6px)!important;margin-right:calc(var(--cw)*.2)}
 .sc .cnt{position:absolute;right:2px;bottom:2px;z-index:3;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:10px;border-radius:5px;padding:0 4px}
 .sc .fu{position:absolute;left:2px;top:2px;z-index:3;background:#000b;color:#fff;font-size:9px;border-radius:4px;padding:0 3px}
-.so-z.battle .so-zc{min-height:112px}
-.so-z.mana .sc{width:52px;height:72px}.so-z.mana .sc.tapped{margin:0 10px}
 .so-civ{display:inline-flex;gap:6px;align-items:center}
 .so-civ i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:2px;vertical-align:-1px}
 .so-turn{display:flex;align-items:center;gap:6px}
 .so-turn .tl{font-family:var(--f-mono);font-weight:700;color:var(--ink);font-size:13px;margin-right:2px}
 .so-turn button{height:34px;padding:0 12px;border-radius:9px;font-size:13px}
 .so-turn button.go{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
-.so-z.hand .sc{width:74px;height:103px}
 @media (max-width:599px){.so-row{grid-template-columns:minmax(0,1fr) 78px}.so-zh{flex-wrap:wrap}.so-civ{order:9;width:100%;padding-left:4px}
  .so-head button{height:34px;padding:0 8px;font-size:12px}.so-head select{height:34px;flex:1;max-width:none}.so-head h2{font-size:16px}
- .so-z.hand .sc{width:64px;height:89px}.so-z.shield .sc{width:46px;height:64px}.so-z.shield .sc.back::after{inset:3px}.so-turn{order:9;width:100%;justify-content:flex-end}}
+ .so-turn{order:9;width:100%;justify-content:flex-end}.so-head .lb{display:none}.solo{--cl:62px;--cs:46px}.sc.back::after{inset:3px}}
 .so-rail{display:flex;flex-direction:column;gap:10px;min-width:0}
 .so-box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
 .so-box h3{margin:0 0 6px;font-size:13px;display:flex;align-items:center;gap:6px}
@@ -7529,6 +7529,12 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
 .so-pop .grid .sc.pick{outline:3px solid var(--accent);outline-offset:1px}
 .so-pop .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .so-pop input[type=number]{width:70px;height:36px}
+.so-pop.anc{background:transparent;display:block}
+.so-pop.anc .pb{position:fixed;width:230px;max-width:calc(100vw - 16px);border-radius:10px;padding:6px;gap:2px;box-shadow:0 10px 30px #000b;border-color:var(--accent)}
+.so-pop.anc .ph h3{font-size:12px;padding:2px 4px}.so-pop.anc .ph .ib{display:none}
+.so-pop.anc .acts{flex-direction:column;gap:2px}.so-pop.anc .acts button{flex:none;height:32px;min-width:0;text-align:left;border:0;background:transparent;border-radius:6px;padding:0 10px}
+.so-pop.anc .acts button:hover{background:var(--chip)}.so-pop.anc .acts button.go{background:transparent;color:var(--accent)}.so-pop.anc .acts button.go:hover{background:var(--chip)}
+.so-pop.anc .acts hr{width:100%;border:0;border-top:1px solid var(--line);margin:3px 0}
 </style>
 <div class="solo" id="solo" hidden role="dialog" aria-label="一人回し"></div>
 <script>
@@ -7547,6 +7553,7 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
     list:'<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>',
     untap:'<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
     chev:'<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
+    hist:'<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>',
     back:'<svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>',
   };
   let T = null;              // {deckId, deckName, turn, seq, cards:{uid:{uid,cid,tapped,faceUp,under:[]}}, z:{...}, log:[{t,x,a}]}
@@ -7655,9 +7662,10 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
         <button data-a="reset">${ICO.shuffle}リセット</button>
         <button data-a="manaup" title="マナゾーンのカードをすべてアンタップ">${ICO.untap}マナ全アンタップ</button>
         <span class="sp"></span>
-        <button data-a="undo" ${U.length?'':'disabled'}>${ICO.undo}戻す</button>
-        <button data-a="redo" ${R.length?'':'disabled'}>${ICO.redo}進む</button>
-        <button data-a="reveal" class="${reveal?'on':''}" title="シールドの中身を表示／非表示">${reveal?ICO.eye:ICO.eyeoff}非公開領域</button>
+        <button data-a="undo" ${U.length?'':'disabled'}>${ICO.undo}<span class="lb">戻す</span></button>
+        <button data-a="redo" ${R.length?'':'disabled'}>${ICO.redo}<span class="lb">進む</span></button>
+        <button data-a="reveal" class="${reveal?'on':''}" title="シールドの中身を表示／非表示">${reveal?ICO.eye:ICO.eyeoff}<span class="lb">非公開領域</span></button>
+        <button data-a="hist" title="操作履歴">${ICO.hist}<span class="lb">履歴</span></button>
       </div>
       <div class="so-main">
         ${zone('battle', T.z.battle.map(u=>face(u,{rot:true})).join(''), {untap:true, empty:'ここにカードをドラッグ'})}
@@ -7669,8 +7677,21 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
         <div class="so-box so-zoom${zoomHide?' hide':''}"><h3>カード拡大表示<span class="sp"></span><button data-a="zoomt" style="height:24px;padding:0 8px;font-size:11px">${zoomHide?'表示':'隠す'}</button></h3><div class="zb" id="soZoom">カードにマウスを乗せると拡大表示</div></div>
         <div class="so-box"><h3>操作履歴 <span class="n">${T.log.length}件</span></h3><div class="so-log">${logHTML()}</div></div>
       </div></div>`;
+    fit();
     const lg = el.querySelector('.so-log'); if (lg) lg.scrollTop = keepScroll!=null && keepScroll < lg.scrollHeight - lg.clientHeight - 40 ? keepScroll : lg.scrollHeight;
   }
+  // 1列に入りきらないカードは重ねて並べる
+  function fit(){
+    root().querySelectorAll('.so-main .so-zc').forEach(zc => {
+      const cards = [...zc.querySelectorAll(':scope > .sc')]; cards.forEach(c => c.style.marginLeft = '');
+      if (cards.length < 2) return;
+      const avail = zc.clientWidth - 16; const need = zc.scrollWidth - 16;
+      if (need <= avail) return;
+      const over = (need - avail) / (cards.length - 1);
+      cards.slice(1).forEach(c => { if (!c.classList.contains('tapped')) c.style.marginLeft = `-${over}px`; else c.style.setProperty('margin-left', `calc(var(--cw)*.2 + 6px - ${over}px)`, 'important'); });
+    });
+  }
+  window.addEventListener('resize', () => { if (T && !root().hidden) fit(); });
   function zoomShow(uid){
     const z = document.getElementById('soZoom'); if (!z) return;
     const d = DB[SC(uid).cid];
@@ -7678,12 +7699,14 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
   }
 
   /* ---------- popups ---------- */
-  function pop(title, body, wire){
+  function pop(title, body, wire, at){
     closePop();
-    const p = document.createElement('div'); p.className = 'so-pop'; p.id = 'soPop';
+    const p = document.createElement('div'); p.className = 'so-pop' + (at?' anc':''); p.id = 'soPop';
     p.innerHTML = `<div class="pb" role="dialog" aria-label="${esc(title)}"><div class="ph"><h3>${title}</h3><button class="ib" data-x aria-label="閉じる">✕</button></div>${body}</div>`;
-    p.addEventListener('click', e => { if (e.target===p || e.target.closest('[data-x]')) closePop(); });
+    const t0 = Date.now();
+    p.addEventListener('click', e => { if (e.target.closest('[data-x]') || (e.target===p && Date.now()-t0>400)) closePop(); });
     document.body.appendChild(p); wire && wire(p.querySelector('.pb'));
+    if (at){ const pb = p.querySelector('.pb'); const w = pb.offsetWidth, h = pb.offsetHeight; pb.style.left = Math.max(8, Math.min(at.x, innerWidth - w - 8))+'px'; pb.style.top = Math.max(8, Math.min(at.y, innerHeight - h - 8))+'px'; }
     return p;
   }
   function closePop(){ document.getElementById('soPop')?.remove(); }
@@ -7694,7 +7717,8 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
     return `<div class="det"><div class="bf">${faceHTML(SC(uid).cid,true)}</div><div style="min-width:0"><b>${esc(d.name)}</b><div class="meta">${esc(d.sides.map(s=>`${s.type}・${s.civs.join('/')||'無色'}・コスト${s.cost}${s.power?'・'+s.power:''}`).join(' / '))}${d.race?'<br>'+esc(d.race):''}</div><div class="tx">${esc(d.sides.map(s=>s.text).join('\n――\n'))}</div></div></div>`;
   }
   const DESTS = [['hand','手札へ'],['battle','バトルゾーンへ'],['mana','マナへ'],['shield','シールドへ'],['grave','墓地へ'],['deck:top','山札の上へ'],['deck:bottom','山札の下へ']];
-  function cardMenu(uid, after){
+  const wideMenu = () => matchMedia('(min-width:700px) and (hover:hover)').matches;
+  function cardMenu(uid, after, at){
     const z = zoneOf(uid); const c = SC(uid);
     const hidden = (z==='shield' && shieldHidden(uid)) || (z==='deck' && !after?.peek);
     const btn = [];
@@ -7704,7 +7728,8 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
     for (const [k,l] of DESTS){ const [to] = k.split(':'); if (to===z && to!=='deck') continue; if (z==='hand' && (to==='battle'||to==='mana')) continue; if (z==='shield' && to==='hand') continue; btn.push(`<button data-m="${k}">${l}</button>`); }
     if (z!=='battle' && T.z.battle.length) btn.push(`<button data-m="evo">バトルのカードに重ねる（進化）</button>`);
     if (c.under.length) btn.push(`<button data-m="under">下のカードを見る（${c.under.length}枚）</button>`);
-    pop(`${ZN[z]||''}のカード`, detHTML(uid, hidden) + `<div class="acts">${btn.join('')}</div>`, pb => {
+    const anc = at && wideMenu();
+    pop(anc ? (hidden?'非公開のカード':esc(nm(uid))) : `${ZN[z]||''}のカード`, (anc?'':detHTML(uid, hidden)) + `<div class="acts">${btn.join('')}</div>`, pb => {
       pb.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
         const m = b.dataset.m; closePop();
         if (m==='tap') return act(() => { c.tapped = !c.tapped; log(`《${nm(uid)}》を${c.tapped?'タップ':'アンタップ'}`); });
@@ -7715,7 +7740,8 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
         act(() => moveTo(uid, to, pos));
         after?.again && after.again();
       });
-    });
+    }, anc ? at : null);
+    if (anc && !hidden) zoomShow(uid);
   }
   function pickHost(uid){
     pop(`《${esc(nm(uid))}》を重ねる先`, `<div class="grid">${T.z.battle.map(u=>face(u)).join('')}</div>`, pb => {
@@ -7767,16 +7793,17 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
   }
 
   /* ---------- pointer: tap = menu, drag = move, hover = zoom ---------- */
-  let drag = null, tapWait = null;
+  let drag = null;
   function zoneAt(x, y){ const el = document.elementFromPoint(x, y); return el ? el.closest('.solo [data-zone]') : null; }
   function onDown(e){
     const el = e.target.closest('.solo .so-main .sc'); if (!el || e.button>0) return;
     drag = {uid:el.dataset.uid, el, x:e.clientX, y:e.clientY, moved:false, ghost:null, over:null, id:e.pointerId};
+    if (e.pointerType!=='mouse'){ const d = drag; d.lp = setTimeout(() => { if (drag===d && !d.moved){ d.long = true; cardMenu(d.uid, null, {x:d.x, y:d.y}); } }, 450); }
   }
   function onMove(e){
     if (!drag || e.pointerId!==drag.id) return;
     if (!drag.moved && Math.hypot(e.clientX-drag.x, e.clientY-drag.y) < 8) return;
-    if (!drag.moved){ drag.moved = true; const g = drag.el.cloneNode(true); g.classList.remove('tapped'); g.classList.add('so-ghost'); document.body.appendChild(g); drag.ghost = g; drag.el.style.opacity = '.35'; }
+    if (!drag.moved){ drag.moved = true; clearTimeout(drag.lp); const g = drag.el.cloneNode(true); g.classList.remove('tapped'); g.classList.add('so-ghost'); document.body.appendChild(g); drag.ghost = g; drag.el.style.opacity = '.35'; }
     drag.ghost.style.left = e.clientX+'px'; drag.ghost.style.top = e.clientY+'px';
     const z = zoneAt(e.clientX, e.clientY);
     if (z!==drag.over){ drag.over?.classList.remove('drop'); drag.over = z; z?.classList.add('drop'); }
@@ -7785,16 +7812,13 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
   function onUp(e){
     if (!drag || e.pointerId!==drag.id) return;
     const d = drag; drag = null;
+    clearTimeout(d.lp);
+    if (d.long) return;
     if (!d.moved){
-      // マウス：ダブルクリックでタップ／アンタップ（バトル・マナ）。1回だけならメニュー
+      // クリック：バトル・マナはタップ／アンタップ、それ以外は操作メニュー（右クリック・長押しはいつでもメニュー）
       const z0 = zoneOf(d.uid);
-      if (e.pointerType==='mouse' && (z0==='battle' || z0==='mana')){
-        if (tapWait && tapWait.uid===d.uid){ clearTimeout(tapWait.t); tapWait = null; return act(() => { const c = SC(d.uid); c.tapped = !c.tapped; log(`《${nm(d.uid)}》を${c.tapped?'タップ':'アンタップ'}`); }); }
-        if (tapWait) clearTimeout(tapWait.t);
-        tapWait = {uid:d.uid, t:setTimeout(() => { tapWait = null; cardMenu(d.uid); }, 260)};
-        return;
-      }
-      cardMenu(d.uid); return;
+      if (z0==='battle' || z0==='mana'){ closePop(); return act(() => { const c = SC(d.uid); c.tapped = !c.tapped; log(`《${nm(d.uid)}》を${c.tapped?'タップ':'アンタップ'}`); }); }
+      return cardMenu(d.uid, null, {x:e.clientX+4, y:e.clientY+4});
     }
     d.ghost.remove(); d.el.style.opacity = ''; d.over?.classList.remove('drop');
     const z = zoneAt(e.clientX, e.clientY); if (!z) return;
@@ -7817,11 +7841,6 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
     }
     act(() => moveTo(d.uid, to, 'top'));
   }
-  function onDbl(e){
-    const el = e.target.closest('.solo .so-main .sc'); if (!el) return;
-    const uid = el.dataset.uid, z = zoneOf(uid); if (z!=='battle' && z!=='mana') return;
-    closePop(); act(() => { const c = SC(uid); c.tapped = !c.tapped; log(`《${nm(uid)}》を${c.tapped?'タップ':'アンタップ'}`); });
-  }
   function onOver(e){
     if (drag?.moved) return;
     const el = e.target.closest('.solo .sc'); if (!el || el.classList.contains('back')) return;
@@ -7838,6 +7857,7 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
     if (a==='zoomt'){ try{ localStorage.setItem('dmsim-solo-zoom', localStorage.getItem('dmsim-solo-zoom')==='0'?'1':'0'); }catch(x){} return draw(); }
     if (a==='decks'){ openDeckManager(); const t = setInterval(() => { if (!document.querySelector('.dm')){ clearInterval(t); draw(); } }, 400); return; }
     if (a==='draw') return act(() => drawCards(1));
+    if (a==='hist') return pop(`操作履歴（${T.log.length}件）`, `<div class="so-log" style="max-height:none">${logHTML()}</div>`, pb => { pb.scrollTop = pb.scrollHeight; });
     if (a==='manaup'){ if (!T.z.mana.some(u=>SC(u).tapped)) return; return act(() => { untapAll('mana'); log('マナをすべてアンタップ'); }); }
     if (a==='next') return act(() => { T.turn++; untapAll('battle'); untapAll('mana'); log('ターン開始：すべてアンタップ', 1); drawCards(1, true); });
     const col_ = e.target.closest('[data-col]'); if (col_){ const k = col_.dataset.col; col[k] = !col[k]; try{ localStorage.setItem('dmsim-solo-col', JSON.stringify(col)); }catch(x){} return draw(); }
@@ -7871,7 +7891,7 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
     el.addEventListener('pointerover', e => { if (e.pointerType==='mouse') onOver(e); });
     el.addEventListener('click', onClick);
     el.addEventListener('change', onChange);
-    el.addEventListener('contextmenu', e => { if (e.target.closest('.sc')) e.preventDefault(); });
+    el.addEventListener('contextmenu', e => { const c = e.target.closest('.so-main .sc'); if (!c) return; e.preventDefault(); if (!drag?.long) cardMenu(c.dataset.uid, null, {x:e.clientX+2, y:e.clientY+2}); });
     document.addEventListener('keydown', e => {
       if (el.hidden || document.getElementById('soPop') || document.querySelector('.dm') || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
       if ((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); onClick({target:{closest:s=>s==='[data-a]'?{dataset:{a:e.shiftKey?'redo':'undo'}}:null}}); }
