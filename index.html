@@ -7653,6 +7653,7 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
         <select data-a="deck" aria-label="使うデッキ">${ds.map(d=>`<option value="${esc(d.id)}"${d.id===T.deckId?' selected':''}>${esc(d.name)}（${deckCount(d)}）</option>`).join('')}${ds.some(d=>d.id===T.deckId)?'':`<option selected>${esc(T.deckName)}</option>`}</select>
         <button data-a="decks">デッキ</button>
         <button data-a="reset">${ICO.shuffle}リセット</button>
+        <button data-a="manaup" title="マナゾーンのカードをすべてアンタップ">${ICO.untap}マナ全アンタップ</button>
         <span class="sp"></span>
         <button data-a="undo" ${U.length?'':'disabled'}>${ICO.undo}戻す</button>
         <button data-a="redo" ${R.length?'':'disabled'}>${ICO.redo}進む</button>
@@ -7766,7 +7767,7 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
   }
 
   /* ---------- pointer: tap = menu, drag = move, hover = zoom ---------- */
-  let drag = null;
+  let drag = null, tapWait = null;
   function zoneAt(x, y){ const el = document.elementFromPoint(x, y); return el ? el.closest('.solo [data-zone]') : null; }
   function onDown(e){
     const el = e.target.closest('.solo .so-main .sc'); if (!el || e.button>0) return;
@@ -7784,7 +7785,17 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
   function onUp(e){
     if (!drag || e.pointerId!==drag.id) return;
     const d = drag; drag = null;
-    if (!d.moved){ cardMenu(d.uid); return; }
+    if (!d.moved){
+      // マウス：ダブルクリックでタップ／アンタップ（バトル・マナ）。1回だけならメニュー
+      const z0 = zoneOf(d.uid);
+      if (e.pointerType==='mouse' && (z0==='battle' || z0==='mana')){
+        if (tapWait && tapWait.uid===d.uid){ clearTimeout(tapWait.t); tapWait = null; return act(() => { const c = SC(d.uid); c.tapped = !c.tapped; log(`《${nm(d.uid)}》を${c.tapped?'タップ':'アンタップ'}`); }); }
+        if (tapWait) clearTimeout(tapWait.t);
+        tapWait = {uid:d.uid, t:setTimeout(() => { tapWait = null; cardMenu(d.uid); }, 260)};
+        return;
+      }
+      cardMenu(d.uid); return;
+    }
     d.ghost.remove(); d.el.style.opacity = ''; d.over?.classList.remove('drop');
     const z = zoneAt(e.clientX, e.clientY); if (!z) return;
     const to = z.dataset.zone; const from = zoneOf(d.uid);
@@ -7827,6 +7838,7 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
     if (a==='zoomt'){ try{ localStorage.setItem('dmsim-solo-zoom', localStorage.getItem('dmsim-solo-zoom')==='0'?'1':'0'); }catch(x){} return draw(); }
     if (a==='decks'){ openDeckManager(); const t = setInterval(() => { if (!document.querySelector('.dm')){ clearInterval(t); draw(); } }, 400); return; }
     if (a==='draw') return act(() => drawCards(1));
+    if (a==='manaup'){ if (!T.z.mana.some(u=>SC(u).tapped)) return; return act(() => { untapAll('mana'); log('マナをすべてアンタップ'); }); }
     if (a==='next') return act(() => { T.turn++; untapAll('battle'); untapAll('mana'); log('ターン開始：すべてアンタップ', 1); drawCards(1, true); });
     const col_ = e.target.closest('[data-col]'); if (col_){ const k = col_.dataset.col; col[k] = !col[k]; try{ localStorage.setItem('dmsim-solo-col', JSON.stringify(col)); }catch(x){} return draw(); }
     const ls = e.target.closest('[data-list]'); if (ls) return zoneList(ls.dataset.list);
@@ -7856,7 +7868,6 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
     window.addEventListener('pointermove', onMove, {passive:false});
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', () => { if (drag){ drag.ghost?.remove(); drag.el.style.opacity=''; drag.over?.classList.remove('drop'); drag = null; } });
-    el.addEventListener('dblclick', onDbl);
     el.addEventListener('pointerover', e => { if (e.pointerType==='mouse') onOver(e); });
     el.addEventListener('click', onClick);
     el.addEventListener('change', onChange);
