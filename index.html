@@ -653,7 +653,7 @@ const isBlocker = c => !window.DMAI_NOBLOCK?.(c) && ((isCreature(side(c)) && /�
 const mach = c => /マッハファイター/.test(txt(c));
 // 出たターンか（進化して召喚酔いがなくなっても「出たターン」に変わりはない）
 const freshIn = c => c.sick || c.enteredT===S.turn;
-const speed = c => /スピードアタッカー/.test(txt(c));
+const speed = c => !!c.m?.sa || /スピードアタッカー/.test(txt(c)); // c.m.sa：手動でスピードアタッカーにした（場を離れると消える）
 const zoneArr = (p,z) => S.players[p][z];
 const inBattle = (p, pred) => zoneArr(p,'battle').map(C).filter(c => !pred || pred(c));
 const has = (p, name) => inBattle(p, c => cname(c).includes(name));
@@ -2810,6 +2810,7 @@ function badges(c){
   if (c.ex && C(c.ex)?.zone==='shield') b.push('<span class="bdg y">EX</span>');
   if (c.m.protect) b.push('<span class="bdg y">離れない</span>');
   if (c.m.frozen) b.push('<span class="bdg r">凍結</span>');
+  if (c.m.sa) b.push('<span class="bdg y">SA</span>');
   if (c.m.noAttack) b.push('<span class="bdg r">攻撃できない</span>');
   else if (c.m.noAttackPlayer) b.push('<span class="bdg r">プレイヤー攻撃不可</span>');
   if (c.m.destroyEOT) b.push('<span class="bdg r">終了時破壊</span>');
@@ -3096,6 +3097,9 @@ function renderDetail(){
   if (ownTurnCard && c.zone==='battle' && isCreature(side(c))) add('攻撃', ()=> c.owner==='me' ? userAttack(c.uid) : manualAttack(c.uid), !!canAttack(c,'player') && !inBattle(other(c.owner)).some(t=>!canAttack(c,t.uid)), 'primary');
   if (ownTurnCard && c.zone==='mana') add('マナから召喚', ()=> userUse(c.uid, true));
   if (c.zone==='battle' || c.zone==='mana') add(c.tapped?'アンタップ':'タップ', async()=>{ c.tapped=!c.tapped; });
+  // 効果で得たスピードアタッカーなど、自動で判定できないときに手で付ける
+  if (c.zone==='battle' && isCreature(side(c)) && c.sick && (c.m.sa || !/スピードアタッカー/.test(txt(c))))
+    add(c.m.sa ? 'スピードアタッカーを外す' : 'スピードアタッカーにする（出たターンに攻撃）', async()=>{ c.m.sa = !c.m.sa; log(`《${cname(c)}》を${c.m.sa?'スピードアタッカーにした（このターン攻撃できる）':'スピードアタッカーでなくした'}`, c.owner); });
   if (c.zone==='battle'){
     add('破壊', async()=>{ await leave(c.uid,'grave',{destroy:true}); log(`《${cname(c)}》を破壊`, actor); });
     add('ターン終了時に破壊', async()=>{ c.m.destroyEOT = !c.m.destroyEOT; });
