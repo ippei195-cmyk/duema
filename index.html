@@ -3094,7 +3094,7 @@ function renderDetail(){
     add('マナチャージ', async()=>{ place(c.uid,'mana'); S.charged=true; if (c.owner==='me' || oppMode()==='manual') brainNote('charge', c.cid); untapIfRule(c); log(`${PN[c.owner]}：《${cname(c)}》をマナチャージ`, c.owner); }, S.charged, 'primary');
     add('使う', ()=> c.owner==='me' ? userUse(c.uid) : manualUse(c.uid), false, 'primary');
   }
-  if (ownTurnCard && c.zone==='battle' && isCreature(side(c))) add('攻撃', ()=> c.owner==='me' ? userAttack(c.uid) : manualAttack(c.uid), !!canAttack(c,'player') && !inBattle(other(c.owner)).some(t=>!canAttack(c,t.uid)), 'primary');
+  if (ownTurnCard && c.zone==='battle' && isCreature(side(c))) add('攻撃', ()=> c.owner==='me' ? userAttack(c.uid) : manualAttack(c.uid), !!c.tapped, 'primary'); // 押せない理由をダイアログで出すため、タップ中以外は押せるようにしておく
   if (ownTurnCard && c.zone==='mana') add('マナから召喚', ()=> userUse(c.uid, true));
   if (c.zone==='battle' || c.zone==='mana') add(c.tapped?'アンタップ':'タップ', async()=>{ c.tapped=!c.tapped; });
   // 効果で得たスピードアタッカーなど、自動で判定できないときに手で付ける
@@ -3167,7 +3167,7 @@ async function manualAttack(uid){
   const targets = [];
   if (!canAttack(c,'player')) targets.push({label:'プレイヤー（あなた）', value:'player'});
   for (const t of inBattle('me', x=>isCreature(side(x)))) if (!canAttack(c,t.uid)) targets.push({label:`《${cname(t)}》`, value:t.uid});
-  if (!targets.length) return;
+  if (!targets.length){ await modal({title:'攻撃できません', html:`<p>${esc(canAttack(c,'player')||'攻撃できる相手がいない')}</p>`, buttons:[{label:'閉じる',value:1}]}); return; }
   const tgt = await modal({title:'攻撃先', buttons:[...targets,{label:'やめる',value:null}]});
   if (tgt===null) return;
   const r = await attack(uid, tgt); if (r.ok) await resolveAttack(r.pendingResolve);
