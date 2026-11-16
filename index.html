@@ -1955,7 +1955,7 @@ async function runSteps(steps, x, depth){
       case 'tap': ids().forEach(u => C(u).tapped = true); break;
       case 'untap': ids().forEach(u => C(u).tapped = false); break;
       case 'freeze': ids().forEach(u => { C(u).tapped = true; C(u).m.frozen = true; }); break;
-      case 'noattack': ids().forEach(u => C(u).m.noAttack = true); break;
+      case 'noattack': ids().forEach(u => { C(u).m.noAttack = true; log(`《${cname(C(u))}》はこのターン攻撃できない（効果）`); }); break;
       case 'protect': ids().forEach(u => { C(u).m.protect = true; C(u).m.protectUntil = C(u).owner; }); break;
       case 'power': ids().forEach(u => C(u).m.powerT = (C(u).m.powerT||0) + Number(st.delta||0)); break;
       case 'note': if (x.p==='me') S.pend.me.push({kind:'note', src:x.src, text:String(st.text||'')}); log('メモ：'+(st.text||'')); break;
@@ -2454,7 +2454,12 @@ async function userAttack(uid){
   const targets = [];
   if (!canAttack(c,'player')) targets.push({label:'相手プレイヤー', value:'player'});
   for (const t of inBattle('op', x=>isCreature(side(x)))) if (!canAttack(c,t.uid)) targets.push({label:`《${cname(t)}》`, value:t.uid});
-  if (!targets.length){ await modal({title:'攻撃できません', html:`<p>${esc(canAttack(c,'player')||'攻撃できる相手がいない')}</p>`, buttons:[{label:'閉じる',value:1}]}); return; }
+  if (!targets.length){
+    const why = canAttack(c,'player')||'攻撃できる相手がいない';
+    const v = await modal({title:'攻撃できません', html:`<p>${esc(why)}</p>`, buttons:[...(c.m.noAttack?[{label:'「このターン攻撃できない」を解除して攻撃',value:'lift',primary:true}]:[]),{label:'閉じる',value:1}]});
+    if (v==='lift'){ c.m.noAttack=false; log(`《${cname(c)}》の「このターン攻撃できない」を解除`, c.owner); return userAttack(uid); }
+    return;
+  }
   const tgt = await modal({title:'攻撃先', html:`<p>《${esc(cname(c))}》（パワー${power(c)}、${breakers(c)>50?'すべて':breakers(c)+'枚'}ブレイク）</p>`, buttons:[...targets, {label:'やめる', value:null}]});
   if (tgt===null) return;
   const r = await attack(uid, tgt);
@@ -3103,7 +3108,7 @@ function renderDetail(){
   if (c.zone==='battle'){
     add('破壊', async()=>{ await leave(c.uid,'grave',{destroy:true}); log(`《${cname(c)}》を破壊`, actor); });
     add('ターン終了時に破壊', async()=>{ c.m.destroyEOT = !c.m.destroyEOT; });
-    add('このターン攻撃不可', async()=>{ c.m.noAttack = true; });
+    add(c.m.noAttack ? '「このターン攻撃不可」を解除' : 'このターン攻撃不可', async()=>{ c.m.noAttack = !c.m.noAttack; log(`《${cname(c)}》${c.m.noAttack?'はこのターン攻撃できない（手動）':'の「このターン攻撃できない」を解除'}`, actor); });
     add(c.m.protect ? '「離れない」を解除' : '離れない（次の自分のターンのはじめまで）', async()=>{ if (c.m.protect){ c.m.protect=false; log(`《${cname(c)}》の「離れない」を解除`, actor); } else { c.m.protect=true; c.m.protectUntil=c.owner; log(`《${cname(c)}》は次の${PN[c.owner]}のターンのはじめまで離れない`, actor); } });
     add('パワー+/−', async()=>{ const v = await modal({title:'このターンのパワー修正', buttons:[-5000,-3000,-1000,1000,3000,5000,9000].map(n=>({label:(n>0?'+':'')+n, value:n})).concat([{label:'やめる',value:0}])}); c.m.powerT=(c.m.powerT||0)+v; });
   }
