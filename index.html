@@ -6334,6 +6334,8 @@ JSONだけで答える：{"rows":[{"no":1,"name":"カード名"}]}`;
 /* ---------- デッキ作成：閉じる前に「一時保存しますか？」と聞き、次に開いた時に続きから再開する ---------- */
 // 下書きはこのブラウザの localStorage（dmai-deck-drafts、デッキの id ごと）。本当に「保存」したらそのデッキの下書きは消す。
 // 閉じ方は「← 一覧」と、デッキ画面の外側のタップの2つ。どちらも変更があれば確認を出す
+// 2026-11-16 追加（一平「離れるとき確認を入れて」）：ブラウザの戻る（スマホの戻るジェスチャー）でも同じ確認を出す。
+// ページを閉じる・再読み込みする時はブラウザの確認を出し、アプリを切り替えた・閉じた時も変更を自動で一時保存する（次に開くと「続きから」）。
 (() => {
   const wrap = (name, f) => { const orig = window[name]; if (typeof orig !== 'function') { console.warn('dmai patch: missing ' + name); return; } window[name] = f(orig); };
   const KEY = 'dmai-deck-drafts';
@@ -6344,6 +6346,21 @@ JSONだけで答える：{"rows":[{"no":1,"name":"カード名"}]}`;
   const when = t => { const x = new Date(t); return `${x.getMonth() + 1}/${x.getDate()} ${x.getHours()}:${String(x.getMinutes()).padStart(2, '0')}`; };
   const saved = new WeakMap();   // 保存したデッキ → 保存した時の中身
   let resume = null;             // 一覧の「続きから」で開く下書き
+  let cur = null;                // 開いているデッキ作成画面 {box, dirty, autosave, leave, back}
+  const open = () => cur && cur.box.isConnected && cur.box.querySelector('.ed-top') ? cur : null;
+  // 戻る：デッキ作成画面を開いた時に履歴を1つ積み、戻るで消えたら確認してから閉じる（残るなら積み直す）
+  let pushed = false;
+  const pushGuard = () => { if (pushed) return; try { history.pushState({ dmaiEd: 1 }, ''); pushed = true; } catch (_) {} };
+  const popGuard = () => { if (!pushed) return; pushed = false; try { if (history.state && history.state.dmaiEd) history.back(); } catch (_) {} };
+  addEventListener('popstate', () => {
+    if (!pushed) return; pushed = false;
+    const c = open(); if (!c) return;
+    pushGuard(); c.leave(c.back);
+  });
+  addEventListener('beforeunload', e => { const c = open(); if (c && c.dirty()) { c.autosave(); e.preventDefault(); e.returnValue = ''; } });
+  const hide = () => { const c = open(); if (c) c.autosave(); };
+  addEventListener('pagehide', hide);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') hide(); });
 
   wrap('saveDeck', o => async function (d) {
     const r = await o.apply(this, arguments);
@@ -6374,17 +6391,24 @@ JSONだけで答える：{"rows":[{"no":1,"name":"カード名"}]}`;
     const base = snap(d);
     const dirty = () => snap(d) !== (saved.get(d) ?? base);
     const root = box.parentElement;
+    const prev = load()[d.id] || null; // 開いた時の一時保存（「保存しないで閉じる」ならこれに戻す）
+    const putDraft = auto => { const all = load(); all[d.id] = { name: d.name, cards: d.cards.map(x => x.slice()), at: Date.now(), ...(auto ? { auto: true } : {}) }; store(all); };
+    const keepPrev = () => { const all = load(); if (prev) all[d.id] = prev; else delete all[d.id]; store(all); };
     let busy = false;
     const leave = async then => {
       if (busy) return;
       if (dirty()) {
         busy = true; const a = await ask(d); busy = false;
         if (a === 'stay') return;
-        if (a === 'save') { const all = load(); all[d.id] = { name: d.name, cards: d.cards.map(x => x.slice()), at: Date.now() }; store(all); }
-      }
+        if (a === 'save') putDraft(false); else keepPrev();
+      } else if (load()[d.id] && load()[d.id].auto) keepPrev(); // 自動の一時保存だけが残っていたら消す
       if (root) root._dmaiLeave = null;
+      if (cur && cur.box === box) cur = null;
+      popGuard();
       then();
     };
+    cur = { box, dirty, leave, back: () => back(), autosave: () => { if (dirty()) putDraft(true); } };
+    pushGuard();
     if (root) {
       root._dmaiLeave = leave;
       // デッキ画面の外側のタップ（元の処理は画面ごと閉じる）。capture で先に受けて、確認してから元の処理に回す
@@ -6408,7 +6432,7 @@ JSONだけで答える：{"rows":[{"no":1,"name":"カード名"}]}`;
       const all = load(); const ids = Object.keys(all).sort((a, b) => all[b].at - all[a].at);
       if (!ids.length) return;
       const el = document.createElement('div'); el.className = 'dmai-drafts'; el.style.cssText = 'display:flex;flex-direction:column;gap:6px';
-      el.innerHTML = ids.map(id => { const v = all[id]; return `<div class="deckrow" style="border-color:var(--accent)"><div style="min-width:0"><div class="t">${esc(v.name || '名前のないデッキ')}<span class="tag">一時保存</span></div><div class="s">${n(v)}枚・${when(v.at)} に一時保存</div></div>
+      el.innerHTML = ids.map(id => { const v = all[id]; return `<div class="deckrow" style="border-color:var(--accent)"><div style="min-width:0"><div class="t">${esc(v.name || '名前のないデッキ')}<span class="tag">一時保存</span></div><div class="s">${n(v)}枚・${when(v.at)} に${v.auto ? '自動で' : ''}一時保存</div></div>
         <div class="b"><button class="primary" data-dgo="${esc(id)}">続きから</button><button class="warn" data-ddel="${esc(id)}">破棄</button></div></div>`; }).join('');
       el.querySelectorAll('[data-dgo]').forEach(b => b.onclick = () => { const v = load()[b.dataset.dgo]; if (!v) return; resume = { id: b.dataset.dgo, name: v.name, cards: v.cards.map(x => x.slice()) }; box.querySelector('#dNew').click(); });
       el.querySelectorAll('[data-ddel]').forEach(b => b.onclick = () => {
@@ -6426,6 +6450,329 @@ JSONだけで答える：{"rows":[{"no":1,"name":"カード名"}]}`;
   st.textContent = '.dm.dmai-ask{z-index:60}.dm.dmai-ask .box{max-width:440px}';
   document.head.appendChild(st);
 })();
+
+/* ---------- こんなカードない？（質問で探す・効果タグ） ---------- */
+// 2026-11-16 一平の依頼。デッキ作成画面の検索欄の下に「こんなカードない？」の質問欄と、デッキメーカーのタグ絞り込みに当たる効果タグを足す。
+// 質問はこの端末で読み解く（文明・コスト・パワー・カードタイプ・種族・効果の言葉）。Claude が使える時（形勢ヘルプのAPIキー、
+// または claude.ai の利用枠）は「Claudeにも聞く」で、質問を条件に直してもらい、候補の中から本当に合うカードを理由つきで選んでもらう。
+// 絞り込みは対戦卓の検索（META）を一時的に候補だけにして、元の検索・絞り込み・並べ替えと組み合わせる。画面を閉じたら元に戻す。
+(() => {
+  const wrap = (name, f) => { const orig = window[name]; if (typeof orig !== 'function') { console.warn('dmai patch: missing ' + name); return; } window[name] = f(orig); };
+  const NF = s => String(s || '').normalize('NFKC');
+  const noNote = s => s.replace(/[（(][^（）()]*[）)]/g, ''); // 注釈（かっこ書き）は効果の判定に使わない
+
+  /* 効果タグ：[名前, 正規表現, 質問で使われる言い方] */
+  const TAGS = [
+    ['ドロー', /カードを\d*枚(まで)?引|(\d+|好きな数|その数)枚(まで)?引く|カードを引く/, ['ドロー', '引く', '引ける', '手札補充', '手札を増や']],
+    ['サーチ', /山札(を見|の中から|から).{0,60}手札に(加え|する)/, ['サーチ', '探す', '山札から手札', '手札に加える']],
+    ['墓地回収', /墓地.{0,40}手札に(戻|加え)/, ['墓地回収', '回収', '墓地から手札']],
+    ['墓地から出す', /墓地(から|にある).{0,50}(出す|出して|出る|唱え)/, ['リアニ', '蘇生', '墓地から出', '墓地から唱え', '墓地から召喚']],
+    ['踏み倒し', /コストを支払わずに|(手札|山札|墓地|マナゾーン)から.{0,40}出(す|して|てもよい)/, ['踏み倒', 'コストを支払わず', 'タダで', '無料で']],
+    ['コスト軽減', /コストを\d*少なく|少なくする/, ['軽減', 'コストを下げ', '安く', '少なくする']],
+    ['マナ加速', /山札の上から.{0,30}マナゾーンに置|カードを\d*枚(まで)?.{0,20}マナゾーンに置|自分の手札.{0,20}マナゾーンに置/, ['マナ加速', 'ブースト', 'マナを増や', 'マナが増え', 'チャージ']],
+    ['破壊', /相手.{0,60}破壊(する|して)|(すべて|全て)破壊|選び、破壊/, ['破壊', '倒す', '倒せ']],
+    ['バウンス', /(相手|すべて|全て).{0,60}手札に戻/, ['バウンス', '手札に戻']],
+    ['マナ送り', /相手.{0,60}マナゾーンに置/, ['マナ送り', 'マナに送', 'マナゾーンに送']],
+    ['シールド送り', /相手.{0,60}シールド(化|ゾーンに置|に加え)/, ['シールド送り', 'シールドに送', 'シールド化させ']],
+    ['山札送り', /相手.{0,60}山札の(下|上)に/, ['山札送り', '山札の下', 'デッキボトム', 'ボトム']],
+    ['ハンデス', /相手.{0,40}手札.{0,40}捨て/, ['ハンデス', '手札破壊', '手札を捨て', '捨てさせ']],
+    ['タップ', /相手.{0,40}(選び|すべて|全て)、?タップ|をタップする/, ['タップ']],
+    ['攻撃・ブロック制限', /相手.{0,60}(攻撃|ブロック)(も|も、)?(できない|しない)|アンタップしない/, ['攻撃できな', '攻撃させな', '攻撃を止', 'ブロックできな', 'フリーズ', 'ロック']],
+    ['召喚・呪文メタ', /相手.{0,80}(唱えられない|出せない|召喚できない|使えない|出られない|多く支払|置けない)|かわりに.{0,20}(墓地|山札)に置く/, ['メタ', '唱えられな', '召喚できな', '出せな', '封じ', '妨害']],
+    ['シールド追加', /(自分の|カードを).{0,40}(シールド化|シールドゾーンに置|シールドを\d*つ追加|新しいシールド)/, ['シールドを増や', 'シールド追加', 'シールドを足', 'シールド化']],
+    ['シールド回収', /シールド(を|から).{0,30}手札に(加え|戻)/, ['シールドを手札', 'シールド回収']],
+    ['アンタップ', /アンタップする|アンタップして/, ['アンタップ', '起き上が']],
+    ['S・トリガー', /S・トリガー/, ['トリガー', 'S・トリガー', 'Sトリ', '受け']],
+    ['G・ストライク', /G・ストライク/, ['G・ストライク', 'Gストライク', 'ストライク']],
+    ['ブロッカー', /ブロッカー(?![をのがはと])/, ['ブロッカー']],
+    ['スピードアタッカー', /スピードアタッカー|召喚酔いしない/, ['スピードアタッカー', 'SA', '速攻', 'すぐ攻撃', '出たターンに攻撃']],
+    ['マッハファイター', /マッハファイター/, ['マッハファイター']],
+    ['ブレイカー', /(W|T|Q|ワールド|パワード)・ブレイカー/, ['ブレイカー', '2枚ブレイク', '複数ブレイク']],
+    ['選ばれない', /選べない|選ばれない/, ['選ばれな', 'アンタッチャブル']],
+    ['除去耐性', /離れない|破壊されない|かわりに.{0,30}(とどまる|残る)/, ['除去されな', '破壊されな', '離れな', '耐性', 'しぶと']],
+    ['ブロックされない', /ブロックされない/, ['ブロックされな', 'アンブロッカブル']],
+    ['追加ターン', /追加ターン|ターンを追加|追加のターン/, ['追加ターン', 'エクストラターン']],
+    ['エクストラウィン', /ゲームに勝/, ['エクストラウィン', '特殊勝利', 'ゲームに勝']],
+    ['革命チェンジ', /革命チェンジ/, ['革命チェンジ']],
+    ['侵略', /侵略/, ['侵略']],
+    ['ハイパー化', /ハイパー化|ハイパーエナジー|Zラッシュ/, ['ハイパー化', 'ハイパーエナジー', 'Zラッシュ']],
+    ['ガードマン', /ガードマン|かわりにこのクリーチャーを破壊/, ['ガードマン', '身代わり']],
+  ];
+  // 「除去」はまとめて：どれか1つ持っていればよい
+  const GROUPS = { '除去': ['破壊', 'バウンス', 'マナ送り', 'シールド送り', '山札送り'] };
+  const GROUP_WORDS = { '除去': ['除去', '処理', 'どかす', '退か'] };
+
+  let TAGOF = null; // cid → Set(タグ名)
+  function tagIndex() {
+    if (TAGOF) return TAGOF;
+    TAGOF = new Map();
+    for (const cid of Object.keys(FULL)) {
+      const full = NF(FULL[cid][6]); const body = noNote(full); const s = new Set();
+      for (const [n, re] of TAGS) if (re.test(['S・トリガー', 'G・ストライク', 'ブロッカー', 'スピードアタッカー', 'マッハファイター', 'ブレイカー', '革命チェンジ', '侵略', 'ハイパー化', 'ガードマン'].includes(n) ? full : body)) s.add(n);
+      TAGOF.set(cid, s);
+    }
+    return TAGOF;
+  }
+
+  /* 質問を条件に直す（この端末だけで） */
+  const CIVW = [['火', /火|赤/], ['水', /水|青/], ['光', /光|黄|白/], ['闇', /闇|黒/], ['自然', /自然|緑/]];
+  const TYPEW = [['進化', /進化/], ['ツイン', /ツインパクト/], ['呪文', /呪文/], ['クリーチャー', /クリーチャー|生物/], ['城', /城/], ['クロスギア', /クロスギア/], ['フィールド', /フィールド/], ['タマシード', /タマシード/], ['オーラ', /オーラ/]];
+  let RACES = null;
+  function races() {
+    if (RACES) return RACES;
+    const set = new Set();
+    for (const cid of Object.keys(FULL)) for (const r of NF(FULL[cid][5]).split(/[\/／]/)) { const t = r.trim(); if (t.length >= 3) set.add(t); }
+    return (RACES = [...set].sort((a, b) => b.length - a.length));
+  }
+  function parse(q0) {
+    let q = NF(q0).replace(/\s+/g, ' ');
+    const c = { civs: [], multi: false, mono: false, cmin: null, cmax: null, pmin: null, pmax: null, type: '', race: '', tags: [], groups: [], words: [] };
+    // 「」《》で囲んだ言葉は文にそのまま含むものとして探す
+    q = q.replace(/[「《『"]([^」》』"]+)[」》』"]/g, (_, w) => { c.words.push(w); return ' '; });
+    const num = s => Number(String(s).replace(/[^\d]/g, ''));
+    let m;
+    if ((m = q.match(/(?:コスト|コス)\s*(\d+)\s*(以下|以上|未満|まで|より(?:小さい|大きい|上|下|軽い|重い))?/) || q.match(/(\d+)\s*(?:コスト|コス)\s*(以下|以上|未満|まで)?/))) {
+      const v = num(m[1]), k = m[2] || '';
+      if (/以下|まで|小さい|下|軽い/.test(k)) c.cmax = v; else if (/未満/.test(k)) c.cmax = v - 1; else if (/以上|大きい|上|重い/.test(k)) c.cmin = v; else { c.cmin = v; c.cmax = v; }
+    } else if (/軽量|低コスト|軽い/.test(q)) c.cmax = 3; else if (/高コスト|重い|大型/.test(q)) c.cmin = 7;
+    if ((m = q.match(/パワー\s*(\d+)\s*(以下|以上|未満)?/))) { const v = num(m[1]), k = m[2] || '以上'; if (/以下/.test(k)) c.pmax = v; else if (/未満/.test(k)) c.pmax = v - 1; else c.pmin = v; }
+    for (const [civ, re] of CIVW) if (re.test(q.replace(/自然文|火力|水増|光る|白紙/g, ''))) c.civs.push(civ);
+    if (/多色|マルチカラー|レインボー/.test(q)) c.multi = true;
+    if (/単色/.test(q)) c.mono = true;
+    for (const [t, re] of TYPEW) if (re.test(q)) { c.type = t; break; }
+    const qr = norm(q);
+    for (const r of races()) if (qr.includes(norm(r))) { c.race = r; break; }
+    for (const [n, , ws] of TAGS) if (ws.some(w => q.includes(w) || qr.includes(norm(w)))) c.tags.push(n);
+    for (const g in GROUP_WORDS) if (GROUP_WORDS[g].some(w => q.includes(w))) c.groups.push(g);
+    // タグの言葉が「破壊されない」の一部なら「破壊」は外す
+    if (c.tags.includes('除去耐性')) c.tags = c.tags.filter(t => t !== '破壊');
+    if (c.tags.includes('攻撃・ブロック制限') && !/タップ/.test(q.replace(/アンタップ/g, ''))) c.tags = c.tags.filter(t => t !== 'タップ');
+    if (c.tags.includes('アンタップ') && !/(?<!アン)タップ/.test(q)) c.tags = c.tags.filter(t => t !== 'タップ');
+    if (c.tags.includes('ブロックされない')) c.tags = c.tags.filter(t => t !== 'ブロッカー' && t !== '攻撃・ブロック制限');
+    if (c.race && c.type === 'クリーチャー' && /クリーチャー/.test(c.race)) c.type = '';
+    return c;
+  }
+  const empty = c => !c || (!c.civs.length && !c.multi && !c.mono && c.cmin == null && c.cmax == null && c.pmin == null && c.pmax == null && !c.type && !c.race && !c.tags.length && !c.groups.length && !c.words.length && !(c.any && c.any.length));
+  function test(m, c, tg) {
+    if (c.civs.length) { if (c.multi ? !c.civs.every(v => m.civs.includes(v)) : !c.civs.some(v => m.civs.includes(v))) return false; }
+    if (c.multi && m.civs.length < 2) return false;
+    if (c.mono && m.civs.length !== 1) return false;
+    if (c.cmin != null && m.cost < c.cmin) return false;
+    if (c.cmax != null && m.cost > c.cmax) return false;
+    if (c.pmin != null && !(m.power >= c.pmin)) return false;
+    if (c.pmax != null && !(m.power <= c.pmax)) return false;
+    if (c.type) { if (c.type === 'ツイン' ? !m.type.includes(' / ') : c.type === 'クリーチャー' ? !/クリーチャー/.test(m.type) : !m.type.includes(c.type)) return false; }
+    if (c.race && !norm(m.race).includes(norm(c.race))) return false;
+    const t = tg.get(m.cid) || new Set();
+    for (const n of c.tags) if (!t.has(n)) return false;
+    for (const g of c.groups) if (!GROUPS[g].some(n => t.has(n))) return false;
+    if (c.words.length || (c.any && c.any.length)) {
+      const tx = norm(m.name + m.text + m.race);
+      for (const w of c.words) if (!tx.includes(norm(w))) return false;
+      if (c.any && c.any.length && !c.any.some(w => tx.includes(norm(w)))) return false;
+    }
+    return true;
+  }
+  const label = c => [
+    ...(c.civs.length ? [c.civs.join(c.multi ? '＋' : '・')] : []), ...(c.multi && !c.civs.length ? ['多色'] : []), ...(c.mono ? ['単色'] : []),
+    ...(c.cmin != null || c.cmax != null ? [c.cmin === c.cmax ? `コスト${c.cmin}` : `コスト${c.cmin ?? ''}〜${c.cmax ?? ''}`] : []),
+    ...(c.pmin != null || c.pmax != null ? [`パワー${c.pmin ?? ''}〜${c.pmax ?? ''}`] : []),
+    ...(c.type ? [c.type === 'ツイン' ? 'ツインパクト' : c.type] : []), ...(c.race ? [c.race] : []),
+    ...c.groups, ...c.tags, ...c.words.map(w => `「${w}」`), ...((c.any && c.any.length) ? [`「${c.any.join('」か「')}」`] : []),
+  ];
+
+  /* Claude（APIキーがあれば直接、claude.ai なら利用枠） */
+  const apiKey = () => { try { return localStorage.getItem('dmai-eval-key') || ''; } catch (e) { return ''; } };
+  const canClaude = () => !!(apiKey() || (typeof sampleFn !== 'undefined' && sampleFn));
+  async function askJSON(prompt, tier) {
+    const key = apiKey();
+    if (key) {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2026-10-21', 'anthropic-beta': 'server-side-fallback-2026-07-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: 'claude-sonnet-5-5', max_tokens: 3000, fallbacks: 'default', output_config: { effort: 'low' }, messages: [{ role: 'user', content: prompt }] })
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + res.status));
+      const txt = (j.content || []).filter(x => x.type === 'text').map(x => x.text).join('\n');
+      const mm = txt.match(/\{[\s\S]*\}/); if (!mm) throw new Error('答えを読めませんでした'); return JSON.parse(mm[0]);
+    }
+    return sampleFn.json(prompt, { modelTier: tier || 'default', cache: false });
+  }
+  const TAGNAMES = TAGS.map(t => t[0]);
+  async function claudeConds(q) {
+    const r = await askJSON(`デュエル・マスターズのデッキ作りで「${q}」と聞かれた。カード検索の条件に直す。
+使える効果タグ（カードの文から自動でつけたもの）：${TAGNAMES.join('、')}。「除去」と言われたら groups に "除去"（破壊・バウンス・マナ送り・シールド送り・山札送りのどれか）。
+words はカードの文・名前・種族に必ず含まれる短い言葉（公式の書き方。例：「捨てる」「タップ」「出た時」）。any はどれか1つ含めばよい言葉。言い換えが多い効果は any にいくつか並べる。条件を付けすぎない。
+文明は 火・水・光・闇・自然。type は クリーチャー・呪文・進化・ツイン・城・クロスギア・フィールド・タマシード のどれかか空。
+JSONだけで答える：{"civs":[],"multi":false,"cmin":null,"cmax":null,"pmin":null,"pmax":null,"type":"","race":"","tags":[],"groups":[],"words":[],"any":[]}`, 'quick');
+    const arr = v => Array.isArray(v) ? v.map(String).filter(Boolean) : [];
+    const n = v => (v === null || v === undefined || v === '' || isNaN(+v)) ? null : +v;
+    return { civs: arr(r.civs).filter(v => CIVS.includes(v)), multi: !!r.multi, mono: false, cmin: n(r.cmin), cmax: n(r.cmax), pmin: n(r.pmin), pmax: n(r.pmax),
+      type: TYPEW.some(t => t[0] === r.type) ? r.type : '', race: String(r.race || ''), tags: arr(r.tags).filter(t => TAGNAMES.includes(t)), groups: arr(r.groups).filter(g => GROUPS[g]), words: arr(r.words).slice(0, 4), any: arr(r.any).slice(0, 8) };
+  }
+  async function claudePick(q, cands) {
+    const list = cands.map(m => `${m.cid}｜${m.name}｜${m.civs.join('/') || '無色'}｜コスト${m.cost}｜${m.type}｜${NF(m.text).replace(/\s+/g, ' ').slice(0, 220)}`).join('\n');
+    const r = await askJSON(`デュエル・マスターズのデッキ作りで「${q}」と聞かれた。下の候補（id｜名前｜文明｜コスト｜タイプ｜カードの文）から、質問に本当に合うカードを、合う順に最大15枚選ぶ。
+文をよく読み、条件を満たさないカードは選ばない。合うものがなければ空でよい。理由は40字以内で、どの効果が合うかを書く。
+JSONだけで答える：{"say":"全体の答え（60字以内）","cards":[{"id":"候補のid","why":"理由"}]}
+
+${list}`, 'default');
+    const ok = new Set(cands.map(m => m.cid));
+    return { say: String(r.say || ''), cards: (Array.isArray(r.cards) ? r.cards : []).filter(x => x && ok.has(String(x.id))).map(x => ({ cid: String(x.id), why: String(x.why || '') })) };
+  }
+
+  /* 画面 */
+  let ALL = null;
+  const all = () => { if (!ALL || (META && META.length > ALL.length)) ALL = META; return ALL; };
+  const restore = () => { if (ALL) META = ALL; };
+  function apply(box) {
+    const A = box._dmaiAsk; const base = all();
+    const c = A.cond ? JSON.parse(JSON.stringify(A.cond)) : { civs: [], multi: false, mono: false, cmin: null, cmax: null, pmin: null, pmax: null, type: '', race: '', tags: [], groups: [], words: [] };
+    for (const t of A.tags) if (!c.tags.includes(t)) c.tags.push(t);
+    if (A.ai && A.ai.cards && A.ai.cards.length && !A.showAll) {
+      const by = new Map(base.map(m => [m.cid, m]));
+      META = A.ai.cards.map(x => by.get(x.cid)).filter(Boolean);
+    } else if (empty(c)) META = base;
+    else { const tg = tagIndex(); META = base.filter(m => test(m, c, tg)); }
+    A.count = META === base ? null : META.length;
+    const s = box.querySelector('#eSort'); if (s) s.dispatchEvent(new Event('change'));
+    refresh(box);
+  }
+  function panelHTML(A) {
+    const conds = A.cond ? label(A.cond) : [];
+    const ai = A.ai;
+    return `<div class="dmai-q">
+      <div class="ar"><input id="askQ" type="search" placeholder="こんなカードない？　例：闇のコスト3以下でハンデスできるクリーチャー" value="${esc(A.q)}" aria-label="こんなカードない？">
+        <button id="askGo" class="primary">探す</button>${A.q || A.tags.size ? '<button id="askClr">やめる</button>' : ''}</div>
+      ${canClaude() ? `<label class="help"><input type="checkbox" id="askAI" ${A.useAI ? 'checked' : ''}> Claudeにも聞く（文を読んで本当に合うカードを選び、理由をつけます。${apiKey() ? '形勢ヘルプのAPIキーを使います' : '利用枠を使います'}）</label>` : ''}
+      <div class="tagrow" aria-label="効果タグ"><span class="fl">効果タグ</span>${[...Object.keys(GROUPS), ...TAGNAMES].map(t => `<button class="chip ${A.tags.has(t) || (A.cond && (A.cond.tags.includes(t) || A.cond.groups.includes(t))) ? 'on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+      ${A.busy ? `<div class="voice thinking">${esc(A.busy)}</div>` : ''}
+      ${A.err ? `<div class="warn">${esc(A.err)}</div>` : ''}
+      ${conds.length || A.tags.size ? `<div class="help">条件：${[...conds, ...[...A.tags].filter(t => !(A.cond && A.cond.tags.includes(t)))].map(esc).join('・')}${A.count != null && !(ai && ai.cards.length && !A.showAll) ? `　→ ${A.count.toLocaleString()}枚（下の検索・絞り込みとも組み合わせます）` : ''}${A.cond && !A.cond.fromAI && !A.ai && A.q ? '　<span class="muted">違う時は言い方を変えるかタグで</span>' : ''}</div>` : (A.q && !A.busy ? '<div class="warn">質問から条件を読み取れませんでした。効果タグを押すか、「コスト3以下」「ハンデス」のように書いてください。</div>' : '')}
+      ${ai ? `<div class="ans"><div class="say">${esc(ai.say || (ai.cards.length ? '' : '合うカードが見つかりませんでした。'))}</div>
+        ${ai.cards.length ? `<ol>${ai.cards.map(x => `<li><button class="link" data-pick="${esc(x.cid)}">${esc(DB[x.cid] ? DB[x.cid].name : x.cid)}</button>　${esc(x.why)}</li>`).join('')}</ol>
+        <button id="askAll">${A.showAll ? 'Claudeが選んだカードだけ表示' : `条件に合う全部（${A.pool}枚）を表示`}</button>` : ''}</div>` : ''}
+    </div>`;
+  }
+  // 置き場所：古いデッキ画面（.ed-search）は検索欄の上に常に出す。デッキメーカー風の画面（.dk-foot）は下の「質問」ボタンから下のシートで開く
+  function refresh(box) {
+    box.querySelectorAll('.dmai-q, .dmai-qsheet, #askB').forEach(e => e.remove());
+    inject(box);
+  }
+  function inject(box) {
+    const A = box._dmaiAsk; if (!A) return;
+    const foot = box.querySelector('.dk-foot');
+    if (foot) {
+      if (!box.querySelector('#askB')) {
+        const active = !!(A.cond || A.tags.size || A.ai);
+        const b = document.createElement('button'); b.id = 'askB'; b.className = 'dk-fb'; b.setAttribute('aria-label', 'こんなカードない？');
+        b.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 3a7 7 0 0 0-7 7c0 2.4 1.2 4.1 3 5.3V18h8v-2.7c1.8-1.2 3-2.9 3-5.3a7 7 0 0 0-7-7z"/><path d="M10 21h4"/></svg><span>質問</span>' + (active ? '<i>!</i>' : '');
+        b.onclick = () => { A.open = !A.open; refresh(box); if (A.open) setTimeout(() => box.querySelector('#askQ')?.focus(), 50); };
+        const f = foot.querySelector('#eF'); f ? f.insertAdjacentElement('beforebegin', b) : foot.appendChild(b);
+      }
+      if (A.open && !box.querySelector('.dmai-qsheet')) {
+        const el = document.createElement('div'); el.className = 'dk-sheet dmai-qsheet';
+        el.innerHTML = `<div class="dk-sbg" data-qclose></div><div class="dk-sbox" role="dialog" aria-label="こんなカードない？"><div class="dk-shead"><b>こんなカードない？</b><button class="dk-ib" data-qclose aria-label="閉じる">×</button></div>${panelHTML(A)}
+          <div class="dk-sacts"><span class="spacer"></span><button class="primary" data-qclose>${(A.count != null ? A.count : (typeof META !== 'undefined' && META ? META.length : 0)).toLocaleString()}件を見る</button></div></div>`;
+        box.appendChild(el);
+        el.querySelectorAll('[data-qclose]').forEach(x => x.onclick = () => { A.open = false; refresh(box); });
+        bindPanel(box, el);
+      }
+      return;
+    }
+    const srch = box.querySelector('.ed-search'); if (!srch || box.querySelector('.dmai-q')) return;
+    srch.insertAdjacentHTML('beforebegin', panelHTML(A));
+    bindPanel(box, box.querySelector('.dmai-q'));
+  }
+  function bindPanel(box, root) {
+    const A = box._dmaiAsk;
+    const $b = q => root.querySelector(q);
+    const qi = $b('#askQ');
+    qi.oninput = () => { A.q = qi.value; };
+    qi.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); A.q = qi.value; run(box); } };
+    $b('#askGo').onclick = () => { A.q = qi.value; run(box); };
+    $b('#askClr') && ($b('#askClr').onclick = () => { if (A.ctl) A.ctl.abort = true; Object.assign(A, { q: '', cond: null, ai: null, err: '', busy: '', showAll: false }); A.tags.clear(); apply(box); });
+    $b('#askAI') && ($b('#askAI').onchange = e => { A.useAI = e.target.checked; try { localStorage.setItem('dmai-q-ai', A.useAI ? '1' : '0'); } catch (x) {} });
+    $b('#askAll') && ($b('#askAll').onclick = () => { A.showAll = !A.showAll; apply(box); });
+    root.querySelectorAll('[data-tag]').forEach(b => b.onclick = () => {
+      const t = b.dataset.tag;
+      if (A.cond && (A.cond.tags.includes(t) || A.cond.groups.includes(t))) { A.cond.tags = A.cond.tags.filter(x => x !== t); A.cond.groups = A.cond.groups.filter(x => x !== t); }
+      else if (GROUPS[t]) { A.cond = A.cond || parse(''); if (!A.cond.groups.includes(t)) A.cond.groups.push(t); }
+      else A.tags.has(t) ? A.tags.delete(t) : A.tags.add(t);
+      A.ai = null; A.showAll = false; apply(box);
+    });
+    root.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
+      const cid = b.dataset.pick;
+      if (box.querySelector('.dk-foot')) { // 詳細シートを開く（候補の横並びにあれば i ボタン）
+        A.open = false; refresh(box);
+        const i = box.querySelector(`#eGrid [data-info="${CSS.escape(cid)}"]`); if (i) { i.closest('.dk-rc')?.scrollIntoView({ inline: 'center', block: 'nearest' }); i.click(); }
+        return;
+      }
+      const t = box.querySelector(`.ed-grid .tile[data-cid="${CSS.escape(cid)}"]`);
+      if (t) { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); t.classList.add('dmai-flash'); setTimeout(() => t.classList.remove('dmai-flash'), 1200); }
+    });
+  }
+  async function run(box) {
+    const A = box._dmaiAsk; const q = A.q.trim();
+    A.ai = null; A.err = ''; A.showAll = false;
+    if (!q) { A.cond = null; apply(box); return; }
+    A.cond = parse(q); A.tags.clear();
+    const my = A.ctl = {};
+    if (!(A.useAI && canClaude())) { apply(box); return; }
+    try {
+      A.busy = 'Claudeが質問を読んでいます…'; apply(box);
+      let c = null; try { c = await claudeConds(q); } catch (e) { if (e && (e.code === 'not_granted' || e.code === 'sampling_disabled')) throw e; }
+      if (my.abort || A.ctl !== my) return;
+      const tg = tagIndex(); const base = all();
+      let pool = c && !empty(c) ? base.filter(m => test(m, c, tg)) : [];
+      if (pool.length === 0) pool = empty(A.cond) ? [] : base.filter(m => test(m, A.cond, tg)); else { c.fromAI = true; A.cond = c; }
+      A.pool = pool.length;
+      if (!pool.length) { A.busy = ''; A.ai = { say: '条件に合うカードがありませんでした。言い方を変えるか、タグで探してください。', cards: [] }; apply(box); return; }
+      if (pool.length > 160) { A.busy = ''; A.err = `候補が${pool.length}枚と多いので、Claudeに選んでもらうのはやめました。文明やコストなど条件を足すと、合うカードを選んで理由をつけます。`; apply(box); return; }
+      A.busy = `Claudeが候補${pool.length}枚の文を読んで選んでいます…`; apply(box);
+      const r = await claudePick(q, pool);
+      if (my.abort || A.ctl !== my) return;
+      A.busy = ''; A.ai = r; apply(box);
+    } catch (e) {
+      if (my.abort || A.ctl !== my) return;
+      A.busy = ''; A.err = 'Claudeに聞けませんでした（' + ((e && (e.message || e.code)) || 'エラー') + '）。この端末での読み取り結果を表示しています。'; apply(box);
+    }
+  }
+
+  wrap('openEditor', o => function (box, d, back) {
+    restore();
+    let useAI = true; try { useAI = localStorage.getItem('dmai-q-ai') !== '0'; } catch (e) {}
+    box._dmaiAsk = { q: '', cond: null, tags: new Set(), ai: null, err: '', busy: '', useAI, showAll: false, count: null, pool: 0, open: false };
+    all();
+    const r = o.apply(this, arguments);
+    if (!box._dmaiAskMo) {
+      const mo = box._dmaiAskMo = new MutationObserver(() => {
+        if (!box.querySelector('#eSort') || !box._dmaiAsk) { restore(); return; } // 分析・読み込み・デッキ一覧の時は元の検索に戻す
+        const A = box._dmaiAsk;
+        if ((A.cond || A.tags.size || A.ai) && META === all()) { apply(box); return; } // 編集画面に戻ってきたら絞り込みをかけ直す
+        inject(box);
+      });
+      mo.observe(box, { childList: true });
+    }
+    inject(box);
+    return r;
+  });
+  // デッキ一覧・対戦に戻ったら検索を元に戻す
+  wrap('openDeckManager', o => function () { restore(); return o.apply(this, arguments); });
+  const sty = document.createElement('style');
+  sty.textContent = `.dmai-q{border:1px solid var(--line);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px;background:var(--mat2)}
+.dmai-q .ar{display:flex;gap:6px;flex-wrap:wrap}.dmai-q #askQ{flex:1 1 260px;min-width:0;font-size:14px;padding:7px 9px}
+.dmai-q .tagrow{display:flex;gap:5px;overflow-x:auto;padding-bottom:2px;align-items:center;scrollbar-width:thin}.dmai-q .tagrow .chip{flex:none;font-size:12px}
+.dmai-q .tagrow .fl{flex:none;font-size:11px;color:var(--muted)}.dmai-q .muted{color:var(--muted)}
+.dmai-q .ans{border-top:1px dashed var(--line);padding-top:6px;font-size:12.5px;line-height:1.6}.dmai-q .ans .say{font-weight:600;margin-bottom:2px}
+.dmai-q .ans ol{margin:0 0 6px;padding-left:1.6em;max-height:220px;overflow:auto}.dmai-q button.link{border:0;background:none;padding:0;color:var(--accent);font-weight:600;cursor:pointer;text-decoration:underline}
+.dmai-qsheet .dmai-q{border:0;padding:0;background:none}.dmai-qsheet{z-index:21}.dmai-qsheet .dmai-q .tagrow{flex-wrap:wrap;overflow:visible}
+.ed-grid .tile.dmai-flash{outline:3px solid var(--accent);outline-offset:2px}`;
+  document.head.appendChild(sty);
+  window.DMAI_ASK = { parse, test, tagIndex, TAGS, label };
+})();
+
 
 /* ---------- ツール欄：対象（自分／相手）の切り替えとハンデス ---------- */
 // 相手ターン中に発動する処理もあるので、ツール欄の先頭に「対象：自分／相手」を出し、
