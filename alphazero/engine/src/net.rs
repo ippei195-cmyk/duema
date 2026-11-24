@@ -39,9 +39,15 @@ const MAGIC: u32 = 0x444d_4e31; // "DMN1"
 impl Net {
     pub fn load(path: &str) -> std::io::Result<Net> {
         let b = std::fs::read(path)?;
+        Net::from_bytes(&b).ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "bad weights file"))
+    }
+
+    pub fn from_bytes(b: &[u8]) -> Option<Net> {
+        if b.len() < 20 { return None; }
         let u = |i: usize| u32::from_le_bytes(b[i * 4..i * 4 + 4].try_into().unwrap());
-        assert_eq!(u(0), MAGIC, "bad weights file");
-        assert_eq!((u(1) as usize, u(2) as usize, u(3) as usize, u(4) as usize), (S, O, H, P), "dims");
+        if u(0) != MAGIC || (u(1) as usize, u(2) as usize, u(3) as usize, u(4) as usize) != (S, O, H, P) { return None; }
+        let need = 20 + 4 * (S * H + H + H * H + H + H + 1 + (H + O) * P + P + P + 1);
+        if b.len() != need { return None; }
         let mut pos = 5 * 4;
         let mut take = |inp: usize, out: usize| {
             let n = inp * out + out;
@@ -54,7 +60,7 @@ impl Net {
         let v = take(H, 1);
         let p1 = take(H + O, P);
         let p2 = take(P, 1);
-        Ok(Net { l1, l2, v, p1, p2 })
+        Some(Net { l1, l2, v, p1, p2 })
     }
 
     /// (価値 [-1,1]（判断するプレイヤーから見て）, 各選択肢のロジット)

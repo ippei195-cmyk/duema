@@ -314,7 +314,7 @@ pub fn unblockable(g: &Game, att: u16) -> bool {
 // ---------- メインステップの選択肢 ----------
 
 /// 実行コスト（軽減後）と文明の条件
-fn play_cost(g: &Game, p: usize, c: C, side: u8, how: u8) -> (usize, u8) {
+pub fn play_cost(g: &Game, p: usize, c: C, side: u8, how: u8) -> (usize, u8) {
     let s = side_of(c, side);
     let mut cost = s.cost as i32;
     let mut civ = s.civ;
