@@ -7920,12 +7920,15 @@ body.gx .half.me .z-hand-z .zbtn{position:absolute;right:4px;top:4px}
 body.gx .half.me .z-hand-z{grid-template-columns:minmax(0,1fr)}
 
 /* ---- 横長（PC）：左＝相手の直前のカード・声・能力・カード詳細・履歴、中央＝盤面、右＝名札とターンボタン ---- */
-body.gx.gx-wide .app{max-width:1720px;min-width:0;grid-template-columns:240px minmax(0,1fr) 200px;column-gap:18px;
-  grid-template-areas:"top top top" "last board right" "voice board right" "pend board right" "sheet board right" "log board right";
-  grid-template-rows:auto auto auto auto auto 1fr}
+body.gx.gx-wide .app{max-width:1720px;min-width:0;grid-template-columns:240px minmax(0,1fr) 290px;column-gap:18px;
+  grid-template-areas:"top top top" "left board right";
+  grid-template-rows:auto 1fr}
+body.gx.gx-wide #gxLeft{grid-area:left;display:flex}
+#gxLeft{display:none;flex-direction:column;gap:10px;position:sticky;top:10px;align-self:start;max-height:calc(100vh - 20px);overflow:auto;scrollbar-width:thin;min-width:0}
+body:not(.gx) #gxLeft{display:none!important}
 body.gx.gx-wide.lay-pc .app{min-width:1180px}
 body.gx.gx-wide #sheet{z-index:1}
-body.gx.gx-wide #gxLast{grid-area:last;display:flex}
+body.gx.gx-wide #gxLast{display:flex}
 body.gx.gx-wide #gxRight{grid-area:right;display:flex}
 body.gx.gx-wide .voicebar,body.gx.gx-wide #pendPanel,body.gx.gx-wide #sheet .ovbox,body.gx.gx-wide .logpanel{background:linear-gradient(#17141c,#0f0d13);border:1px solid #3a3242;border-radius:8px;box-shadow:0 4px 14px #0009}
 body.gx .voicebar .vt,body.gx #pendPanel h2,body.gx .logpanel h2,body.gx #sheet .ovh h3{font-family:var(--gx-serif);letter-spacing:.12em;font-size:11px;text-transform:uppercase;color:var(--gx-mute)}
@@ -7934,6 +7937,9 @@ body.gx.gx-wide #detail .detail{grid-template-columns:minmax(0,1fr)}
 body.gx.gx-wide #detail .bigface{justify-self:center}
 body.gx.gx-wide .logpanel .log{max-height:30vh}
 #gxLast,#gxRight{display:none}
+body.gx:has(#cardPop:not([hidden])) #dmaiPeek:not(.pin){display:none}
+.cpop.gx-r::after{left:-7px;top:var(--ay,50%);bottom:auto;transform:translateY(-50%) rotate(45deg);border:1px solid var(--accent);border-top:0;border-right:0}
+.cpop.gx-l::after{left:auto;right:-7px;top:var(--ay,50%);bottom:auto;transform:translateY(-50%) rotate(45deg);border:1px solid var(--accent);border-bottom:0;border-left:0}
 #gxLast{flex-direction:column;align-items:center;gap:6px;padding:10px;border-radius:8px;background:linear-gradient(#17141c,#0f0d13);border:1px solid #3a3242;box-shadow:0 4px 14px #0009}
 #gxLast .h{align-self:stretch;font-family:var(--gx-serif);font-size:11px;letter-spacing:.12em;color:var(--gx-mute)}
 #gxLast .lc{position:relative;width:150px;aspect-ratio:63/88;border-radius:8px;overflow:hidden;border:2px solid #cfc6b0;box-shadow:0 8px 20px #000c;background:#000;cursor:pointer}
@@ -7941,17 +7947,26 @@ body.gx.gx-wide .logpanel .log{max-height:30vh}
 #gxLast .lc .tf{position:absolute;inset:0}
 #gxLast .lc.none{border:2px dashed #3a3242;background:none;display:grid;place-items:center;color:#5a5262;font-size:12px;cursor:default}
 #gxLast .cap{font-family:var(--gx-serif);font-weight:700;font-size:11px;letter-spacing:.08em;text-align:center;color:var(--gx-ink);background:#0c0a0f;border:1px solid #3a3242;border-radius:4px;padding:5px 8px;line-height:1.5;width:100%}
-#gxRight{flex-direction:column;align-items:center;justify-content:space-between;gap:14px;position:sticky;top:10px;align-self:start;min-height:min(86vh,820px)}
+#gxRight{flex-direction:column;align-items:stretch;gap:10px;position:sticky;top:10px;align-self:start;max-height:calc(100vh - 20px);overflow:auto;scrollbar-width:thin}
+#gxRight .gx-top{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:6px}
+#gxOps{display:flex;flex-wrap:wrap;gap:6px}
+#gxOps:empty{display:none}
+#gxOps button{flex:1 1 calc(50% - 6px);height:38px;border-radius:8px;font-weight:700;background:#1d1612;border-color:#6a3a2a;color:var(--gx-ink)}
+#gxOps button.go{background:linear-gradient(#e6c983,#b8913f);color:#1d1406;border-color:#e6c983}
+body.gx.gx-wide .half.me .turnrow{display:none}
+#gxRight #pendPanel,#gxRight #sheet{width:100%}
+#gxRight #sheet .ovbox{max-height:none}
+#gxRight #pendPanel .pend{max-height:34vh;overflow:auto}
 .gx-plate{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%}
-.gx-emb{width:104px;height:104px;border-radius:50%;display:grid;place-items:center;
+.gx-emb{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;
   background:radial-gradient(circle,#2b2338 0 54%,#d9b86c 55% 58%,#3a2f22 59% 66%,#d9b86c 67% 69%,#1a1520 70%);box-shadow:0 0 0 3px #0b090d,0 8px 24px #000c}
-.gx-emb svg{width:46px;height:46px;fill:none;stroke:#d9b86c;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.gx-emb svg{width:30px;height:30px;fill:none;stroke:#d9b86c;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .gx-plate.op .gx-emb{background:radial-gradient(circle,#3a1f22 0 54%,#d9b86c 55% 58%,#3a2f22 59% 66%,#d9b86c 67% 69%,#1a1520 70%)}
 .gx-name{width:100%;text-align:center;padding:5px 8px 7px;border-radius:6px;background:linear-gradient(#221d27,#121016);border:1px solid #4a4052;box-shadow:0 4px 12px #000a}
 .gx-name small{display:block;font-family:var(--gx-serif);font-size:10px;letter-spacing:.2em;color:var(--gx-mute)}
-.gx-name b{display:block;font-family:var(--gx-serif);font-size:14px;color:var(--gx-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gx-name b{display:block;font-family:var(--gx-serif);font-size:12px;color:var(--gx-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gx-name .tn{display:inline-block;margin-top:3px;font-size:10px;font-weight:700;letter-spacing:.12em;padding:1px 8px;border-radius:99px;background:var(--gx-gold);color:#1d1406}
-#gxTurn{width:132px;height:132px;border-radius:50%;padding:0;display:grid;place-items:center;text-align:center;font-family:var(--gx-serif);font-weight:700;font-size:13px;letter-spacing:.12em;line-height:1.5;color:#2a2620;
+#gxTurn{width:104px;height:104px;border-radius:50%;padding:0;display:grid;place-items:center;text-align:center;font-family:var(--gx-serif);font-weight:700;font-size:13px;letter-spacing:.12em;line-height:1.5;color:#2a2620;
   background:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 .25 0 0 0 0 .25 0 0 0 0 .25 0 0 0 .4 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
     radial-gradient(circle at 40% 35%,#e4dfd4,#a39d92 70%,#6d685f);
@@ -7978,11 +7993,38 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
   const last = document.createElement('div'); last.id = 'gxLast';
   last.innerHTML = '<div class="h">相手の直前のカード</div><div class="lc none">まだありません</div><div class="cap">—</div>';
   const right = document.createElement('div'); right.id = 'gxRight';
-  right.innerHTML = `<div class="gx-plate op"><div class="gx-emb">${ICON_OP}</div><div class="gx-name"><small>相手</small><b id="gxOpName"></b><span class="tn" id="gxOpTn" hidden>この番</span></div></div>
+  right.innerHTML = `<div class="gx-top"><div class="gx-plate op"><div class="gx-emb">${ICON_OP}</div><div class="gx-name"><small>相手</small><b id="gxOpName"></b><span class="tn" id="gxOpTn" hidden>この番</span></div></div>
     <button id="gxTurn" type="button"></button>
-    <div class="gx-plate me"><div class="gx-emb">${ICON_ME}</div><div class="gx-name"><small>あなた</small><b id="gxMeName"></b><span class="tn" id="gxMeTn" hidden>この番</span></div></div>`;
+    <div class="gx-plate me"><div class="gx-emb">${ICON_ME}</div><div class="gx-name"><small>あなた</small><b id="gxMeName"></b><span class="tn" id="gxMeTn" hidden>この番</span></div></div></div>
+    <div id="gxOps"></div>`;
   const board = document.getElementById('board');
-  app.insertBefore(last, board); app.insertBefore(right, board);
+  const left = document.createElement('div'); left.id = 'gxLeft'; left.appendChild(last);
+  app.insertBefore(left, board); app.insertBefore(right, board);
+  const voiceEl = app.querySelector(':scope > .voicebar'), logEl = app.querySelector(':scope > .logpanel');
+  // カードを選んだ時の操作ボタン（マナチャージ・使う など）は、そのカードのすぐ右側に出す（右に入らなければ左）
+  if (typeof window.positionPop === 'function'){
+    const origPP = window.positionPop;
+    window.positionPop = function (){
+      const pop = document.getElementById('cardPop');
+      pop?.classList.remove('gx-r', 'gx-l');
+      const r0 = origPP.apply(this, arguments);
+      try {
+        if (theme !== 'goth' || !pop || pop.hidden || typeof selected === 'undefined' || !selected) return r0;
+        const anchor = document.querySelector(`#board [data-uid="${selected}"]`); if (!anchor) return r0;
+        const ar = app.getBoundingClientRect(); const s = (ar.width / app.offsetWidth) || 1;
+        const r = anchor.getBoundingClientRect();
+        const pw = pop.offsetWidth, ph = pop.offsetHeight, W = app.clientWidth;
+        let x = (r.right - ar.left) / s + 12, side = 'r';
+        if (x + pw > W){ x = (r.left - ar.left) / s - 12 - pw; side = 'l'; if (x < 0) return r0; }
+        const mid = r.top + r.height / 2;
+        let yv = mid - ph * s / 2; yv = Math.max(8, Math.min(window.innerHeight - ph * s - 8, yv));
+        pop.style.left = x + 'px'; pop.style.top = ((yv - ar.top) / s) + 'px';
+        pop.classList.remove('up', 'down'); pop.classList.add(side === 'r' ? 'gx-r' : 'gx-l');
+        pop.style.setProperty('--ay', Math.max(14, Math.min(ph - 14, (mid - yv) / s)) + 'px');
+      } catch (e) {}
+      return r0;
+    };
+  }
 
   // 設定に「見た目」を足す
   const setBox = document.querySelector('#ovSet .ovbox');
@@ -8060,6 +8102,29 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
     const endB = document.querySelector('.half.me [data-act="end"]'); if (endB && !endB.disabled) endB.click();
   });
 
+  // 操作は右の列に：ターンの行のボタン（ターン終了は丸ボタン）を写し、処理待ちの能力と選択中のカード（操作ボタン）を右へ移す
+  const ops = right.querySelector('#gxOps');
+  function drawOps(){
+    const btns = [...document.querySelectorAll('.half.me .turnrow button')].filter(b => b.dataset.act !== 'end');
+    const sig = btns.map(b => [b.dataset.act, b.textContent, b.disabled, b.className].join('|')).join(';');
+    if (ops.dataset.sig === sig) return; ops.dataset.sig = sig; ops.innerHTML = '';
+    for (const b of btns){
+      const x = document.createElement('button'); x.type = 'button'; x.textContent = b.textContent; x.disabled = b.disabled; x.className = b.className;
+      const act = b.dataset.act; x.onclick = () => { const o = document.querySelector(`.half.me .turnrow [data-act="${act}"]`); if (o && !o.disabled) o.click(); };
+      ops.appendChild(x);
+    }
+  }
+  const homes = {};
+  function placeSide(wide){
+    const moves = [['pendPanel', document.getElementById('pendPanel'), right], ['sheet', document.getElementById('sheet'), right], ['voice', voiceEl, left], ['log', logEl, left]];
+    for (const [k, el, box] of moves){
+      if (!el) continue;
+      if (!homes[k]) homes[k] = {parent: el.parentNode, next: el.nextSibling};
+      if (wide){ if (el.parentNode !== box) box.appendChild(el); }
+      else if (el.parentNode === box){ const hm = homes[k]; hm.parent.insertBefore(el, hm.next && hm.next.parentNode === hm.parent ? hm.next : null); }
+    }
+  }
+
   // 扇形の手札
   function fanHand(){
     const zc = document.querySelector('.half.me .z-hand-z .zc'); if (!zc) return;
@@ -8096,8 +8161,9 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
     try {
       document.body.classList.toggle('gx-wide', theme === 'goth' && (document.body.classList.contains('lay-pc') || (!document.body.classList.contains('lay-phone') && window.innerWidth >= 1100)));
       try { trackLast(); } catch (e) {}
+      placeSide(theme === 'goth' && document.body.classList.contains('gx-wide'));
       if (theme !== 'goth') return;
-      drawLast(); drawRight(); fanHand(); drawStack();
+      drawLast(); drawRight(); drawOps(); fanHand(); drawStack();
     } catch (e) { console.warn('gx', e); } finally { busyUpd = false; }
   }
   const sched = () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; update(); }); };
