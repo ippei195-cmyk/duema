@@ -31,6 +31,8 @@ fn main() {
     let full: u32 = a.get(6).and_then(|s| s.parse().ok()).unwrap_or(200);
     let fast: u32 = a.get(7).and_then(|s| s.parse().ok()).unwrap_or(40);
     let pfull: f64 = a.get(8).and_then(|s| s.parse().ok()).unwrap_or(0.25);
+    // focus: この確率で片方（どちらかはランダム）のデッキをリースバイク（DECKS[0]）に固定して、苦手を重点的に学ぶ
+    let focus: f64 = a.get(9).and_then(|s| s.parse().ok()).unwrap_or(0.0);
     let net: Arc<Option<Net>> = Arc::new(if wpath == "none" { None } else { Some(Net::load(&wpath).expect("weights")) });
     let file = Arc::new(Mutex::new(std::io::BufWriter::new(std::fs::File::create(&out).unwrap())));
     file.lock().unwrap().write_all(b"DMS1").unwrap();
@@ -45,8 +47,11 @@ fn main() {
             if i >= games { break; }
             let seed = seed0 * 1_000_003 + i;
             let mut rng = Rng::new(seed ^ 0xA2A2);
-            let da = rng.below(3);
-            let db = rng.below(3);
+            let mut da = rng.below(3);
+            let mut db = rng.below(3);
+            if (rng.below(1_000_000) as f64) < focus * 1e6 {
+                if rng.below(2) == 0 { da = 0 } else { db = 0 }
+            }
             let mut g = Game::new(&deck(DECKS[da]), &deck(DECKS[db]), seed);
             let mut recs: Vec<(usize, Vec<u8>)> = vec![]; // (判断した人, 記録)
             let mut moves = [0u32; 2];
