@@ -4,6 +4,7 @@
 世代ごと：①自己対戦（いま一番強いネット）→ ②学習 → ③一番強いネットと対戦して 55% 以上なら交代
          ④3世代ごとにフェーズ2版（ismcts:300）と対戦し、80% 以上で合格
 記録：log.csv（世代ごと）、elo.csv（各ネットのレート）
+古い学習データ（直近10世代より前）と、交代しなかったネットは自動で消す
 """
 import csv, json, math, os, re, shutil, subprocess, sys, time
 
@@ -13,7 +14,8 @@ SELFPLAY = os.path.join(D, 'selfplay' + EXE)
 ARENA = os.path.join(D, 'arena' + EXE)
 TH = str(max(2, (os.cpu_count() or 4) - 2))
 CFG = dict(games=2000, sims_full=200, sims_fast=40, p_full=0.25, window=6, epochs=2,
-           eval_games=180, eval_sims=200, promote=0.55, phase2_every=3, phase2_games=180)
+           eval_games=180, eval_sims=200, promote=0.55, phase2_every=3, phase2_games=180,
+           keep_samples=10)  # 学習データは直近この世代数だけ残す（学習に使うのは window 世代）
 for d in ['samples', 'nets']:
     os.makedirs(os.path.join(D, d), exist_ok=True)
 SP = os.path.join(D, 'state.json')
@@ -64,6 +66,26 @@ def append(name, row, head):
         w.writerow(row)
 
 
+def cleanup(s):
+    """古い学習データと、交代しなかったネットを消す。
+    残すもの：直近 keep_samples 世代の学習データ、交代したネット（歴代の一番強い版）、いま一番強い版、続きの学習に使う最新の .pt"""
+    g = s['gen']
+    for f in os.listdir(os.path.join(D, 'samples')):
+        m = re.match(r'gen(\d+)\.bin$', f)
+        if m and int(m.group(1)) < g - CFG['keep_samples']:
+            os.remove(os.path.join(D, 'samples', f))
+    keep = {os.path.basename(s['best']).split('.')[0], os.path.basename(s['latest_pt'] or '').split('.')[0]}
+    ep = os.path.join(D, 'elo.csv')
+    if os.path.exists(ep):
+        for r in csv.DictReader(open(ep, encoding='utf-8')):
+            if r.get('promoted') == 'True':
+                keep.add(r['net'])
+    for f in os.listdir(os.path.join(D, 'nets')):
+        m = re.match(r'(net\d+)\.(bin|pt)$', f)
+        if m and m.group(1) not in keep and int(m.group(1)[3:]) < g:
+            os.remove(os.path.join(D, 'nets', f))
+
+
 def main():
     s = load_state()
     while not os.path.exists(os.path.join(D, 'STOP')):
@@ -102,8 +124,11 @@ def main():
         append('log.csv', [g, nsamp, lv.group(1), lv.group(2), round(wr, 3), promoted, os.path.basename(s['best']),
                            p2 if p2 == '' else round(p2, 3), round(t1 - t0), round(t2 - t1), round(time.time() - t2), time.strftime('%Y-%m-%d %H:%M')],
                ['gen', 'samples', 'value_loss', 'policy_loss', 'vs_best', 'promoted', 'best', 'vs_phase2', 'selfplay_s', 'train_s', 'eval_s', 'time'])
+        try:
+            cleanup(s)
+        except Exception as e:
+            print('cleanup failed:', e, flush=True)
         print(f'gen{g}: vs best {wr:.1%} promoted={promoted} phase2={p2}', flush=True)
-        # 古い学習データは window より前を消さずに残す（容量が足りなくなったら手で消せる）
     print('STOP を見つけたので止まりました')
 
 
