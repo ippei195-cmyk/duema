@@ -3102,6 +3102,11 @@ function renderDetail(){
   if (ownTurnCard && c.zone==='battle' && isCreature(side(c))) add('攻撃', ()=> c.owner==='me' ? userAttack(c.uid) : manualAttack(c.uid), !!c.tapped, 'primary'); // 押せない理由をダイアログで出すため、タップ中以外は押せるようにしておく
   if (ownTurnCard && c.zone==='mana') add('マナから召喚', ()=> userUse(c.uid, true));
   if (c.zone==='battle' || c.zone==='mana') add(c.tapped?'アンタップ':'タップ', async()=>{ c.tapped=!c.tapped; });
+  // 次の持ち主のターンのはじめにアンタップしない（タップ中のクリーチャーにも付けられる）
+  if (c.zone==='battle' && isCreature(side(c)))
+    add(c.m.frozen ? '「アンタップしない」を解除' : c.tapped ? 'アンタップしない（次の持ち主のターンのはじめまで）' : 'タップ（次の持ち主のターンのはじめまでアンタップしない）', async()=>{
+      if (c.m.frozen){ c.m.frozen = false; log(`《${cname(c)}》の「アンタップしない」を解除`, actor); return; }
+      c.tapped = true; c.m.frozen = true; log(`《${cname(c)}》は次の${PN[c.owner]}のターンのはじめにアンタップしない`, actor); });
   // 効果で得たスピードアタッカーなど、自動で判定できないときに手で付ける
   if (c.zone==='battle' && isCreature(side(c)) && c.sick && (c.m.sa || !/スピードアタッカー/.test(txt(c))))
     add(c.m.sa ? 'スピードアタッカーを外す' : 'スピードアタッカーにする（出たターンに攻撃）', async()=>{ c.m.sa = !c.m.sa; log(`《${cname(c)}》を${c.m.sa?'スピードアタッカーにした（このターン攻撃できる）':'スピードアタッカーでなくした'}`, c.owner); });
@@ -5731,6 +5736,7 @@ window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude
     if (!acts || !c || c.zone !== 'battle') return r;
     const tapBtn = [...acts.querySelectorAll('button')].find(b => b.textContent === 'タップ' || b.textContent === 'アンタップ');
     if (!tapBtn) return r;   // 操作できないカード
+    if ([...acts.querySelectorAll('button')].some(b => /アンタップしない/.test(b.textContent))) return r;   // 本体に同じボタンがある
     const actor = myTurn() ? 'me' : 'op';
     const b = document.createElement('button');
     b.textContent = c.m.frozen ? '「アンタップしない」を解除' : 'タップ（次の自分のターンのはじめまでアンタップしない）';
