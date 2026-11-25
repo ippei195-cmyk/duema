@@ -116,9 +116,15 @@ def main():
         if (g + 1) % CFG['phase2_every'] == 0 and s['best'] != 'none':
             p2 = winrate(run([ARENA, az(s['best']), 'ismcts:300', str(CFG['phase2_games']), TH, str(g + 77)], f'phase2 gen{g}'))
             if p2 >= 0.80 and not s['passed']:
+                # 180局だとばらつきが大きいので、3倍の局数で測り直して 80% 以上の時だけ合格にする
+                p2c = winrate(run([ARENA, az(s['best']), 'ismcts:300', str(CFG['phase2_games'] * 3), TH, str(g + 7777)], f'phase2 confirm gen{g}'))
+                append('phase2_confirm.csv', [g + 1, os.path.basename(s['best']), round(p2, 3), round(p2c, 3), time.strftime('%Y-%m-%d %H:%M')],
+                       ['gen', 'net', 'vs_phase2_180', 'vs_phase2_540', 'time'])
+                p2 = p2c
+            if p2 >= 0.80 and not s['passed']:
                 s['passed'] = True
                 with open(os.path.join(D, 'PASSED.txt'), 'w', encoding='utf-8') as f:
-                    f.write(f'{time.ctime()} gen{g + 1} {s["best"]} vs ismcts:300 = {p2:.1%}\n')
+                    f.write(f'{time.ctime()} gen{g + 1} {s["best"]} vs ismcts:300 = {p2:.1%}（{CFG["phase2_games"] * 3}局で確認）\n')
         s['gen'] = g + 1
         save_state(s)
         append('log.csv', [g, nsamp, lv.group(1), lv.group(2), round(wr, 3), promoted, os.path.basename(s['best']),
