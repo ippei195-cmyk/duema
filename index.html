@@ -7937,6 +7937,9 @@ body.gx.gx-wide #detail .detail{grid-template-columns:minmax(0,1fr)}
 body.gx.gx-wide #detail .bigface{justify-self:center}
 body.gx.gx-wide .logpanel .log{max-height:30vh}
 #gxLast,#gxRight{display:none}
+body.gx:has(#cardPop:not([hidden])) #dmaiPeek:not(.pin){display:none}
+.cpop.gx-r::after{left:-7px;top:var(--ay,50%);bottom:auto;transform:translateY(-50%) rotate(45deg);border:1px solid var(--accent);border-top:0;border-right:0}
+.cpop.gx-l::after{left:auto;right:-7px;top:var(--ay,50%);bottom:auto;transform:translateY(-50%) rotate(45deg);border:1px solid var(--accent);border-bottom:0;border-left:0}
 #gxLast{flex-direction:column;align-items:center;gap:6px;padding:10px;border-radius:8px;background:linear-gradient(#17141c,#0f0d13);border:1px solid #3a3242;box-shadow:0 4px 14px #0009}
 #gxLast .h{align-self:stretch;font-family:var(--gx-serif);font-size:11px;letter-spacing:.12em;color:var(--gx-mute)}
 #gxLast .lc{position:relative;width:150px;aspect-ratio:63/88;border-radius:8px;overflow:hidden;border:2px solid #cfc6b0;box-shadow:0 8px 20px #000c;background:#000;cursor:pointer}
@@ -7998,6 +8001,30 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
   const left = document.createElement('div'); left.id = 'gxLeft'; left.appendChild(last);
   app.insertBefore(left, board); app.insertBefore(right, board);
   const voiceEl = app.querySelector(':scope > .voicebar'), logEl = app.querySelector(':scope > .logpanel');
+  // カードを選んだ時の操作ボタン（マナチャージ・使う など）は、そのカードのすぐ右側に出す（右に入らなければ左）
+  if (typeof window.positionPop === 'function'){
+    const origPP = window.positionPop;
+    window.positionPop = function (){
+      const pop = document.getElementById('cardPop');
+      pop?.classList.remove('gx-r', 'gx-l');
+      const r0 = origPP.apply(this, arguments);
+      try {
+        if (theme !== 'goth' || !pop || pop.hidden || typeof selected === 'undefined' || !selected) return r0;
+        const anchor = document.querySelector(`#board [data-uid="${selected}"]`); if (!anchor) return r0;
+        const ar = app.getBoundingClientRect(); const s = (ar.width / app.offsetWidth) || 1;
+        const r = anchor.getBoundingClientRect();
+        const pw = pop.offsetWidth, ph = pop.offsetHeight, W = app.clientWidth;
+        let x = (r.right - ar.left) / s + 12, side = 'r';
+        if (x + pw > W){ x = (r.left - ar.left) / s - 12 - pw; side = 'l'; if (x < 0) return r0; }
+        const mid = r.top + r.height / 2;
+        let yv = mid - ph * s / 2; yv = Math.max(8, Math.min(window.innerHeight - ph * s - 8, yv));
+        pop.style.left = x + 'px'; pop.style.top = ((yv - ar.top) / s) + 'px';
+        pop.classList.remove('up', 'down'); pop.classList.add(side === 'r' ? 'gx-r' : 'gx-l');
+        pop.style.setProperty('--ay', Math.max(14, Math.min(ph - 14, (mid - yv) / s)) + 'px');
+      } catch (e) {}
+      return r0;
+    };
+  }
 
   // 設定に「見た目」を足す
   const setBox = document.querySelector('#ovSet .ovbox');
