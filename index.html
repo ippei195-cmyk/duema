@@ -7998,27 +7998,6 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
   const left = document.createElement('div'); left.id = 'gxLeft'; left.appendChild(last);
   app.insertBefore(left, board); app.insertBefore(right, board);
   const voiceEl = app.querySelector(':scope > .voicebar'), logEl = app.querySelector(':scope > .logpanel');
-  // 横長のゴシックでは、カードの操作ボタンを盤面の上に出さず、右の列の「選択中のカード」に出す
-  if (typeof window.placeActs === 'function'){
-    const origPA = window.placeActs;
-    window.placeActs = function (acts){
-      if (theme === 'goth' && document.body.classList.contains('gx-wide')){
-        const pop = document.getElementById('cardPop'); if (pop) pop.hidden = true;
-        const d = document.getElementById('detail'); if (d){ d.appendChild(acts); return; }
-      }
-      return origPA.apply(this, arguments);
-    };
-  }
-
-  // 設定に「見た目」を足す
-  const setBox = document.querySelector('#ovSet .ovbox');
-  if (setBox){
-    const row = document.createElement('div'); row.className = 'setrow';
-    row.innerHTML = '<span>見た目</span><span class="laybtns" id="gxBtns"><button data-gx="goth">ゴシック</button><button data-gx="std">標準</button></span>';
-    const help = document.getElementById('helpBtn')?.closest('.setrow');
-    help ? setBox.insertBefore(row, help) : setBox.appendChild(row);
-    row.addEventListener('click', e => { const b = e.target.closest('[data-gx]'); if (!b) return; setTheme(b.dataset.gx); });
-  }
   function setTheme(t){
     theme = t; try { localStorage.setItem(KEY, t); } catch (e) {}
     document.body.classList.toggle('gx', t === 'goth');
