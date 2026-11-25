@@ -10,7 +10,9 @@
   const wrap = (name, f) => { const orig = window[name]; if (typeof orig !== 'function') { console.warn('dmaz patch: missing ' + name); return; } window[name] = f(orig); };
   const CARDS = __CARDS__;
   const WASM_B64 = "__WASM__";
-  const CFG = { sims: 1200, netUrl: 'alphazero/net.bin', infoUrl: 'alphazero/net.json' };
+  const NET_B64 = "__NET__";
+  const NET_INFO = __NETINFO__; // 重みを埋め込んだ版（スマホ版など、別ファイルを読めない所）。空なら netUrl から読む
+  const CFG = { modes: __MODES__, sims: 1200, netUrl: 'alphazero/net.bin', infoUrl: 'alphazero/net.json' };
   const KEY = 'dmai-az';
   let on = true; try { on = localStorage.getItem(KEY) !== 'off'; } catch (e) {}
   const stats = { calls: 0, errors: 0, ms: 0, fallback: 0, invalid: [] };
@@ -33,13 +35,15 @@
       ex = instance.exports;
     } catch (e) { console.warn('dmaz wasm', e); broken = true; return; }
     try {
-      const r = await fetch(CFG.netUrl, { cache: 'no-cache' });
-      if (r.ok) {
-        const b = new Uint8Array(await r.arrayBuffer());
+      let b = null;
+      if (NET_B64) b = Uint8Array.from(atob(NET_B64), ch => ch.charCodeAt(0));
+      else { const r = await fetch(CFG.netUrl, { cache: 'no-cache' }); if (r.ok) b = new Uint8Array(await r.arrayBuffer()); }
+      if (b) {
         const p = ex.dmaz_alloc(b.length); new Uint8Array(ex.memory.buffer, p, b.length).set(b);
         if (ex.dmaz_load(p, b.length) === 1) {
           netInfo = { bytes: b.length };
-          try { const j = await fetch(CFG.infoUrl, { cache: 'no-cache' }); if (j.ok) netInfo = Object.assign(netInfo, await j.json()); } catch (e) {}
+          if (NET_INFO) netInfo = Object.assign(netInfo, NET_INFO);
+          else try { const j = await fetch(CFG.infoUrl, { cache: 'no-cache' }); if (j.ok) netInfo = Object.assign(netInfo, await j.json()); } catch (e) {}
         }
       }
     } catch (e) { /* 重みなしでも動く */ }
@@ -84,7 +88,7 @@
   function supported() {
     if (broken || !ex || !on || !S || S.winner || S.demo || S.active !== 'op') return false;
     let mode = 'bot'; try { mode = oppMode(); } catch (e) {}
-    if (mode !== 'bot' || (typeof NET !== 'undefined' && NET.on)) return false;
+    if (!CFG.modes.includes(mode) || (typeof NET !== 'undefined' && NET.on)) return false;
     if (window.DMAI_FULL_MANUAL && window.DMAI_FULL_MANUAL()) return false;
     if (window.DMAI && window.DMAI.selfplay) return false;
     return true;
@@ -131,6 +135,14 @@
     const acts = act.a === 'end' ? [act] : [act];
     acts.dmaz = true;
     return { say: '', actions: acts };
+  });
+
+  // PC版：相手が「ローカルAI（学習モデル）」の時は askMain から呼ばれるので、そこでも学習AIに替える
+  if (CFG.modes.includes('claude')) wrap('askMain', o => async function () {
+    if (!supported()) return o.apply(this, arguments);
+    const r = window.botTurn();
+    if (r && r.actions && r.actions.dmaz) return r;
+    return o.apply(this, arguments);
   });
 
   // 学習AIの一手は「相手の先読み」で別案に差し替えない
