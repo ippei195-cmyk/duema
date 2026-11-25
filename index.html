@@ -7794,6 +7794,326 @@ html body .dmai-ev h4{margin:10px 0 4px;font-size:13px}`;
 })();
 
 </script>
+<style id="gx-theme">
+/* ---------- 見た目「ゴシック」：暗い背景・石の盤面・相手(上)/自分(下)・左に相手の直前のカード・右に名札とターンボタン・扇形の手札 ----------
+   設定 →「見た目」で 標準 に戻せる（localStorage: dmsim-theme）。素材は全部このCSS内で描いたもの */
+body.gx{
+  --gx-gold:#d9b86c; --gx-ink:#ece6da; --gx-mute:#a79f92; --gx-red:#b8322a; --gx-stone:#b9b4aa; --gx-dark:#17110f;
+  --gx-serif:"Cinzel","Noto Serif JP","Yu Mincho","Hiragino Mincho ProN","Shippori Mincho",serif;
+  background-color:#0b0a10;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 900' preserveAspectRatio='xMidYMax slice'%3E%3Cg fill='%23120f18'%3E%3Cpath d='M0 900V420l40-30 20-120 20 120 40 30v-90l30-60 30 60v60h40V250l30-90 30 90v170l50 40v-140l25-70 25 70v180h60V900z'/%3E%3Cpath d='M1600 900V380l-40-40-20-140-20 140-40 40v-60l-35-80-35 80v120h-50V260l-30-110-30 110v180l-50 50V350l-25-60-25 60v550z'/%3E%3C/g%3E%3Cg fill='%23171320'%3E%3Cpath d='M180 900V560l25-25 15-80 15 80 25 25v340zM1380 900V520l30-30 18-100 18 100 30 30v380z'/%3E%3Cpath d='M0 900v-90c200-30 400-30 560 0 180 35 320 35 480 0 180-40 380-40 560 0v90z'/%3E%3C/g%3E%3Cg fill='%232a2236' opacity='.6'%3E%3Cpath d='M88 330h14v26H88zM300 300h12v24h-12zM1494 300h14v26h-14zM1290 330h12v24h-12z'/%3E%3C/g%3E%3C/svg%3E"),
+    radial-gradient(ellipse 60% 45% at 50% 0%,#2a2340 0%,transparent 70%),
+    radial-gradient(ellipse 50% 60% at 0% 60%,#1d1830 0%,transparent 70%),
+    radial-gradient(ellipse 50% 60% at 100% 55%,#1f1a2e 0%,transparent 70%),
+    linear-gradient(#0f0d16,#07060a);
+  min-height:100vh;background-size:cover,auto,auto,auto,auto;background-position:center bottom;background-attachment:fixed;background-repeat:no-repeat;
+}
+/* 上のバー：細く暗く */
+body.gx .top{background:linear-gradient(#17141d,#0e0c12);border:1px solid #2b2533;border-radius:10px;padding:6px 10px;box-shadow:0 4px 18px #0008}
+body.gx .top h1{font-family:var(--gx-serif);font-size:16px;letter-spacing:.12em;color:var(--gx-ink)}
+body.gx .turnbadge{background:#2a2433;color:var(--gx-mute);font-family:var(--gx-serif);letter-spacing:.06em}
+body.gx .turnbadge.me{background:var(--gx-gold);color:#1d1406}
+body.gx .turnbadge.op{background:#5a2b2b;color:#f3d9d0}
+body.gx .top button{background:#1d1924;border-color:#3a3245}
+body.gx .top button:hover:not(:disabled){border-color:var(--gx-gold)}
+body.gx .top .ib{border-radius:10px}
+
+/* 盤面：石の枠 */
+body.gx #board{position:relative;gap:0;padding:16px;border-radius:22px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .2 0 0 0 0 .2 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 30% 20%,#a8a39a,#77736c 70%);
+  box-shadow:0 0 0 2px #4a4640,0 0 0 6px #2a2724,0 18px 50px #000c,inset 0 0 30px #0007}
+/* 相手側：明るい石 */
+body.gx .half.op{position:relative;padding:14px 16px 18px;border-radius:12px 12px 0 0;color:#2a2620;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012' numOctaves='4' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .33 0 0 0 0 .3 0 0 0 .55 -.1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .3 0 0 0 0 .3 0 0 0 .35 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    linear-gradient(#d6d1c6,#c4beb2);
+  box-shadow:inset 0 0 40px #5a544a66}
+body.gx .half.op .who{color:#4a443b}
+body.gx .half.op .who b{color:#6b1f1a}
+body.gx .half.op .z .wm{color:#0000000f}
+body.gx .half.op .z{border-color:#0000001c}
+body.gx .half.op .zcount{background:#e7e2d7;color:#2a2620;border-color:#8c857844}
+body.gx .half.op .pilebox .empty{border-color:#0000002a;color:#0005}
+/* 自分側：暗い革＋四隅の飾り */
+body.gx .half.me{position:relative;padding:22px 26px 16px;border-radius:0 0 12px 12px;color:var(--gx-ink);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='none' stroke='%237d2a20' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M18 16c26-6 48 4 62-8M80 8c6 8 2 14-6 16M16 18c-6 26 4 48-8 62M8 80c8 6 14 2 16-6'/%3E%3Cpath d='M30 12l6 10M46 12l4 9M12 30l10 6M12 46l9 4' stroke-width='2'/%3E%3C/g%3E%3Cpath d='M14 4l10 10-10 10L4 14z' fill='%23c8352b' stroke='%23e8c57a' stroke-width='1.4'/%3E%3C/svg%3E") left top/92px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg transform='translate(120 0) scale(-1 1)'%3E%3Cg fill='none' stroke='%237d2a20' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M18 16c26-6 48 4 62-8M80 8c6 8 2 14-6 16M16 18c-6 26 4 48-8 62M8 80c8 6 14 2 16-6'/%3E%3Cpath d='M30 12l6 10M46 12l4 9M12 30l10 6M12 46l9 4' stroke-width='2'/%3E%3C/g%3E%3Cpath d='M14 4l10 10-10 10L4 14z' fill='%23c8352b' stroke='%23e8c57a' stroke-width='1.4'/%3E%3C/g%3E%3C/svg%3E") right top/92px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg transform='translate(0 120) scale(1 -1)'%3E%3Cg fill='none' stroke='%237d2a20' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M18 16c26-6 48 4 62-8M80 8c6 8 2 14-6 16M16 18c-6 26 4 48-8 62M8 80c8 6 14 2 16-6'/%3E%3Cpath d='M30 12l6 10M46 12l4 9M12 30l10 6M12 46l9 4' stroke-width='2'/%3E%3C/g%3E%3Cpath d='M14 4l10 10-10 10L4 14z' fill='%23c8352b' stroke='%23e8c57a' stroke-width='1.4'/%3E%3C/g%3E%3C/svg%3E") left bottom/92px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg transform='translate(120 120) scale(-1 -1)'%3E%3Cg fill='none' stroke='%237d2a20' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M18 16c26-6 48 4 62-8M80 8c6 8 2 14-6 16M16 18c-6 26 4 48-8 62M8 80c8 6 14 2 16-6'/%3E%3Cpath d='M30 12l6 10M46 12l4 9M12 30l10 6M12 46l9 4' stroke-width='2'/%3E%3C/g%3E%3Cpath d='M14 4l10 10-10 10L4 14z' fill='%23c8352b' stroke='%23e8c57a' stroke-width='1.4'/%3E%3C/g%3E%3C/svg%3E") right bottom/92px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .35 0 0 0 0 .25 0 0 0 .12 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 50% 40%,#2a1d17,#140e0b 75%);
+  border:2px solid #4a2a20;box-shadow:inset 0 0 0 4px #1a110d,inset 0 0 0 5px #6a3a2a88,inset 0 0 60px #000a}
+body.gx .half.op.active{box-shadow:inset 0 0 40px #5a544a66,inset 0 0 0 3px #9b3a2f}
+body.gx .half.me.active{box-shadow:inset 0 0 0 4px #1a110d,inset 0 0 0 5px var(--gx-gold),inset 0 0 60px #000a}
+body.gx .half.me .who{color:var(--gx-mute)}
+body.gx .half.me .who b{color:var(--gx-gold)}
+body.gx .half.me .z .wm{color:#ffffff0c}
+body.gx .half.me .z{border-color:#ffffff12}
+body.gx .half.me .zcount{background:#1d1410;color:var(--gx-ink);border-color:#6a3a2a}
+body.gx .half.me .pilebox .empty{border-color:#ffffff22;color:#fff4}
+/* ゾーン：箱をやめて盤面になじませる */
+body.gx .z{background:transparent;border:1px solid transparent;border-radius:10px;min-height:0;padding:6px 8px}
+body.gx .z .wm{font-family:var(--gx-serif);font-size:20px;letter-spacing:.5em}
+body.gx .z .zbtn{gap:4px;opacity:.35;transition:opacity .15s}
+body.gx .z:hover .zbtn{opacity:1}
+body.gx .z .zbtn .ib{width:28px;height:28px;border-radius:8px;background:#0006;border-color:#fff2;color:#eee}
+body.gx .z .zbtn .ib svg{width:14px;height:14px}
+body.gx .z-battle-z{border-top-color:#0000;border-bottom-color:#0000}
+body.gx .half.op .z-battle-z{border-top:1px solid #00000022}
+body.gx .half.me .z-battle-z{border-bottom:1px solid #ffffff14}
+body.gx .zcount{font-family:var(--gx-serif);font-weight:700;letter-spacing:.04em}
+/* マナ「マナ n/n」・シールド枚数 */
+body.gx .z-mana-z .zcount,body.gx .z-shield-z .zcount{left:8px;top:-4px;bottom:auto;height:auto;padding:0;background:none!important;border:0;font-size:18px;font-style:italic;display:flex;align-items:baseline;gap:6px;pointer-events:none}
+body.gx .z-mana-z .zcount::before{content:"マナ";font-size:11px;font-style:normal;letter-spacing:.2em;opacity:.7}
+body.gx .z-shield-z .zcount::before{content:"シールド";font-size:11px;font-style:normal;letter-spacing:.2em;opacity:.7}
+body.gx .z-mana-z .zc,body.gx .z-shield-z .zc{padding-top:22px}
+/* 山札・墓地：下に枚数の札 */
+body.gx .pilebox{background:transparent;border:0;padding:4px 4px 26px;min-height:0}
+body.gx .pilebox::after{content:attr(aria-label);position:absolute;left:50%;bottom:2px;transform:translateX(-50%);white-space:nowrap;font-family:var(--gx-serif);font-size:11px;font-weight:700;letter-spacing:.12em;padding:2px 9px;border-radius:4px;
+  background:linear-gradient(#2b2520,#15110e);color:var(--gx-ink);border:1px solid #6b5a44;box-shadow:0 2px 6px #0008}
+body.gx .pilebox .pn{display:none}
+body.gx .pilebox .pc{box-shadow:2px 2px 0 #0005,4px 4px 0 #0003,0 6px 14px #0008}
+/* カードの裏：このテーマ用に描いたもの（深い紫に金の輪） */
+body.gx .card.back,body.gx .pilebox .pc.back{background:
+    radial-gradient(circle at 50% 50%,transparent 0 22%,#d9b86c 23% 25%,transparent 26% 34%,#d9b86c88 35% 36%,transparent 37%),
+    radial-gradient(circle at 50% 50%,#6a2c3e 0,#3a1a35 40%,#1b1030 75%);
+  border:2px solid #b38e4b;box-shadow:inset 0 0 0 2px #1b1030,inset 0 0 0 3px #d9b86c66}
+body.gx .card{border-radius:6px;box-shadow:0 3px 8px #0009}
+/* 相手の手札：上に小さく */
+body.gx .half.op .z-hand-z{min-height:0;padding:0 8px}
+body.gx.gx-wide .half.op .z-hand-z{position:absolute;left:50%;top:-30px;transform:translateX(-50%);z-index:3;padding:0;display:block;width:auto;max-width:70%}
+body.gx.gx-wide .half.op .z-hand-z .zbtn{display:none}
+body.gx.gx-wide .half.op .z-hand-z .zc{flex-wrap:nowrap;overflow:visible;gap:4px}
+body.gx.gx-wide .half.op .z-hand-z .card.back{width:40px!important}
+body.gx.gx-wide .half.op .z-hand-z .zcount{right:auto;left:100%;top:50%;bottom:auto;transform:translate(8px,-50%)}
+body.gx.gx-wide .half.op .z-hand-z.col{display:none}
+body.gx.gx-wide #board{margin-top:22px;padding-bottom:40px}
+body.gx.gx-wide .half.me .z-hand-z{margin-bottom:-52px}
+body.gx .half.op .z-hand-z .zc{justify-content:center}
+body.gx .half.op .z-hand-z .card.back{width:46px!important}
+body.gx .half.op .z-hand-z .zcount{left:auto;right:56px;bottom:auto;top:10px}
+body.gx .half.op .ztag{display:none}
+/* 処理待ち（Stack） */
+#gxStack{position:absolute;left:50%;transform:translate(-50%,-50%);z-index:4;padding:4px 14px;border-radius:6px;font-family:var(--gx-serif);font-weight:700;font-size:12px;letter-spacing:.1em;
+  background:linear-gradient(#2a2420,#120f0d);color:var(--gx-ink);border:1px solid #8a7250;box-shadow:0 3px 10px #000a;cursor:pointer;white-space:nowrap}
+body:not(.gx) #gxStack{display:none}
+/* ターンの行 */
+body.gx .half.me{--gx-pad:26px}
+body.gx .half.me .turnrow{position:absolute;right:var(--gx-pad);top:10px;z-index:3}
+body.gx .half.me .turnrow .tl{display:none}
+body.gx .half.me .who{min-height:36px}
+body.gx.gx-wide .z-battle-z .zc{min-height:112px}
+body.gx.gx-wide .z .shield .card{max-width:62px;height:auto;aspect-ratio:63/88}
+body.gx.gx-wide .half.op{padding-bottom:10px}
+body.gx .half.op .z-hand-z .zc{min-height:0}
+body.gx .turnrow .tl{font-family:var(--gx-serif);color:var(--gx-gold);letter-spacing:.08em}
+body.gx .turnrow button{height:32px;font-size:12px;border-radius:8px;background:#1d1612;border-color:#6a3a2a}
+body.gx .turnrow .go{background:linear-gradient(#e6c983,#b8913f);color:#1d1406;border-color:#e6c983}
+/* 自分の手札：扇形に大きく */
+body.gx .half.me .z-hand-z{background:none;border:0;padding:0 0 6px}
+body.gx .half.me .z-hand-z .zc{flex-wrap:nowrap;justify-content:center;overflow:visible;padding:14px 0 0;min-height:170px}
+body.gx .half.me .z-hand-z .zc .card{width:var(--gx-cw,124px)!important;height:auto;aspect-ratio:63/88;flex:0 0 auto;margin-left:var(--gx-ov,0px);
+  transform:translateY(var(--gx-dy,0px)) rotate(var(--gx-rot,0deg));transform-origin:50% 120%;transition:transform .15s,box-shadow .15s;
+  box-shadow:0 6px 16px #000c,0 0 0 2px #00000066;border:0}
+body.gx .half.me .z-hand-z .zc .card:first-child{margin-left:0}
+body.gx .half.me .z-hand-z .zc .card:hover,body.gx .half.me .z-hand-z .zc .card.sel{transform:translateY(calc(var(--gx-dy,0px) - 26px)) rotate(0deg) scale(1.06);z-index:5;box-shadow:0 0 0 3px var(--gx-gold),0 0 22px #d9b86c99,0 10px 22px #000c}
+body.gx .half.me .z-hand-z .zcount{left:auto;right:50px;bottom:6px}
+body.gx .half.me .z-hand-z .zbtn{position:absolute;right:4px;top:4px}
+body.gx .half.me .z-hand-z{grid-template-columns:minmax(0,1fr)}
+
+/* ---- 横長（PC）：左＝相手の直前のカード・声・能力・カード詳細・履歴、中央＝盤面、右＝名札とターンボタン ---- */
+body.gx.gx-wide .app{max-width:1720px;min-width:0;grid-template-columns:240px minmax(0,1fr) 200px;column-gap:18px;
+  grid-template-areas:"top top top" "last board right" "voice board right" "pend board right" "sheet board right" "log board right";
+  grid-template-rows:auto auto auto auto auto 1fr}
+body.gx.gx-wide.lay-pc .app{min-width:1180px}
+body.gx.gx-wide #gxLast{grid-area:last;display:flex}
+body.gx.gx-wide #gxRight{grid-area:right;display:flex}
+body.gx.gx-wide .voicebar,body.gx.gx-wide #pendPanel,body.gx.gx-wide #sheet .ovbox,body.gx.gx-wide .logpanel{background:linear-gradient(#17141c,#0f0d13);border:1px solid #3a3242;border-radius:8px;box-shadow:0 4px 14px #0009}
+body.gx .voicebar .vt,body.gx #pendPanel h2,body.gx .logpanel h2,body.gx #sheet .ovh h3{font-family:var(--gx-serif);letter-spacing:.12em;font-size:11px;text-transform:uppercase;color:var(--gx-mute)}
+body.gx.gx-wide .voice{font-size:12.5px}
+body.gx.gx-wide #detail .detail{grid-template-columns:minmax(0,1fr)}
+body.gx.gx-wide #detail .bigface{justify-self:center}
+body.gx.gx-wide .logpanel .log{max-height:30vh}
+#gxLast,#gxRight{display:none}
+#gxLast{flex-direction:column;align-items:center;gap:6px;padding:10px;border-radius:8px;background:linear-gradient(#17141c,#0f0d13);border:1px solid #3a3242;box-shadow:0 4px 14px #0009}
+#gxLast .h{align-self:stretch;font-family:var(--gx-serif);font-size:11px;letter-spacing:.12em;color:var(--gx-mute)}
+#gxLast .lc{position:relative;width:150px;aspect-ratio:63/88;border-radius:8px;overflow:hidden;border:2px solid #cfc6b0;box-shadow:0 8px 20px #000c;background:#000;cursor:pointer}
+#gxLast .lc img,#gxLast .lc .atl{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
+#gxLast .lc .tf{position:absolute;inset:0}
+#gxLast .lc.none{border:2px dashed #3a3242;background:none;display:grid;place-items:center;color:#5a5262;font-size:12px;cursor:default}
+#gxLast .cap{font-family:var(--gx-serif);font-weight:700;font-size:11px;letter-spacing:.08em;text-align:center;color:var(--gx-ink);background:#0c0a0f;border:1px solid #3a3242;border-radius:4px;padding:5px 8px;line-height:1.5;width:100%}
+#gxRight{flex-direction:column;align-items:center;justify-content:space-between;gap:14px;position:sticky;top:10px;align-self:start;min-height:min(86vh,820px)}
+.gx-plate{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%}
+.gx-emb{width:104px;height:104px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle,#2b2338 0 54%,#d9b86c 55% 58%,#3a2f22 59% 66%,#d9b86c 67% 69%,#1a1520 70%);box-shadow:0 0 0 3px #0b090d,0 8px 24px #000c}
+.gx-emb svg{width:46px;height:46px;fill:none;stroke:#d9b86c;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.gx-plate.op .gx-emb{background:radial-gradient(circle,#3a1f22 0 54%,#d9b86c 55% 58%,#3a2f22 59% 66%,#d9b86c 67% 69%,#1a1520 70%)}
+.gx-name{width:100%;text-align:center;padding:5px 8px 7px;border-radius:6px;background:linear-gradient(#221d27,#121016);border:1px solid #4a4052;box-shadow:0 4px 12px #000a}
+.gx-name small{display:block;font-family:var(--gx-serif);font-size:10px;letter-spacing:.2em;color:var(--gx-mute)}
+.gx-name b{display:block;font-family:var(--gx-serif);font-size:14px;color:var(--gx-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gx-name .tn{display:inline-block;margin-top:3px;font-size:10px;font-weight:700;letter-spacing:.12em;padding:1px 8px;border-radius:99px;background:var(--gx-gold);color:#1d1406}
+#gxTurn{width:132px;height:132px;border-radius:50%;padding:0;display:grid;place-items:center;text-align:center;font-family:var(--gx-serif);font-weight:700;font-size:13px;letter-spacing:.12em;line-height:1.5;color:#2a2620;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 .25 0 0 0 0 .25 0 0 0 0 .25 0 0 0 .4 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(circle at 40% 35%,#e4dfd4,#a39d92 70%,#6d685f);
+  border:0;box-shadow:0 0 0 6px #3a3631,0 0 0 8px #15130f,0 10px 28px #000c,inset 0 -6px 14px #0005,inset 0 4px 10px #fff6}
+#gxTurn:hover:not(:disabled){box-shadow:0 0 0 6px var(--gx-gold),0 0 0 8px #15130f,0 0 26px #d9b86c88,inset 0 -6px 14px #0005,inset 0 4px 10px #fff6}
+#gxTurn.go{color:#3a0d08}
+#gxTurn:disabled{opacity:1;cursor:default;color:#5a554c}
+#gxTurn small{display:block;font-size:10px;letter-spacing:.18em;color:#5a554c}
+body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
+@media (max-width:1099px){body.gx:not(.lay-pc) #board{padding:8px;border-radius:14px}
+  body.gx:not(.lay-pc) .half.me{padding:16px 12px 10px}
+  body.gx:not(.lay-pc) .half.me .z-hand-z .zc{min-height:120px;padding-top:18px}}
+</style>
+<script id="gx-theme-js">
+/* 見た目「ゴシック」の動き：名札・ターンボタン・相手の直前のカード・扇形の手札・処理待ち表示。対戦の処理には手を出さない（表示とボタンの中継だけ） */
+(function(){
+  const KEY = 'dmsim-theme';
+  let theme = 'goth'; try { theme = localStorage.getItem(KEY) || 'goth'; } catch (e) {}
+  const app = document.querySelector('.app'); if (!app) return;
+  const esc2 = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const ICON_OP = '<svg viewBox="0 0 24 24"><path d="M4 4l10 10M14 14l2 2-2 2-2-2zM20 4L10 14M10 14l-2 2 2 2 2-2z"/><path d="M3 21l3-3M21 21l-3-3"/></svg>';
+  const ICON_ME = '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6z"/><path d="M12 8v8M9 11h6"/></svg>';
+  // 要素を用意
+  const last = document.createElement('div'); last.id = 'gxLast';
+  last.innerHTML = '<div class="h">相手の直前のカード</div><div class="lc none">まだありません</div><div class="cap">—</div>';
+  const right = document.createElement('div'); right.id = 'gxRight';
+  right.innerHTML = `<div class="gx-plate op"><div class="gx-emb">${ICON_OP}</div><div class="gx-name"><small>相手</small><b id="gxOpName"></b><span class="tn" id="gxOpTn" hidden>この番</span></div></div>
+    <button id="gxTurn" type="button"></button>
+    <div class="gx-plate me"><div class="gx-emb">${ICON_ME}</div><div class="gx-name"><small>あなた</small><b id="gxMeName"></b><span class="tn" id="gxMeTn" hidden>この番</span></div></div>`;
+  const board = document.getElementById('board');
+  app.insertBefore(last, board); app.insertBefore(right, board);
+
+  // 設定に「見た目」を足す
+  const setBox = document.querySelector('#ovSet .ovbox');
+  if (setBox){
+    const row = document.createElement('div'); row.className = 'setrow';
+    row.innerHTML = '<span>見た目</span><span class="laybtns" id="gxBtns"><button data-gx="goth">ゴシック</button><button data-gx="std">標準</button></span>';
+    const help = document.getElementById('helpBtn')?.closest('.setrow');
+    help ? setBox.insertBefore(row, help) : setBox.appendChild(row);
+    row.addEventListener('click', e => { const b = e.target.closest('[data-gx]'); if (!b) return; setTheme(b.dataset.gx); });
+  }
+  function setTheme(t){
+    theme = t; try { localStorage.setItem(KEY, t); } catch (e) {}
+    document.body.classList.toggle('gx', t === 'goth');
+    document.querySelectorAll('#gxBtns [data-gx]').forEach(b => b.classList.toggle('on', b.dataset.gx === t));
+    update();
+  }
+
+  // 相手の直前のカード：相手のカードが手札・山札などから マナ／バトルゾーン／墓地 に動いたら、それを出す
+  let prevS = null, prevZ = null, lastInfo = null;
+  const OPZ = ['mana', 'battle', 'grave', 'shield', 'hand', 'deck'];
+  function opZones(){
+    const m = new Map(); const pl = S?.players?.op; if (!pl) return m;
+    for (const z of OPZ) for (const u of (pl[z] || [])) m.set(u, z);
+    return m;
+  }
+  function trackLast(){
+    if (typeof S === 'undefined' || !S) return;
+    const now = opZones();
+    if (S !== prevS){ // 新しい対戦・元に戻す・読み込み：記録をやり直す（新しい対戦なら消す）
+      if (!prevS || S.demo || (S.turn||0) <= 1) lastInfo = null;
+      prevS = S; prevZ = now; return;
+    }
+    let found = null;
+    for (const [u, z] of now){
+      const was = prevZ.get(u);
+      if (was === z) continue;
+      if (z === 'mana' && (was === 'hand' || was === 'deck' || !was)) found = {u, a:'マナチャージ'};
+      else if (z === 'battle' && was !== 'battle') found = {u, a:'バトルゾーンに出した'};
+      else if (z === 'grave' && (was === 'hand' || !was)) found = {u, a:'使った'};
+    }
+    prevZ = now;
+    if (found){ const c = C(found.u); if (c && c.cid !== HIDDEN_CID && !c.faceDown) lastInfo = {cid:c.cid, uid:found.u, name:cname(c), a:found.a, t:Math.ceil((S.turn||1)/2)}; }
+  }
+  function drawLast(){
+    const lc = last.querySelector('.lc'), cap = last.querySelector('.cap');
+    if (!lastInfo){ lc.className = 'lc none'; lc.innerHTML = 'まだありません'; cap.textContent = '—'; return; }
+    if (lc.dataset.cid !== lastInfo.cid || lc.classList.contains('none')){ lc.className = 'lc'; lc.dataset.cid = lastInfo.cid; lc.innerHTML = faceHTML(lastInfo.cid); }
+    cap.innerHTML = `相手・${esc2(lastInfo.a)}<br>${esc2(lastInfo.name)}`;
+  }
+  last.addEventListener('click', () => { // 押すと、そのカードがまだ場にあれば選ぶ（詳細が出る）
+    if (!lastInfo || typeof S === 'undefined' || !S) return;
+    const el = document.querySelector(`#board [data-uid="${lastInfo.uid}"]`); if (el) el.click();
+  });
+
+  // 名札とターンボタン
+  const tbtn = right.querySelector('#gxTurn');
+  function drawRight(){
+    const has = typeof S !== 'undefined' && S;
+    right.querySelector('#gxOpName').textContent = has ? (S.deckName?.op || '相手') : '相手';
+    right.querySelector('#gxMeName').textContent = has ? (S.deckName?.me || 'あなた') : 'あなた';
+    const act = has && !S.demo && !S.winner ? S.active : '';
+    right.querySelector('#gxOpTn').hidden = act !== 'op';
+    right.querySelector('#gxMeTn').hidden = act !== 'me';
+    let html, dis = false, go = false;
+    const endB = document.querySelector('.half.me [data-act="end"]');
+    if (!has || S.demo){ html = '対戦<br>開始'; go = true; }
+    else if (S.winner){ html = `${S.winner === 'me' ? 'あなたの<br>勝ち' : '相手の<br>勝ち'}<small>もう一度</small>`; go = true; }
+    else if (S.active === 'me'){ html = 'ターン<br>終了'; dis = !endB || endB.disabled; go = !dis; }
+    else { html = '相手の<br>ターン<small>待機中</small>'; dis = true; }
+    if (tbtn.innerHTML !== html) tbtn.innerHTML = html;
+    tbtn.disabled = dis; tbtn.classList.toggle('go', go);
+  }
+  tbtn.addEventListener('click', () => {
+    if (typeof S === 'undefined' || !S || S.demo || S.winner){ document.getElementById('newGame')?.click(); return; }
+    const endB = document.querySelector('.half.me [data-act="end"]'); if (endB && !endB.disabled) endB.click();
+  });
+
+  // 扇形の手札
+  function fanHand(){
+    const zc = document.querySelector('.half.me .z-hand-z .zc'); if (!zc) return;
+    const cards = [...zc.querySelectorAll(':scope > .card')]; const n = cards.length; if (!n) return;
+    const wide = document.body.classList.contains('gx-wide');
+    const cw = wide ? 124 : Math.max(64, Math.min(96, Math.round(window.innerWidth * 0.2)));
+    const W = zc.clientWidth - 20;
+    let ov = n > 1 ? Math.min(-cw * 0.22, (W - 40 - n * cw) / (n - 1)) : 0;
+    ov = Math.max(ov, -cw * 0.78);
+    const step = n > 1 ? Math.min(3, 20 / (n - 1)) : 0;
+    cards.forEach((el, i) => {
+      const d = i - (n - 1) / 2;
+      el.style.setProperty('--gx-cw', cw + 'px');
+      el.style.setProperty('--gx-ov', ov + 'px');
+      el.style.setProperty('--gx-rot', (d * step).toFixed(2) + 'deg');
+      el.style.setProperty('--gx-dy', (d * d * step * 0.3).toFixed(1) + 'px');
+    });
+  }
+  // 処理待ち（Stack ×n）：相手と自分の境目に出す
+  function drawStack(){
+    let st = document.getElementById('gxStack');
+    const n = (typeof S !== 'undefined' && S?.pend?.me?.length) || 0;
+    const me = board.querySelector('.half.me');
+    if (!n || !me){ st?.remove(); return; }
+    if (!st){ st = document.createElement('div'); st.id = 'gxStack'; st.title = '処理待ちの能力'; st.onclick = () => document.getElementById('pendPanel')?.scrollIntoView({block:'nearest'}); }
+    if (st.parentNode !== board) board.appendChild(st);
+    st.textContent = `処理待ち ×${n}`;
+    st.style.top = me.offsetTop + 'px';
+  }
+
+  let queued = false, busyUpd = false;
+  function update(){
+    if (busyUpd) return; busyUpd = true;
+    try {
+      document.body.classList.toggle('gx-wide', theme === 'goth' && (document.body.classList.contains('lay-pc') || (!document.body.classList.contains('lay-phone') && window.innerWidth >= 1100)));
+      try { trackLast(); } catch (e) {}
+      if (theme !== 'goth') return;
+      drawLast(); drawRight(); fanHand(); drawStack();
+    } catch (e) { console.warn('gx', e); } finally { busyUpd = false; }
+  }
+  const sched = () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; update(); }); };
+  new MutationObserver(muts => { if (muts.some(m => [...m.addedNodes].some(n => n.id !== 'gxStack'))) sched(); }).observe(board, {childList:true});
+  const tb = document.getElementById('turnBadge'); if (tb) new MutationObserver(sched).observe(tb, {childList:true, characterData:true, subtree:true, attributes:true});
+  new MutationObserver(sched).observe(document.body, {attributes:true, attributeFilter:['class']});
+  window.addEventListener('resize', sched);
+  setTheme(theme);
+})();
+</script>
 <style>
 /* ---------- 一人回しモード ---------- */
 .solo{position:fixed;inset:0;z-index:35;background:var(--mat);overflow:auto;-webkit-overflow-scrolling:touch;
