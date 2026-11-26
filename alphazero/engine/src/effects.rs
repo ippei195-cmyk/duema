@@ -144,6 +144,9 @@ pub(crate) fn shield_stack_pub(g: &mut Game, p: usize, cards: Vec<Card>) {
 pub(crate) fn shieldify_top_pub(g: &mut Game, p: usize) -> Option<u16> {
     shieldify_top(g, p)
 }
+pub(crate) fn untap_mana_pub(g: &mut Game, p: usize, n: usize) {
+    untap_mana(g, p, n);
+}
 pub(crate) fn is_creature(c: C) -> bool {
     is_creature_card(c)
 }
@@ -1498,7 +1501,9 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
     ninja_check(g, op);
     // ターン・プレイヤーの誘発
     if !c.ign() {
-        match c.card.c {
+        if let Some(pr) = crate::textfx::prog(c.card.c, crate::textfx::Ev::Attack) {
+            crate::textfx::start(g, p, att, pr);
+        } else { match c.card.c {
             C::RedZone => kill_weakest(g, op),
             C::Magny | C::Javert => ask(g, K::SmashBurst, p, 0, 0, vec![att]),
             C::Melaventure => {
@@ -1519,7 +1524,7 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
                 }
             }
             _ => {}
-        }
+        } }
     }
     // 革命チェンジ・D・D・D（手札から）
     let mut rev = vec![];

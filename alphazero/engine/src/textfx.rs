@@ -36,9 +36,13 @@ pub struct Filt {
     pub non_evo: bool,
     pub tapped: u8,    // 0=どちらでも 1=タップ 2=アンタップ
     pub mono: bool,    // 多色ではない
+    pub not_race: u16, // この種族を持たない
+    pub cost_eq_var: u8, // 255=なし。この変数のカードのどれかと同じコスト
+    pub cost_gt: u8,   // 0=なし 1=相手のマナの枚数より大きい 2=自分のマナの枚数より大きい
+    pub lowest_power: bool, // その中でパワーが一番小さいもの（すべて）
 }
 
-pub const ANY: Filt = Filt { kinds: 0, civ: 0, race: 0, kw: 0, min_cost: 0, max_cost: 255, min_power: 0, max_power: 0, non_evo: false, tapped: 0, mono: false };
+pub const ANY: Filt = Filt { kinds: 0, civ: 0, race: 0, kw: 0, min_cost: 0, max_cost: 255, min_power: 0, max_power: 0, non_evo: false, tapped: 0, mono: false, not_race: 0, cost_eq_var: 255, cost_gt: 0, lowest_power: false };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Op {
@@ -56,6 +60,10 @@ pub enum Op {
     Freeze { var: u8 },
     NoAttack { var: u8 },
     Power { var: u8, delta: i32 },
+    GiveSA { var: u8 },          // このターン「スピードアタッカー」
+    Lock { var: u8 },            // 次の自分のターンのはじめまで攻撃もブロックもできない
+    UntapMana { n: u8 },         // 自分のマナを n 枚アンタップ
+    IfSelfEvolved { els: u16 },  // このクリーチャーが進化クリーチャーなら
     Optional { skip: u16 },                  // 「〜してもよい」：使わなければ skip へ
     Mode { targets: &'static [u16] },        // どれか1つ選んで targets[i] へ
     If { who: Who, zone: Zone, f: Filt, cmp: Cmp, n: u8, els: u16 },
@@ -66,9 +74,11 @@ pub enum Op {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Ev { Etb, Spell(u8), Attack, TurnStart, TurnEnd, Destroyed }
+pub enum Ev { Etb, Spell(u8), Attack, AttackEnd, TurnStart, TurnEnd, Destroyed }
 
 pub const NVARS: usize = 6;
+/// 数の代わりに使う値：このクリーチャーに含まれるカードの枚数
+pub const N_CONTAINED: u8 = 255;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Vm {
@@ -106,7 +116,7 @@ fn pl(vm: &Vm, w: Who) -> usize {
     if w == Who::Me { vm.p } else { 1 - vm.p }
 }
 
-pub fn matches(g: &Game, uid: u16, f: &Filt) -> bool {
+pub fn matches(g: &Game, vm: &Vm, uid: u16, f: &Filt) -> bool {
     let Some((q, z)) = locate(g, uid) else { return false };
     let c = card_of(g, q, z, uid).unwrap();
     let d = def(c);
@@ -135,8 +145,26 @@ pub fn matches(g: &Game, uid: u16, f: &Filt) -> bool {
     if cost < f.min_cost || (f.max_cost != 255 && cost > f.max_cost) {
         return false;
     }
-    if f.non_evo && d.evo != Evo::None {
+    if f.non_evo && (d.evo != Evo::None || (z == Zone::Battle && g.find(q, uid).map(|i| !g.ps[q].battle[i].under.is_empty()).unwrap_or(false))) {
         return false;
+    }
+    if f.not_race != 0 && s.race & f.not_race != 0 {
+        return false;
+    }
+    if f.cost_eq_var != 255 {
+        let cs: Vec<u8> = vm.vars[f.cost_eq_var as usize].iter().filter_map(|&u| locate(g, u).and_then(|(q2, z2)| card_of(g, q2, z2, u))).flat_map(|c| {
+            let d = def(c);
+            [Some(d.main.cost), d.spell.map(|x| x.cost)]
+        }).flatten().collect();
+        if !cs.contains(&cost) {
+            return false;
+        }
+    }
+    if f.cost_gt != 0 {
+        let who = if f.cost_gt == 1 { 1 - vm.p } else { vm.p };
+        if (cost as usize) <= g.ps[who].mana.len() {
+            return false;
+        }
     }
     if f.min_power != 0 || f.max_power != 0 || f.tapped != 0 {
         let pw = if z == Zone::Battle { g.find(q, uid).map(|i| g.power(q, i)).unwrap_or(s.power) } else { s.power };
@@ -196,6 +224,25 @@ fn zone_uids(g: &Game, q: usize, z: Zone) -> Vec<u16> {
         Zone::Battle => p.battle.iter().filter(|c| !c.jd || q == usize::MAX).map(|c| c.card.uid).collect(),
         Zone::Shield => p.shields.iter().map(|s| s.card.uid).collect(),
         Zone::Deck => p.deck.iter().rev().map(|c| c.uid).collect(),
+    }
+}
+
+/// 条件に合うカード（「パワーが一番小さい」も見る）
+fn pick_list(g: &Game, vm: &Vm, from: Src, f: &Filt) -> Vec<u16> {
+    let l: Vec<u16> = src_uids(g, vm, from).into_iter().filter(|&u| matches(g, vm, u, f)).collect();
+    if !f.lowest_power {
+        return l;
+    }
+    let pw = |u: u16| -> i32 { (0..2).find_map(|q| g.find(q, u).map(|i| g.power(q, i))).unwrap_or(i32::MAX) };
+    let m = l.iter().map(|&u| pw(u)).min().unwrap_or(0);
+    l.into_iter().filter(|&u| pw(u) == m).collect()
+}
+
+fn n_of(g: &Game, vm: &Vm, n: u8) -> usize {
+    if n == N_CONTAINED {
+        (0..2).find_map(|q| g.find(q, vm.src).map(|i| 1 + g.ps[q].battle[i].under.len())).unwrap_or(1)
+    } else {
+        n as usize
     }
 }
 
@@ -270,7 +317,7 @@ fn count(g: &Game, vm: &Vm, w: Who, z: Zone, f: &Filt) -> usize {
         Zone::Battle => g.ps[q].battle.iter().map(|c| c.card.uid).collect(),
         _ => zone_uids(g, q, z),
     };
-    if *f == ANY { l.len() } else { l.into_iter().filter(|&u| matches(g, u, f)).count() }
+    if *f == ANY { l.len() } else { l.into_iter().filter(|&u| matches(g, vm, u, f)).count() }
 }
 
 fn cre_mut<'a>(g: &'a mut Game, uid: u16) -> Option<&'a mut Cre> {
@@ -299,13 +346,13 @@ pub fn run(g: &mut Game, mut vm: Vm) {
                 vm.vars[var as usize] = g.ps[q].deck[k.saturating_sub(n as usize)..].iter().rev().map(|c| c.uid).collect();
             }
             Op::Filter { from, f, var } => {
-                let l: Vec<u16> = src_uids(g, &vm, from).into_iter().filter(|&u| matches(g, u, &f)).collect();
+                let l: Vec<u16> = pick_list(g, &vm, from, &f);
                 vm.vars[var as usize] = l;
             }
             Op::Random { from, f, n, var } => {
-                let mut l: Vec<u16> = src_uids(g, &vm, from).into_iter().filter(|&u| matches(g, u, &f)).collect();
+                let mut l: Vec<u16> = pick_list(g, &vm, from, &f);
                 let mut out = vec![];
-                for _ in 0..n {
+                for _ in 0..n_of(g, &vm, n) {
                     if l.is_empty() {
                         break;
                     }
@@ -315,15 +362,17 @@ pub fn run(g: &mut Game, mut vm: Vm) {
                 vm.vars[var as usize] = out;
             }
             Op::Choose { from, f, min, max, var, by } => {
-                let l: Vec<u16> = src_uids(g, &vm, from).into_iter().filter(|&u| matches(g, u, &f)).collect();
+                let l: Vec<u16> = pick_list(g, &vm, from, &f);
                 vm.vars[var as usize].clear();
+                let max = n_of(g, &vm, max).min(99) as u8;
                 if l.is_empty() || max == 0 {
                     continue;
                 }
                 let chooser = pl(&vm, by);
                 let pc = vm.pc;
+                let mn = n_of(g, &vm, min).min(l.len()).min(max as usize) as i32;
                 g.stack.push(Task::Fx(Fx::Vm(Box::new(vm))));
-                effects::ask_pub(g, K::VmPick, chooser, (min.min(l.len() as u8)) as i32, max as i32, l);
+                effects::ask_pub(g, K::VmPick, chooser, mn, max as i32, l);
                 let _ = pc;
                 return;
             }
@@ -343,25 +392,37 @@ pub fn run(g: &mut Game, mut vm: Vm) {
             Op::Destroy { var } => {
                 for u in vm.vars[var as usize].clone() {
                     if let Some((q, Zone::Battle)) = locate(g, u) {
-                        effects::destroy(g, q, u, q != vm.p);
+                        // 手書きの処理と同じく、破壊は積んでおいて順に行う（ウルトラ・セイバーなどの置換もそこで）
+                        g.stack.push(Task::Destroy { p: q, uid: u, by_opp: q != vm.p });
                     }
                 }
             }
             Op::Draw { who, n } => {
                 let q = pl(&vm, who);
-                for _ in 0..n {
+                for _ in 0..n_of(g, &vm, n) {
                     g.draw1(q);
                 }
             }
             Op::TopToMana { who, n, tapped } => {
-                g.mill_to_mana(pl(&vm, who), n as usize, tapped);
+                let k = n_of(g, &vm, n);
+                g.mill_to_mana(pl(&vm, who), k, tapped);
             }
             Op::TopToShield { who, n } => {
                 for _ in 0..n {
                     effects::shieldify_top_pub(g, pl(&vm, who));
                 }
             }
-            Op::Tap { var } | Op::Untap { var } | Op::Freeze { var } | Op::NoAttack { var } | Op::Power { var, .. } => {
+            Op::UntapMana { n } => {
+                let k = n_of(g, &vm, n);
+                effects::untap_mana_pub(g, vm.p, k);
+            }
+            Op::IfSelfEvolved { els } => {
+                let ev = (0..2).find_map(|q| g.find(q, vm.src).map(|i| !g.ps[q].battle[i].under.is_empty())).unwrap_or(false);
+                if !ev {
+                    vm.pc = els;
+                }
+            }
+            Op::Tap { var } | Op::Untap { var } | Op::Freeze { var } | Op::NoAttack { var } | Op::Power { var, .. } | Op::GiveSA { var } | Op::Lock { var } => {
                 for u in vm.vars[var as usize].clone() {
                     if let Some(c) = cre_mut(g, u) {
                         match op {
@@ -370,6 +431,8 @@ pub fn run(g: &mut Game, mut vm: Vm) {
                             Op::Freeze { .. } => { c.tapped = true; c.no_untap = true; }
                             Op::NoAttack { .. } => c.cant_attack = true,
                             Op::Power { delta, .. } => c.power_mod += delta,
+                            Op::GiveSA { .. } => c.sa = true,
+                            Op::Lock { .. } => c.lock = true,
                             _ => {}
                         }
                     }

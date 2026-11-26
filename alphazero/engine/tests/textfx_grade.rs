@@ -108,12 +108,20 @@ fn snapshot(g: &Game) -> Vec<Vec<u16>> {
             q.mana.iter().map(|m| m.card.uid).collect(),
             q.battle.iter().map(|c| c.card.uid).collect(),
             q.battle.iter().filter(|c| c.tapped).map(|c| c.card.uid).collect(),
+            q.battle.iter().filter(|c| c.sa).map(|c| c.card.uid).collect(),
+            q.battle.iter().filter(|c| c.lock).map(|c| c.card.uid).collect(),
+            q.battle.iter().filter(|c| c.no_untap).map(|c| c.card.uid).collect(),
+            q.battle.iter().filter(|c| c.cant_attack).map(|c| c.card.uid).collect(),
+            q.battle.iter().flat_map(|c| [c.card.uid, (c.power_mod / 1000 + 100) as u16]).collect(),
+            q.mana.iter().filter(|m| m.tapped).map(|m| m.card.uid).collect(),
             q.grave.iter().map(|c| c.uid).collect(),
             q.shields.iter().map(|s| s.card.uid).collect(),
             q.deck.iter().map(|c| c.uid).collect(),
         ];
-        for x in z.iter_mut() {
-            x.sort();
+        for (k, x) in z.iter_mut().enumerate() {
+            if k != 7 {
+                x.sort();
+            }
         }
         v.extend(z);
     }

@@ -59,6 +59,10 @@
     "ids": "$X"
    },
    {
+    "do": "giveSA",
+    "ids": "$X"
+   },
+   {
     "do": "power",
     "ids": "$X",
     "delta": 3000
@@ -444,6 +448,262 @@
      {
       "do": "draw",
       "n": 1
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dm24ex1-050",
+  "name": "ハンプティ・ルピア",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_HAND",
+    "min": 1,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "grave"
+   },
+   {
+    "do": "choose",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "costOf": "$X"
+    },
+    "min": 1,
+    "max": 1,
+    "as": "Y"
+   },
+   {
+    "do": "destroy",
+    "ids": "$Y"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp3-DM1",
+  "name": "轟く邪道 レッドゾーン",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "untap",
+    "ids": "$SELF"
+   },
+   {
+    "do": "filter",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "lowestPower": true
+    },
+    "as": "X"
+   },
+   {
+    "do": "destroy",
+    "ids": "$X"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp3-DM1",
+  "name": "轟く邪道 レッドゾーン",
+  "ev": "attack",
+  "steps": [
+   {
+    "do": "filter",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "lowestPower": true
+    },
+    "as": "X"
+   },
+   {
+    "do": "destroy",
+    "ids": "$X"
+   }
+  ]
+ },
+ {
+  "id": "dm25ex2-081",
+  "name": "青寂の精霊龍 カーネル",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_BATTLE",
+    "min": 1,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "lock",
+    "ids": "$X"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp2-024",
+  "name": "観覧！ホールインランド・ヘラクレス",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "draw",
+    "n": 2
+   },
+   {
+    "do": "untapMana",
+    "n": "$CONTAINED"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp4-030",
+  "name": "吟弾の妖精",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_BATTLE",
+    "min": "$CONTAINED",
+    "max": "$CONTAINED",
+    "as": "X"
+   },
+   {
+    "do": "freeze",
+    "ids": "$X"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp2-S07",
+  "name": "轟䡛合体 ゴルギーオージャー",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "topToMana",
+    "n": "$CONTAINED",
+    "tapped": false
+   },
+   {
+    "do": "choose",
+    "from": "$MY_MANA",
+    "min": 0,
+    "max": 3,
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "hand"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp1-S03",
+  "name": "大崩壊炉 マーダン=ダイロウ",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "if",
+    "conds": [
+     {
+      "self": "evolved"
+     }
+    ],
+    "steps": [
+     {
+      "do": "filter",
+      "from": "$OPP_BATTLE",
+      "filter": {
+       "nonEvolution": true
+      },
+      "as": "X"
+     },
+     {
+      "do": "move",
+      "ids": "$X",
+      "to": "deckBottom"
+     }
+    ]
+   },
+   {
+    "do": "filter",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "nonEvolution": true
+    },
+    "as": "Y"
+   },
+   {
+    "do": "destroy",
+    "ids": "$Y"
+   }
+  ]
+ },
+ {
+  "id": "dm23ex3-012",
+  "name": "ジャッジ・水晶チャージャー",
+  "ev": "spell",
+  "side": 1,
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "costGreaterThanMana": "opp"
+    },
+    "min": 1,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "deckBottom"
+   }
+  ]
+ },
+ {
+  "id": "dm26ex1-N004",
+  "name": "「ヤベーのを見たいか？」",
+  "ev": "spell",
+  "side": 1,
+  "steps": [
+   {
+    "do": "topToMana",
+    "n": 1,
+    "tapped": true
+   },
+   {
+    "do": "if",
+    "conds": [
+     {
+      "who": "me",
+      "zone": "mana",
+      "filter": {
+       "notRace": "アビス"
+      },
+      "op": "==",
+      "n": 0
+     }
+    ],
+    "steps": [
+     {
+      "do": "choose",
+      "from": "$OPP_BATTLE",
+      "min": 1,
+      "max": 1,
+      "as": "X"
+     },
+     {
+      "do": "power",
+      "ids": "$X",
+      "delta": -2000
      }
     ]
    }

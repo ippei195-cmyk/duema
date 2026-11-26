@@ -10,7 +10,7 @@ pub static PROGS: &[(C, Ev, &[Op])] = &[
     // キユリのASMラジオ spell
     (C::Kiyuri, Ev::Spell(0), &[Look { who: Who::Me, n: 5, var: 0 }, Choose { from: Src::Var(0), f: Filt { kinds: 1, max_cost: 3, ..ANY }, min: 0, max: 2, var: 1, by: Who::Me }, Move { var: 0, except: 1, to: To::DeckBottom }, Move { var: 1, except: 255, to: To::Battle }, End]),
     // ピザスターのアンティハムト etb
-    (C::Antiham, Ev::Etb, &[Draw { who: Who::Me, n: 1 }, Choose { from: Src::Zone(Who::Me, Zone::Hand), f: Filt { kinds: 1, max_cost: 3, non_evo: true, ..ANY }, min: 0, max: 1, var: 0, by: Who::Me }, Move { var: 0, except: 255, to: To::Battle }, Power { var: 0, delta: 3000 }, End]),
+    (C::Antiham, Ev::Etb, &[Draw { who: Who::Me, n: 1 }, Choose { from: Src::Zone(Who::Me, Zone::Hand), f: Filt { kinds: 1, max_cost: 3, non_evo: true, ..ANY }, min: 0, max: 1, var: 0, by: Who::Me }, Move { var: 0, except: 255, to: To::Battle }, GiveSA { var: 0 }, Power { var: 0, delta: 3000 }, End]),
     // 大集合！アカネ&アサギ&コハク etb
     (C::Akane, Ev::Etb, &[Look { who: Who::Me, n: 2, var: 0 }, Choose { from: Src::Var(0), f: ANY, min: 1, max: 1, var: 1, by: Who::Me }, Mode { targets: &[3, 5] }, Move { var: 1, except: 255, to: To::Hand }, Jump(7), Move { var: 1, except: 255, to: To::Mana }, Jump(7), Move { var: 0, except: 1, to: To::DeckBottom }, End]),
     // 世界のY チャクラ・デル・フィン etb
@@ -39,4 +39,24 @@ pub static PROGS: &[(C, Ev, &[Op])] = &[
     (C::Kernel, Ev::Spell(1), &[Random { from: Src::Zone(Who::Opp, Zone::Hand), f: ANY, n: 1, var: 0 }, Move { var: 0, except: 255, to: To::Grave }, Choose { from: Src::Zone(Who::Me, Zone::Shield), f: ANY, min: 1, max: 1, var: 1, by: Who::Me }, Move { var: 1, except: 255, to: To::Hand }, End]),
     // アシステスト・シネラリア etb
     (C::Cineraria, Ev::Etb, &[If { who: Who::Me, zone: Zone::Battle, f: Filt { race: R_GIANT, ..ANY }, cmp: Cmp::Ge, n: 2, els: 2 }, Draw { who: Who::Me, n: 1 }, End]),
+    // ハンプティ・ルピア etb
+    (C::Humpty, Ev::Etb, &[Choose { from: Src::Zone(Who::Opp, Zone::Hand), f: ANY, min: 1, max: 1, var: 0, by: Who::Me }, Move { var: 0, except: 255, to: To::Grave }, Choose { from: Src::Zone(Who::Opp, Zone::Battle), f: Filt { cost_eq_var: 0, ..ANY }, min: 1, max: 1, var: 1, by: Who::Me }, Destroy { var: 1 }, End]),
+    // 轟く邪道 レッドゾーン etb
+    (C::RedZone, Ev::Etb, &[Filter { from: Src::SelfCard, f: ANY, var: 0 }, Untap { var: 0 }, Filter { from: Src::Zone(Who::Opp, Zone::Battle), f: Filt { lowest_power: true, ..ANY }, var: 1 }, Destroy { var: 1 }, End]),
+    // 轟く邪道 レッドゾーン attack
+    (C::RedZone, Ev::Attack, &[Filter { from: Src::Zone(Who::Opp, Zone::Battle), f: Filt { lowest_power: true, ..ANY }, var: 0 }, Destroy { var: 0 }, End]),
+    // 青寂の精霊龍 カーネル etb
+    (C::Kernel, Ev::Etb, &[Choose { from: Src::Zone(Who::Opp, Zone::Battle), f: ANY, min: 1, max: 1, var: 0, by: Who::Me }, Lock { var: 0 }, End]),
+    // 観覧！ホールインランド・ヘラクレス etb
+    (C::Heracles, Ev::Etb, &[Draw { who: Who::Me, n: 2 }, UntapMana { n: 255 }, End]),
+    // 吟弾の妖精 etb
+    (C::Gindan, Ev::Etb, &[Choose { from: Src::Zone(Who::Opp, Zone::Battle), f: ANY, min: 255, max: 255, var: 0, by: Who::Me }, Freeze { var: 0 }, End]),
+    // 轟䡛合体 ゴルギーオージャー etb
+    (C::Gorgi, Ev::Etb, &[TopToMana { who: Who::Me, n: 255, tapped: false }, Choose { from: Src::Zone(Who::Me, Zone::Mana), f: ANY, min: 0, max: 3, var: 0, by: Who::Me }, Move { var: 0, except: 255, to: To::Hand }, End]),
+    // 大崩壊炉 マーダン=ダイロウ etb
+    (C::Madan, Ev::Etb, &[IfSelfEvolved { els: 3 }, Filter { from: Src::Zone(Who::Opp, Zone::Battle), f: Filt { non_evo: true, ..ANY }, var: 0 }, Move { var: 0, except: 255, to: To::DeckBottom }, Filter { from: Src::Zone(Who::Opp, Zone::Battle), f: Filt { non_evo: true, ..ANY }, var: 1 }, Destroy { var: 1 }, End]),
+    // ジャッジ・水晶チャージャー spell
+    (C::Cotton, Ev::Spell(1), &[Choose { from: Src::Zone(Who::Opp, Zone::Battle), f: Filt { cost_gt: 1, ..ANY }, min: 1, max: 1, var: 0, by: Who::Me }, Move { var: 0, except: 255, to: To::DeckBottom }, End]),
+    // 「ヤベーのを見たいか？」 spell
+    (C::Javert, Ev::Spell(1), &[TopToMana { who: Who::Me, n: 1, tapped: true }, If { who: Who::Me, zone: Zone::Mana, f: Filt { not_race: R_ABYSS, ..ANY }, cmp: Cmp::Eq, n: 0, els: 4 }, Choose { from: Src::Zone(Who::Opp, Zone::Battle), f: ANY, min: 1, max: 1, var: 0, by: Who::Me }, Power { var: 0, delta: -2000 }, End]),
 ];

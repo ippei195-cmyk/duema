@@ -31,7 +31,7 @@ def who(x):
     return 'Opp' if x == 'opp' else 'Me'
 
 
-def filt(f):
+def filt(f, comp=None):
     if not f:
         return 'ANY'
     out = {}
@@ -58,6 +58,16 @@ def filt(f):
         elif k == 'tapped': out['tapped'] = '1' if v else '2'
         elif k == 'mono':
             if v: out['mono'] = 'true'
+        elif k == 'notRace':
+            if v not in RACE: raise Fail(f'種族 {v}')
+            out['not_race'] = RACE[v]
+        elif k == 'costOf':
+            if comp is None: raise Fail('costOf はここでは使えない')
+            out['cost_eq_var'] = str(comp.var(v))
+        elif k == 'costGreaterThanMana':
+            out['cost_gt'] = '1' if v == 'opp' else '2'
+        elif k == 'lowestPower':
+            if v: out['lowest_power'] = 'true'
         elif k == 'name':
             raise Fail('名前の条件')
         else:
@@ -109,7 +119,11 @@ class Comp:
 
     def step(self, st):
         d = st.get('do')
-        n = lambda k='n', dv=1: int(st.get(k, dv) if st.get(k) is not None else dv)
+        def n(k='n', dv=1):
+            v = st.get(k)
+            if v is None: return dv
+            if v == '$CONTAINED': return 255
+            return int(v)
         if d == 'optional':
             i = self.emit(None); self.steps(st.get('steps')); self.patch(i, f'Optional {{ skip: {len(self.ops)} }}')
         elif d == 'mode':
@@ -124,11 +138,11 @@ class Comp:
         elif d == 'choose':
             frm = self.src(st.get('from', st.get('cands')))
             if st.get('random'):
-                self.emit(f'Random {{ from: {frm}, f: {filt(st.get("filter"))}, n: {int(st.get("max", 1))}, var: {self.var(st.get("as", "X"), True)} }}'); return
-            mx = int(st.get('max', 1) if st.get('max') is not None else 1); mn = int(st.get('min', 0) or 0)
-            self.emit(f'Choose {{ from: {frm}, f: {filt(st.get("filter"))}, min: {min(mn, 99)}, max: {min(mx, 99)}, var: {self.var(st.get("as", "X"), True)}, by: Who::{who(st.get("by"))} }}')
+                self.emit(f'Random {{ from: {frm}, f: {filt(st.get("filter"), self)}, n: {n('max', 1)}, var: {self.var(st.get("as", "X"), True)} }}'); return
+            mx = n('max', 1); mn = n('min', 0)
+            self.emit(f'Choose {{ from: {frm}, f: {filt(st.get("filter"), self)}, min: {mn if mn == 255 else min(mn, 99)}, max: {mx if mx == 255 else min(mx, 99)}, var: {self.var(st.get("as", "X"), True)}, by: Who::{who(st.get("by"))} }}')
         elif d == 'filter':
-            self.emit(f'Filter {{ from: {self.src(st.get("from", st.get("ids")))}, f: {filt(st.get("filter"))}, var: {self.var(st.get("as", "X"), True)} }}')
+            self.emit(f'Filter {{ from: {self.src(st.get("from", st.get("ids")))}, f: {filt(st.get("filter"), self)}, var: {self.var(st.get("as", "X"), True)} }}')
         elif d == 'move':
             to = st.get('to')
             if to not in TO: raise Fail(f'移動先 {to}')
@@ -155,6 +169,12 @@ class Comp:
         elif d in ('tap', 'untap', 'freeze', 'noattack'):
             name = {'tap': 'Tap', 'untap': 'Untap', 'freeze': 'Freeze', 'noattack': 'NoAttack'}[d]
             self.emit(f'{name} {{ var: {self.ids_var(st.get("ids"))} }}')
+        elif d == 'giveSA':
+            self.emit(f'GiveSA {{ var: {self.ids_var(st.get("ids"))} }}')
+        elif d == 'lock':
+            self.emit(f'Lock {{ var: {self.ids_var(st.get("ids"))} }}')
+        elif d == 'untapMana':
+            self.emit(f'UntapMana {{ n: {n()} }}')
         elif d == 'power':
             self.emit(f'Power {{ var: {self.ids_var(st.get("ids"))}, delta: {int(st.get("delta", 0))} }}')
         elif d == 'if':
@@ -162,6 +182,8 @@ class Comp:
             if not conds: raise Fail('条件が空')
             idx = []
             for cd in conds:
+                if cd.get('self') == 'evolved':
+                    idx.append((self.emit(None), cd, 'EVO')); continue
                 if cd.get('zone', 'mana') not in CZ: raise Fail(f'条件の場所 {cd.get("zone")}')
                 op = {'>=': 'Ge', '<=': 'Le', '==': 'Eq'}.get(cd.get('op', '>='))
                 if not op: raise Fail(f'比べ方 {cd.get("op")}')
@@ -170,6 +192,8 @@ class Comp:
             j = self.emit(None) if st.get('else') else None
             els = len(self.ops)
             for i, cd, op in idx:
+                if op == 'EVO':
+                    self.patch(i, f'IfSelfEvolved {{ els: {els} }}'); continue
                 self.patch(i, f'If {{ who: Who::{who(cd.get("who"))}, zone: Zone::{CZ[cd.get("zone", "mana")]}, f: {filt(cd.get("filter"))}, cmp: Cmp::{op}, n: {int(cd.get("n", 0))}, els: {els} }}')
             if j is not None:
                 self.steps(st.get('else')); self.patch(j, f'Jump({len(self.ops)})')
