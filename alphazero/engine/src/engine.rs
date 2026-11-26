@@ -187,12 +187,15 @@ pub struct Game {
     pub revch: Vec<u16>,       // 革命チェンジで出たクリーチャー（アオフェシー）
     pub saint: Option<u16>,    // セイント・キャッスルの置換で今ブレイクしているシールド
     pub attacks_turn: u8,      // このターンの攻撃の数（邪王来混沌三眼鬼）
+    pub plays_turn: u8,        // このターンにメインで使った数（何も増えないループを打ち切る上限 PLAYS_CAP）
     pub cur_spell: u16,        // いま効果を解決している呪文の uid
     pub extra_for: Option<usize>, // このターンの後に追加ターンを得るプレイヤー（デス・フェルザーク）
     pub in_extra: bool,        // いまが追加ターンか
 }
 
 pub const MAX_TURNS: u32 = 80;
+/// 1ターンにメインで使える数の上限（ループの打ち切り）
+pub const PLAYS_CAP: u8 = 40;
 
 impl Game {
     pub fn new(deck0: &[C], deck1: &[C], seed: u64) -> Game {
@@ -217,6 +220,7 @@ impl Game {
             revch: vec![],
             saint: None,
             attacks_turn: 0,
+            plays_turn: 0,
             cur_spell: u16::MAX,
             extra_for: None,
             in_extra: false,
@@ -307,6 +311,7 @@ impl Game {
             Task::TurnStart => {
                 self.turn += 1;
                 self.attacks_turn = 0;
+                self.plays_turn = 0;
                 if self.turn > MAX_TURNS {
                     self.winner = Some(2);
                     return;
@@ -391,7 +396,11 @@ impl Game {
             }
             Task::MainStep => {
                 let mut opts = vec![Opt::Pass];
-                crate::effects::main_options(self, &mut opts);
+                // ループは有限回で打ち切る（総合ルールのループの扱い：何度でも繰り返せる手順は回数を決めて終える）。
+                // 学習で「何も増えない手順を無限に繰り返す」対局が終わらなくなるのを防ぐ（2026-11-27 創世竜×アトランティス）
+                if self.plays_turn < PLAYS_CAP {
+                    crate::effects::main_options(self, &mut opts);
+                }
                 self.ask(tp, DK::Main, opts, Q::None);
             }
             Task::AttackStep => {
@@ -580,6 +589,7 @@ impl Game {
             (DK::Charge, _) => {}
             (DK::Main, Opt::Pass) => {}
             (DK::Main, Opt::Play { uid, side, how }) => {
+                self.plays_turn = self.plays_turn.saturating_add(1);
                 self.stack.push(Task::MainStep);
                 crate::effects::play_from_hand(self, tp, uid, side, how);
             }

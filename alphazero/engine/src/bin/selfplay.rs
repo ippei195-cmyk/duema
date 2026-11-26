@@ -73,7 +73,16 @@ fn main() {
             let mut recs: Vec<(usize, Vec<u8>)> = vec![]; // (判断した人, 記録)
             let mut moves = [0u32; 2];
             let mut decisions = 0u64;
+            let tg = Instant::now();
             while g.winner.is_none() {
+                // 念のため：判断が多すぎる対局は引き分けで打ち切る（終わらない手順の保険）
+                if decisions >= 3000 {
+                    g.winner = Some(2);
+                    break;
+                }
+                if decisions % 500 == 499 && std::env::var("SP_DEBUG").is_ok() {
+                    eprintln!("long game {} {} vs {} side{} turn {} decisions {} {:.0}s", i, DECKS[da], DECKS[db], side, g.turn, decisions + 1, tg.elapsed().as_secs_f64());
+                }
                 let d = g.decision.as_ref().unwrap();
                 if d.opts.len() == 1 { g.step(0); continue; }
                 let p = d.player;
