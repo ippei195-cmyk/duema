@@ -7,5 +7,7 @@ pub mod features;
 pub mod net;
 pub mod az;
 pub mod bridge;
+pub mod textfx;
+pub mod textfx_progs;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;

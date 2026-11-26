@@ -88,6 +88,10 @@ pub enum K {
     CanzoneDeath,  // カンツォーネが破壊された：下にあったカードを置くクリーチャー（Pick）か、シールド（Pass）
     AkanePick,     // 2枚から：Pick=手札 Mode(k)=list[k]をマナ
     TakaLook,      // TAKASUGI：見た4枚からクリーチャーを手札へ
+    // ---- 2026-11-26 追加：効果文から作った手順（textfx.rs）----
+    VmPick,        // 手順の choose（a=まだ選ばないといけない数 b=あと選べる数）
+    VmYes,         // 手順の optional（Yes/No）
+    VmMode,        // 手順の mode（a=選択肢の数）
     ChooseRepl,    // 未使用（必ず最後）
 }
 
@@ -116,6 +120,7 @@ pub enum Fx {
     MoujaEnd { p: usize, uid: u16 },
     TakaLook { p: usize },             // TAKASUGI：山札の上から4枚を見る
     FirstEvent { p: usize, cost: u8 }, // p（ターン・プレイヤー）のはじめてのエレメント／呪文（ウィリデ）
+    Vm(Box<crate::textfx::Vm>),        // 効果文から作った手順の続き
 }
 
 fn push(g: &mut Game, fx: Fx) {
@@ -124,6 +129,23 @@ fn push(g: &mut Game, fx: Fx) {
 
 fn ask(g: &mut Game, k: K, p: usize, a: i32, b: i32, list: Vec<u16>) {
     push(g, Fx::Ask(EQ { k, p, a, b, list }));
+}
+
+// textfx.rs から使う小道具
+pub(crate) fn ask_pub(g: &mut Game, k: K, p: usize, a: i32, b: i32, list: Vec<u16>) {
+    ask(g, k, p, a, b, list);
+}
+pub(crate) fn take_shield_pub(g: &mut Game, p: usize, uid: u16) -> Option<(Shield, Vec<Card>)> {
+    take_shield(g, p, uid)
+}
+pub(crate) fn shield_stack_pub(g: &mut Game, p: usize, cards: Vec<Card>) {
+    shield_stack(g, p, cards, false);
+}
+pub(crate) fn shieldify_top_pub(g: &mut Game, p: usize) -> Option<u16> {
+    shieldify_top(g, p)
+}
+pub(crate) fn is_creature(c: C) -> bool {
+    is_creature_card(c)
 }
 
 // ---------- 小道具 ----------
@@ -886,6 +908,10 @@ pub fn enter(g: &mut Game, p: usize, card: Card, how: How, base: Option<u16>, jo
 /// 出た時の能力（Jビッグなどで他のクリーチャーが使う場合は src が使う側）
 fn enter_ability(g: &mut Game, p: usize, src: u16, c: C) {
     let op = 1 - p;
+    if let Some(pr) = crate::textfx::prog(c, crate::textfx::Ev::Etb) {
+        crate::textfx::start(g, p, src, pr);
+        return;
+    }
     match c {
         C::Humpty => {
             if !g.ps[op].hand.is_empty() {
@@ -1376,6 +1402,10 @@ fn cast(g: &mut Game, p: usize, card: Card, side: u8, free: bool) {
 
 fn spell_effect(g: &mut Game, p: usize, c: C, side: u8) {
     let op = 1 - p;
+    if let Some(pr) = crate::textfx::prog(c, crate::textfx::Ev::Spell(side)) {
+        crate::textfx::start(g, p, 0, pr);
+        return;
+    }
     match (c, side) {
         (C::Kiyuri, _) => {
             let top = top_n(g, p, 5);
@@ -1688,6 +1718,7 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
                 spell_effect(g, p, c, side);
             }
         }
+        Fx::Vm(vm) => crate::textfx::run(g, *vm),
         Fx::Ask(eq) => {
             let opts = options_for(g, &eq);
             if !opts.is_empty() {
@@ -1804,6 +1835,7 @@ fn options_for(g: &Game, q: &EQ) -> Vec<Opt> {
     let op = 1 - p;
     let yn = vec![Opt::No, Opt::Yes];
     match q.k {
+        K::VmPick | K::VmYes | K::VmMode => crate::textfx::options(q),
         K::Kiyuri => {
             let l: Vec<u16> = q.list.iter().copied().filter(|&u| deck_card(g, p, u).map(|c| is_creature_card(c) && cost_of(c) <= 3).unwrap_or(false)).collect();
             if q.b <= 0 || l.is_empty() {
@@ -2052,6 +2084,7 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
     let op = 1 - p;
     let pick = if let Opt::Pick(u) = o { Some(u) } else { None };
     match q.k {
+        K::VmPick | K::VmYes | K::VmMode => crate::textfx::answer(g, q, o),
         K::EvoBase => {
             // list = [支払うか, 面, how, 攻撃中のクリーチャー(D・D・D)]。b: 0=召喚 1=J・O・E 2=コストなしの召喚
             let uid = q.a as u16;
