@@ -1,0 +1,5968 @@
+[
+ {
+  "id": "dm22ex1-037",
+  "name": "キユリのASMラジオ",
+  "sec": 35.4,
+  "result": {
+   "abilities": [
+    {
+     "ev": "spell",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "自分の山札の上から５枚を見る。その中から、コスト３以下のクリーチャーを２体まで出す。残りを好きな順番で山札の下に置く。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 5,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "filter",
+       "from": "$L",
+       "filter": {
+        "type": "クリーチャー",
+        "maxCost": 3
+       },
+       "as": "X"
+      },
+      {
+       "do": "choose",
+       "q": "コスト3以下のクリーチャーを2体まで選んで出しますか？",
+       "from": "$X",
+       "filter": {
+        "type": "クリーチャー",
+        "maxCost": 3
+       },
+       "min": 0,
+       "max": 2,
+       "as": "Y",
+       "by": "me"
+      },
+      {
+       "do": "move",
+       "ids": "$Y",
+       "to": "battle"
+      },
+      {
+       "do": "move",
+       "ids": "$L",
+       "except": "$Y",
+       "to": "deckBottom"
+      }
+     ]
+    }
+   ],
+   "static": []
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm24ex1-050",
+  "name": "ハンプティ・ルピア",
+  "sec": 12.0,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、相手の手札を見て１枚選び、捨てさせる。その後、その捨てた手札と同じコストを持つ相手のクリーチャーを１体選び、破壊する。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 1,
+       "as": "L",
+       "who": "opp"
+      },
+      {
+       "do": "choose",
+       "q": "相手の手札から1枚を選んで捨てさせますか？",
+       "from": "$L",
+       "min": 1,
+       "max": 1,
+       "as": "X",
+       "by": "me"
+      },
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "grave"
+      },
+      {
+       "do": "choose",
+       "q": "その捨てた手札と同じコストを持つ相手のクリーチャーを1体選んで破壊しますか？",
+       "from": "$OPP_BATTLE",
+       "filter": {
+        "cost": {
+         "==": [
+          "$X.cost"
+         ]
+        },
+        "type": "クリーチャー"
+       },
+       "min": 1,
+       "max": 1,
+       "as": "Y",
+       "by": "me"
+      },
+      {
+       "do": "destroy",
+       "ids": "$Y"
+      }
+     ]
+    },
+    {
+     "ev": "gstrike",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーを自分のシールドゾーンから手札に加える時、表向きにし、相手のクリーチャーを１体選んでもよい。このターン、そのクリーチャーは攻撃できない",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "相手のクリーチャーを1体選んで、このターン攻撃させないですか？",
+       "steps": [
+        {
+         "do": "choose",
+         "q": "相手のクリーチャーを1体選んでください",
+         "from": "$OPP_BATTLE",
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "noattack",
+         "ids": "$X"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "{GS} G・ストライク（このクリーチャーを自分のシールドゾーンから手札に加える時、表向きにし、相手のクリーチャーを１体選んでもよい。このターン、そのクリーチャーは攻撃できない）"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm22rp1-049",
+  "name": "キャディ・ビートル",
+  "sec": 7.1,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手のターン中、相手が、自身のマナゾーンのカードの枚数よりコストが大きいクリーチャーを出す時、かわりにマナゾーンに置く",
+     "steps": [
+      {
+       "do": "note",
+       "text": "相手がコストがマナゾーンのカードの枚数より大きいクリーチャーを出す場合、かわりにマナゾーンに置く"
+      }
+     ]
+    },
+    {
+     "ev": "destroyed",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが破壊される時、墓地に置くかわりにマナゾーンに置く",
+     "steps": [
+      {
+       "do": "note",
+       "text": "このクリーチャーが破壊される場合、かわりにマナゾーンに置く"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "相手のターン中、相手が、自身のマナゾーンのカードの枚数よりコストが大きいクリーチャーを出す時、かわりにマナゾーンに置く。このクリーチャーが破壊される時、墓地に置くかわりにマナゾーンに置く。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmd27-003",
+  "name": "単騎連射 マグナム",
+  "sec": 2.8,
+  "result": {
+   "abilities": [
+    {
+     "ev": "oppEnter",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "自分のターン中に、相手のクリーチャーがバトルゾーンに出る時、そのクリーチャーはバトルゾーンのかわりに持ち主の墓地に置かれる。",
+     "steps": [
+      {
+       "do": "put",
+       "ids": "$X",
+       "to": "grave"
+      }
+     ]
+    }
+   ],
+   "static": [
+    ""
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26rp1-S002",
+  "name": "世界のY チャクラ・デル・フィン",
+  "sec": 9.0,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、自分の山札の上から１枚をシールド化する。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 1,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "move",
+       "ids": "$L",
+       "to": "shield"
+      }
+     ]
+    },
+    {
+     "ev": "shieldPlaced",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "カードが自分のシールドゾーンに置かれた時、相手のクリーチャーを１体選び、タップする。次の自分のターンのはじめまで、それはアンタップしない。",
+     "steps": [
+      {
+       "do": "choose",
+       "q": "相手のクリーチャーを１体選ぶ",
+       "from": "$OPP_BATTLE",
+       "min": 1,
+       "max": 1,
+       "as": "X",
+       "by": "me"
+      },
+      {
+       "do": "tap",
+       "ids": "$X"
+      },
+      {
+       "do": "note",
+       "text": "$Xは次の自分のターンのはじめまでアンタップしない"
+      }
+     ]
+    },
+    {
+     "ev": "shieldPlaced",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "Zラッシュ（シールドが離れたら、次の自分のターンのはじめまで、このクリーチャーのハイパーモードを解放する）",
+     "steps": [
+      {
+       "do": "note",
+       "text": "シールドが離れたら、次の自分のターンのはじめまで、このクリーチャーのハイパーモードを解放する"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "ブロッカーW・ブレイカー相手はコスト５以下の呪文を唱えられない。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26rp1-S009",
+  "name": "轟腕のR ダグラジャパニカン",
+  "sec": 9.7,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、自分のシールドを１つマナゾーンに置く。Zラッシュ（シールドが離れたら、次の自分のターンのはじめまで、このクリーチャーのハイパーモードを解放する）",
+     "steps": [
+      {
+       "do": "move",
+       "ids": "$MY_SHIELD[0]",
+       "to": "mana"
+      }
+     ]
+    },
+    {
+     "ev": "attack",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーの攻擊の終わりに、自分のマナゾーンにあるカードの枚数よりコストが小さい、進化ではないクリーチャーを１体、自分のマナゾーンから出してもよい。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このクリーチャーの攻撃の終わりに、自分のマナゾーンにあるカードの枚数よりコストが小さい、進化ではないクリーチャーを１体、自分のマナゾーンから出しますか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 1,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "filter",
+         "from": "$MY_MANA",
+         "filter": {
+          "type": "クリーチャー",
+          "nonEvolution": true,
+          "cost": {
+           "lt": "$L.cost"
+          }
+         },
+         "as": "X"
+        },
+        {
+         "do": "choose",
+         "q": "出したいクリーチャーを選んでください",
+         "from": "$X",
+         "min": 0,
+         "max": 1,
+         "as": "Y",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$Y",
+         "to": "battle"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "Zラッシュ（シールドが離れたら、次の自分のターンのはじめまで、このクリーチャーのハイパーモードを解放する）"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm25rp3-DM1",
+  "name": "轟く邪道 レッドゾーン",
+  "sec": 600.0,
+  "result": null,
+  "raw": null,
+  "error": "TimeoutError('timed out')"
+ },
+ {
+  "id": "dm25rp3-006",
+  "name": "PP-「P」",
+  "sec": 10.8,
+  "result": {
+   "abilities": [
+    {
+     "ev": "oppEnter",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手のマナゾーンにあるカードの枚数よりコストが大きい相手のクリーチャーが出る時、相手はかわりにそのクリーチャーをマナゾーンに置く。",
+     "steps": [
+      {
+       "do": "put",
+       "ids": "$X",
+       "to": "mana"
+      }
+     ]
+    },
+    {
+     "ev": "turnEnd",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手のターンの終わりに、相手のタップしているクリーチャーがなければ、自分の山札の上から２枚をマナゾーンに置いてもよい。そうしたら、カードを１枚、自分のマナゾーンから手札に戻す。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "自分の山札の上から２枚をマナゾーンに置きますか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 2,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "choose",
+         "q": "置くカードを選んでください",
+         "from": "$L",
+         "min": 2,
+         "max": 2,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "mana"
+        }
+       ]
+      },
+      {
+       "do": "optional",
+       "q": "マナゾーンから手札に戻すカードを選んでください",
+       "steps": [
+        {
+         "do": "look",
+         "n": 2,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "choose",
+         "q": "手札に戻すカードを選んでください",
+         "from": "$L",
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "hand"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "超魂X（これがクリーチャーの下にあれば、そのクリーチャーにも以下の能力を与える）"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmrp22-037",
+  "name": "鬼星の絆 フウジン天＆ライジン天",
+  "sec": 52.6,
+  "result": {
+   "abilities": [
+    {
+     "ev": "gstrike",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "{GS} G・ストライク（このクリーチャーを自分のシールドゾーンから手札に加える時、相手に見せ、相手のクリーチャーを１体選んでもよい。このターン、そのクリーチャーは攻撃できない）",
+     "steps": [
+      {
+       "do": "look",
+       "n": 1,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "optional",
+       "q": "このクリーチャーを手札に加える時、相手のクリーチャーを1体選んでもよい",
+       "steps": [
+        {
+         "do": "choose",
+         "q": "相手のクリーチャーを1体選ぶ",
+         "from": "$OPP_BATTLE",
+         "min": 0,
+         "max": 1,
+         "as": "X",
+         "by": "opp"
+        },
+        {
+         "do": "noattack",
+         "ids": "$X"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手のシールドがなければ、このクリーチャーに「スピードアタッカー」を与える。（「スピードアタッカー」を持つクリーチャーは召喚酔いしない）",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "opp",
+         "zone": "shield",
+         "filter": {},
+         "op": "==",
+         "n": 0
+        }
+       ],
+       "steps": [
+        {
+         "do": "note",
+         "text": "このクリーチャーに「スピードアタッカー」が与えられた"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手のターン中、相手はシールドゾーンにカードを置けない",
+     "steps": [
+      {
+       "do": "note",
+       "text": "相手のターン中、相手はシールドゾーンにカードを置けない"
+      }
+     ]
+    }
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm24ex1-051",
+  "name": "ピザスターのアンティハムト",
+  "sec": 8.0,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、カードを１枚引く。その後、コスト３以下のクリーチャーを１体、自分の手札から出してもよい。このターン、そのクリーチャーに「スピードアタッカー」を与え、パワーを+3000する。",
+     "steps": [
+      {
+       "do": "draw",
+       "n": 1,
+       "who": "me"
+      },
+      {
+       "do": "optional",
+       "q": "コスト3以下のクリーチャーを1体、自分の手札から出しますか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 0,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "filter",
+         "from": "$MY_HAND",
+         "filter": {
+          "type": "クリーチャー",
+          "maxCost": 3
+         },
+         "as": "L"
+        },
+        {
+         "do": "choose",
+         "q": "コスト3以下のクリーチャーを1体選んでください",
+         "from": "$L",
+         "filter": {
+          "type": "クリーチャー",
+          "maxCost": 3
+         },
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "battle"
+        },
+        {
+         "do": "power",
+         "ids": "$X",
+         "delta": 3000
+        },
+        {
+         "do": "note",
+         "text": "「スピードアタッカー」がこのクリーチャーに与えられました。"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "このターン、そのクリーチャーに「スピードアタッカー」を与え、パワーを+3000する。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm23ex3-012",
+  "name": "神判のカルマ コットン / ジャッジ・水晶チャージャー",
+  "sec": 8.6,
+  "result": {
+   "abilities": [
+    {
+     "ev": "oppEnter",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手のクリーチャーが出た時、そのターン、そのクリーチャーは攻撃できない。",
+     "steps": [
+      {
+       "do": "noattack",
+       "ids": "$OPP_BATTLE"
+      }
+     ]
+    },
+    {
+     "ev": "spell",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手のマナゾーンにあるカードの枚数より大きいコストを持つ相手のエレメントを１つ選ぶ。相手はそれを山札の下に置く。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 1,
+       "as": "L",
+       "who": "opp"
+      },
+      {
+       "do": "choose",
+       "q": "相手のマナゾーンにあるカードの枚数より大きいコストを持つ相手のエレメントを１つ選ぶ",
+       "from": "$L",
+       "filter": {
+        "type": "エレメント",
+        "maxCost": 9,
+        "minCost": 0,
+        "nonEvolution": true
+       },
+       "min": 1,
+       "max": 1,
+       "as": "X",
+       "by": "opp"
+      },
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "deckBottom"
+      }
+     ]
+    },
+    {
+     "ev": "spell",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "水晶チャージャー（この呪文を唱えた後、墓地に置くかわりに、裏向きにしてマナゾーンに置く）",
+     "steps": [
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "mana"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "クリーチャー / 呪文／光 / 光／コスト2 / 3／パワー2000／種族 オラクル・セレス/ヒューマノイド"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26rp1-047",
+  "name": "我竜塔第七層 ハッスル・キャッスル",
+  "sec": 5.5,
+  "result": {
+   "abilities": [
+    {
+     "ev": "shieldPlaced",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このG城が表向きで自分のシールドゾーンに置かれた時、自分の山札の上から１枚をタップしてマナゾーンに置く。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 1,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "move",
+       "ids": "$L",
+       "to": "manaTapped"
+      }
+     ]
+    },
+    {
+     "ev": "oppEnter",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手のクリーチャーが召喚以外の方法で出る時、かわりにマナゾーンに置く。",
+     "steps": [
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "mana"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "G城は実行したら、表向きでシールド化される。このカードが表向きで自分のシールドゾーンを離れる時、かわりに墓地に置く"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm24rp3-005",
+  "name": "深淵の逆転撃",
+  "sec": 8.6,
+  "result": {
+   "abilities": [
+    {
+     "ev": "attack",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "逆転撃{dd03}：クリーチャーが自分を攻撃する時、その攻撃中にまだ「逆転撃」を使っていなければ、この呪文を自分の手札からコストを支払わずに唱えてもよい。そうしたら、次の自分のターンのはじめに{dd03}を支払う。支払えなければ、自分はゲームに負ける。相手のクリーチャーを１体選ぶ。このターン、そのクリーチャーのパワーを －∞ する。（パワー０以下のクリーチャーは破壊される）",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "この呪文をコストを支払わずに唱えてもよいですか？",
+       "steps": [
+        {
+         "do": "cast",
+         "ids": "$MY_HAND"
+        }
+       ]
+      },
+      {
+       "do": "note",
+       "text": "次の自分のターンのはじめに{dd03}を支払う必要があります。支払えなければ、自分はゲームに負ける。"
+      },
+      {
+       "do": "choose",
+       "q": "相手のクリーチャーを１体選ぶ",
+       "from": "$OPP_BATTLE",
+       "filter": {
+        "type": "クリーチャー",
+        "maxCost": 9,
+        "minCost": 0,
+        "nonEvolution": true
+       },
+       "min": 1,
+       "max": 1,
+       "as": "X",
+       "by": "me"
+      },
+      {
+       "do": "power",
+       "ids": "$X",
+       "delta": -999999999
+      }
+     ]
+    }
+   ],
+   "static": [
+    "{dd03}を支払う"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26ex1-N004",
+  "name": "邪幽 ジャヴェール / 「ヤベーのを見たいか？」",
+  "sec": 9.4,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": true,
+     "summon_only": true,
+     "text": "自分のアビスが離れた時、相手は自身の手札を１枚選び、捨てる。スマッシュ・バースト",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "相手は手札を捨てる処理を行いますか？",
+       "steps": [
+        {
+         "do": "choose",
+         "q": "相手は自身の手札から1枚を選んで捨てます",
+         "from": "$OPP_HAND",
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "opp"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "grave"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "spell",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "自分の山札の上から１枚をタップしてマナゾーンに置く。その後、自分のマナゾーンにあるカードがすべてアビス・カードなら、相手のクリーチャーを１体選び、このターン、そのクリーチャーのパワーを−2000する。",
+     "steps": [
+      {
+       "do": "topToMana",
+       "n": 1,
+       "tapped": true,
+       "who": "me"
+      },
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "type": "アビス・カード"
+         },
+         "op": "==",
+         "n": 1
+        }
+       ],
+       "steps": [
+        {
+         "do": "choose",
+         "q": "相手のクリーチャーを1体選んでください",
+         "from": "$OPP_BATTLE",
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "power",
+         "ids": "$X",
+         "delta": -2000
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": true,
+     "summon_only": true,
+     "text": "スマッシュ・バースト",
+     "steps": []
+    }
+   ],
+   "static": [
+    "アビスラッシュマッハファイターW・ブレイカー"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26ex3-033",
+  "name": "地封院ギャイ＜まかしとき！＞",
+  "sec": 11.9,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "マッハファイターW・ブレイカー各ターンに１度、自分のドラゴンが出た時、自分の山札の上から２枚をマナゾーンにタップして置いてもよい。その後、ドラゴン・カードを１枚、自分のマナゾーンから手札に戻してもよい。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "自分のドラゴンが出たので、山札の上から2枚をマナゾーンにタップして置きますか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 2,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "choose",
+         "q": "タップして置くカードを選んでください",
+         "from": "$L",
+         "min": 2,
+         "max": 2,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "manaTapped"
+        }
+       ]
+      },
+      {
+       "do": "optional",
+       "q": "マナゾーンからドラゴンカードを1枚手札に戻しますか？",
+       "steps": [
+        {
+         "do": "filter",
+         "from": "$MY_MANA",
+         "filter": {
+          "type": "ドラゴン"
+         },
+         "as": "X"
+        },
+        {
+         "do": "choose",
+         "q": "手札に戻すドラゴンカードを選んでください",
+         "from": "$X",
+         "min": 1,
+         "max": 1,
+         "as": "Y",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$Y",
+         "to": "hand"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "自分の生徒会組カードを実行する時、自分のマナゾーンにあるカードをすべての文明を持つかのようにタップしてもよい。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "生徒会組カードを実行するので、マナゾーンのカードをすべての文明を持つかのようにタップしますか？",
+       "steps": [
+        {
+         "do": "tap",
+         "ids": "$MY_MANA"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "マッハファイターW・ブレイカー各ターンに１度、自分のドラゴンが出た時、自分の山札の上から２枚をマナゾーンにタップして置いてもよい。その後、ドラゴン・カードを１枚、自分のマナゾーンから手札に戻してもよい。自分の生徒会組カードを実行する時、自分のマナゾーンにあるカードをすべての文明を持つかのようにタップしてもよい。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmex17-021",
+  "name": "流星のガイアッシュ・カイザー",
+  "sec": 8.6,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "W・ブレイカーこのクリーチャーが出た時、カードを２枚引く。自分のコスト10以上のクリーチャーの召喚コストを４少なくする。ただし、コストは０以下にはならない。相手のクリーチャーは出たターン、自分を攻撃できない。",
+     "steps": [
+      {
+       "do": "draw",
+       "n": 2,
+       "who": "me"
+      },
+      {
+       "do": "note",
+       "text": "自分のコスト10以上のクリーチャーの召喚コストを4少なくする（コストは0以下にはならない）"
+      },
+      {
+       "do": "note",
+       "text": "相手のクリーチャーは出たターン、自分を攻撃できない"
+      }
+     ]
+    },
+    {
+     "ev": "turnEnd",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手のターンの終わりに、相手がそのターン中、マナゾーンのカードをタップせずに、クリーチャーを出すか呪文を唱えていて、バトルゾーンに自分の 《流星のガイアッシュ・カイザー》がなければ、このクリーチャーをコストを支払わずに召喚してもよい。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このクリーチャーをコストを支払わずに召喚しますか？",
+       "steps": [
+        {
+         "do": "cast",
+         "ids": "$MY_HAND"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "相手のクリーチャーは出たターン、自分を攻撃できない"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26rp2-DM001",
+  "name": "烈しき切札 ドギラゴン逆",
+  "sec": 12.4,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "極限ファイナル革命：このクリーチャーが出た時、このゲーム中に自分が他の「ファイナル革命」を使っていなければ、次の自分のターンのはじめまで、自分はゲームに負けず、相手のカードの効果によって、自分のクリーチャーは離れない。",
+     "steps": [
+      {
+       "do": "note",
+       "text": "このカードの「極限ファイナル革命」の効果が発動しました。このゲーム中に他の「ファイナル革命」を使用していない場合、次の自分のターンのはじめまで、自分はゲームに負けず、相手のカードの効果によって自分のクリーチャーは離れない。"
+      }
+     ]
+    },
+    {
+     "ev": "turnEnd",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "ブロッカーマッハファイターT・ブレイカー自分のターンの終わりに、自分の山札の上から２枚をマナゾーンに置いてもよい。その後、コストの合計が７以下になるように、クリーチャーを２体まで自分の手札またはマナゾーンから出す。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "自分の山札の上から2枚をマナゾーンに置きますか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 2,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$L",
+         "to": "mana"
+        }
+       ]
+      },
+      {
+       "do": "optional",
+       "q": "コストの合計が7以下になるように、クリーチャーを2体まで自分の手札またはマナゾーンから出しますか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 0,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "choose",
+         "q": "コストの合計が7以下になるように、クリーチャーを2体まで選んでください。",
+         "from": [
+          "$MY_HAND",
+          "$MY_MANA"
+         ],
+         "filter": {
+          "type": "クリーチャー",
+          "maxCost": 7,
+          "minCost": 0
+         },
+         "min": 0,
+         "max": 2,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "battle"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "革命チェンジ：光または自然の、パワー8000以上のクリーチャー"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26ex3-007",
+  "name": "流星アーシュ＜私が主役⁉＞",
+  "sec": 600.0,
+  "result": null,
+  "raw": null,
+  "error": "TimeoutError('timed out')"
+ },
+ {
+  "id": "dm26ex3-057",
+  "name": "熊田すず＜わらわは天才！＞",
+  "sec": 9.8,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "自分の生徒会組すべてに「スレイヤー」を与える。（「スレイヤー」を持つクリーチャーがバトルする時、バトルの後、相手クリーチャーを破壊する）",
+     "steps": [
+      {
+       "do": "filter",
+       "from": "$MY_BATTLE",
+       "filter": {
+        "race": "生徒会組"
+       },
+       "as": "X"
+      },
+      {
+       "do": "power",
+       "ids": "$X",
+       "delta": 0
+      },
+      {
+       "do": "note",
+       "text": "「スレイヤー」が付与されました。"
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": true,
+     "summon_only": false,
+     "text": "各ターンに１度、自分のドラゴンが出た時、相手の手札を１枚見ないで選び、捨てさせる。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "この能力を発動しますか？",
+       "steps": [
+        {
+         "do": "filter",
+         "from": "$MY_BATTLE",
+         "filter": {
+          "race": "ドラゴン"
+         },
+         "as": "X"
+        },
+        {
+         "do": "if",
+         "conds": [
+          {
+           "who": "me",
+           "zone": "battle",
+           "filter": {
+            "ids": "$X"
+           },
+           "op": "==",
+           "n": 1
+          }
+         ],
+         "steps": [
+          {
+           "do": "choose",
+           "q": "相手の手札から1枚を選んで捨てさせます",
+           "from": "$OPP_HAND",
+           "min": 1,
+           "max": 1,
+           "as": "Y",
+           "by": "me"
+          },
+          {
+           "do": "move",
+           "ids": "$Y",
+           "to": "grave"
+          }
+         ],
+         "else": []
+        }
+       ]
+      },
+      {
+       "do": "note",
+       "text": "この能力は各ターンに1度だけ使用できます。"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "「スレイヤー」を持つクリーチャーがバトルする時、バトルの後、相手クリーチャーを破壊する"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmx13-s02",
+  "name": "「修羅」の頂 VAN・ベートーベン",
+  "sec": 6.4,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーを召喚してバトルゾーンに出した時、相手のクリーチャーをすべてバトルゾーンから持ち主の手札に戻す。",
+     "steps": [
+      {
+       "do": "move",
+       "ids": "$OPP_BATTLE",
+       "to": "hand"
+      }
+     ]
+    },
+    {
+     "ev": "oppEnter",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手がコマンドまたはドラゴンをバトルゾーンに出す時、相手はそのクリーチャーをバトルゾーンに出すかわりに墓地に置く。",
+     "steps": [
+      {
+       "do": "put",
+       "ids": "$X",
+       "destroyAtEnd": false
+      }
+     ]
+    }
+   ],
+   "static": [
+    "T・ブレイカー（このクリーチャーはシールドを３枚ブレイクする）",
+    "エターナル・Ω（このクリーチャーがバトルゾーンを離れる時、かわりに手札に戻す）"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmr17-006",
+  "name": "悪魔龍 ダークマスターズ",
+  "sec": 4.0,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "W・ブレイカーこのクリーチャーがバトルゾーンに出た時、相手の手札を見て３枚まで選び、捨てさせる。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 3,
+       "as": "L",
+       "who": "opp"
+      },
+      {
+       "do": "choose",
+       "q": "相手の手札から3枚まで選んで捨てさせますか？",
+       "from": "$L",
+       "min": 0,
+       "max": 3,
+       "as": "X",
+       "by": "opp"
+      },
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "grave"
+      }
+     ]
+    }
+   ],
+   "static": []
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm25ex2-081",
+  "name": "青寂の精霊龍 カーネル / サイレント・ジェラシー",
+  "sec": 13.6,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、相手のクリーチャーを１体選ぶ。次の自分のターンのはじめまで、そのクリーチャーは攻撃もブロックもできない。",
+     "steps": [
+      {
+       "do": "choose",
+       "q": "相手のクリーチャーを１体選ぶ",
+       "from": "$OPP_BATTLE",
+       "min": 1,
+       "max": 1,
+       "as": "X",
+       "by": "me"
+      },
+      {
+       "do": "note",
+       "text": "選んだクリーチャーは次の自分のターンのはじめまで攻撃もブロックもできない"
+      },
+      {
+       "do": "tap",
+       "ids": "$X"
+      },
+      {
+       "do": "noattack",
+       "ids": "$X",
+       "until": "turnStart"
+      },
+      {
+       "do": "noattack",
+       "ids": "$X",
+       "until": "turnStart"
+      }
+     ]
+    },
+    {
+     "ev": "strigger",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "ブロッカー（このクリーチャーをタップして、相手クリーチャーの攻撃先をこのクリーチャーに変更してもよい）",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このクリーチャーをタップして、相手のクリーチャーの攻撃先をこのクリーチャーに変更しますか？",
+       "steps": [
+        {
+         "do": "tap",
+         "ids": "$MY_BATTLE"
+        },
+        {
+         "do": "choose",
+         "q": "相手のクリーチャーを選んでください",
+         "from": "$OPP_BATTLE",
+         "min": 1,
+         "max": 1,
+         "as": "Y"
+        },
+        {
+         "do": "move",
+         "ids": "$Y",
+         "to": "$MY_BATTLE"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手の手札を１枚見ないで選び、捨てさせる。自分のシールドを１つ手札に加える。ただし、その「S・トリガー」は使えない。",
+     "steps": [
+      {
+       "do": "choose",
+       "q": "相手の手札から１枚選ぶ",
+       "from": "$OPP_HAND",
+       "min": 1,
+       "max": 1,
+       "as": "Z",
+       "by": "me"
+      },
+      {
+       "do": "move",
+       "ids": "$Z",
+       "to": "$OPP_GRAVE"
+      },
+      {
+       "do": "move",
+       "ids": "$MY_SHIELD",
+       "to": "$MY_HAND"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "S・トリガー：このクリーチャーをタップして、相手クリーチャーの攻撃先をこのクリーチャーに変更してもよい"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26ex4-010",
+  "name": "切札混成 光隼 蒼斬丸",
+  "sec": 11.1,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、カードを２枚まで引く。",
+     "steps": [
+      {
+       "do": "draw",
+       "n": 2,
+       "who": "me"
+      }
+     ]
+    },
+    {
+     "ev": "attack",
+     "once_per_turn": true,
+     "summon_only": false,
+     "text": "各ターンに１度、相手のクリーチャーが攻撃する時、自分の手札を１枚捨ててもよい。そうしたら、攻撃を中止する。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "手札のカードを１枚捨てて攻撃を中止しますか？",
+       "steps": [
+        {
+         "do": "move",
+         "ids": "$MY_HAND",
+         "to": "grave"
+        },
+        {
+         "do": "note",
+         "text": "攻撃が中止されました。"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "gstrike",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "ウラ・ニンジャ・ストライク６（光/水）（相手のクリーチャーが攻撃またはブロックした時、自分のマナゾーンのカードが６枚以上で光と水文明があり、その攻撃中に「ニンジャ・ストライク」を使っていなければ、このシノビをコストを支払わずに召喚してもよい。そのターンの終わりに、このシノビを山札の下に置く）",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "civ": [
+           "光",
+           "水"
+          ],
+          "type": "Mana"
+         },
+         "op": ">=",
+         "n": 6
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "このシノビをコストを支払わずに召喚しますか？",
+         "steps": [
+          {
+           "do": "cast",
+           "ids": "$MY_DECK_BOTTOM"
+          }
+         ]
+        }
+       ],
+       "else": []
+      },
+      {
+       "do": "note",
+       "text": "このターンの終わりに、このシノビを山札の下に置きます。"
+      },
+      {
+       "do": "move",
+       "ids": "$MY_BATTLE",
+       "to": "deckBottom"
+      }
+     ]
+    }
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmex17-020",
+  "name": "音卿の精霊龍 ラフルル・ラブ / 「未来から来る、だからミラクル」",
+  "sec": 11.3,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、次の相手のターンの終わりまで、相手は呪文を唱えられない。カードを３枚引く。その後、コスト５以下の呪文を１枚、自分の手札からコストを支払わずに唱えてもよい。",
+     "steps": [
+      {
+       "do": "draw",
+       "n": 3,
+       "who": "me"
+      },
+      {
+       "do": "optional",
+       "q": "コスト5以下の呪文をコストを支払わずに唱えますか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 0,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "choose",
+         "q": "コスト5以下の呪文を1枚選んでください",
+         "from": "$MY_HAND",
+         "filter": {
+          "type": "呪文",
+          "maxCost": 5
+         },
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "cast",
+         "ids": "$X"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "attack",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "光または水のドラゴン（自分の光または水のドラゴンが攻撃する時、そのクリーチャーと手札にあるこのクリーチャーを入れ替えてもよい）",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このクリーチャーと手札にあるこのクリーチャーを入れ替えますか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 0,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "choose",
+         "q": "手札にあるこのクリーチャーを選んでください",
+         "from": "$MY_HAND",
+         "filter": {
+          "id": "音卿の精霊龍 ラフルル・ラブ"
+         },
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "battle"
+        },
+        {
+         "do": "move",
+         "ids": "$MY_BATTLE",
+         "to": "hand"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "W・ブレイカーこのクリーチャーが出た時、次の相手のターンの終わりまで、相手は呪文を唱えられない。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26ex4-009",
+  "name": "土神 クサビラガミ",
+  "sec": 10.0,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "マッハファイターT・ブレイカーこのクリーチャーが召喚によって出た時、または自分のターンのはじめにアンタップした時、自分の山札の上から２枚までマナゾーンに置く。その後、自分のマナゾーンにカードが12枚以上あれば、相手は自身のクリーチャーを２体選んでマナゾーンに置き、自分はクリーチャーを２体まで自分のマナゾーンから出す。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 2,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "move",
+       "ids": "$L",
+       "to": "mana"
+      },
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {},
+         "op": ">=",
+         "n": 12
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "相手が自身のクリーチャーを2体選んでマナゾーンに置きますか？",
+         "steps": [
+          {
+           "do": "choose",
+           "q": "相手が選ぶクリーチャーを選んでください",
+           "from": "$OPP_BATTLE",
+           "min": 2,
+           "max": 2,
+           "as": "X",
+           "by": "opp"
+          },
+          {
+           "do": "move",
+           "ids": "$X",
+           "to": "mana"
+          }
+         ]
+        },
+        {
+         "do": "optional",
+         "q": "自分はクリーチャーを2体までマナゾーンから出しますか？",
+         "steps": [
+          {
+           "do": "choose",
+           "q": "出すクリーチャーを選んでください",
+           "from": "$MY_MANA",
+           "min": 0,
+           "max": 2,
+           "as": "Y",
+           "by": "me"
+          },
+          {
+           "do": "move",
+           "ids": "$Y",
+           "to": "battle"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "マッハファイターT・ブレイカー"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmrp03-s03",
+  "name": "水上第九院 シャコガイル",
+  "sec": 7.6,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "T・ブレイカーこのクリーチャーがバトルゾーンに出た時、自分の墓地にあるカードをすべて山札に加え、シャッフルする。相手のターンのはじめに、カードを５枚引き、その後、自分の手札を３枚捨てる。自分の山札の最後の１枚を引く時、ゲームに負けるかわりに勝つ。",
+     "steps": [
+      {
+       "do": "shuffle",
+       "who": "me"
+      },
+      {
+       "do": "draw",
+       "n": 5,
+       "who": "opp"
+      },
+      {
+       "do": "move",
+       "ids": "$MY_HAND[0-2]",
+       "to": "grave"
+      }
+     ]
+    },
+    {
+     "ev": "turnStart",
+     "once_per_turn": true,
+     "summon_only": false,
+     "text": "相手のターンのはじめに、カードを５枚引き、その後、自分の手札を３枚捨てる。",
+     "steps": [
+      {
+       "do": "draw",
+       "n": 5,
+       "who": "opp"
+      },
+      {
+       "do": "move",
+       "ids": "$MY_HAND[0-2]",
+       "to": "grave"
+      }
+     ]
+    },
+    {
+     "ev": "draw",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "自分の山札の最後の１枚を引く時、ゲームに負けるかわりに勝つ。",
+     "steps": [
+      {
+       "do": "win"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "T・ブレイカー"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm25rp1-S03",
+  "name": "大崩壊炉 マーダン=ダイロウ",
+  "sec": 7.9,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "ブロッカーW・ブレイカーこのクリーチャーが出た時、それが進化クリーチャーなら、相手は自身の進化ではないクリーチャーをすべて、好きな順序で山札の下に置く。このクリーチャーが出た時、相手の進化ではないクリーチャーをすべて破壊する。",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "opp",
+         "zone": "battle",
+         "filter": {
+          "evolution": false
+         },
+         "op": "==",
+         "n": 1
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "相手が進化ではないクリーチャーを山札の下に置きますか？",
+         "steps": [
+          {
+           "do": "look",
+           "n": 0,
+           "as": "L",
+           "who": "opp"
+          },
+          {
+           "do": "filter",
+           "from": "$L",
+           "filter": {
+            "evolution": false
+           },
+           "as": "X"
+          },
+          {
+           "do": "move",
+           "ids": "$X",
+           "to": "deckBottom"
+          }
+         ]
+        }
+       ],
+       "else": []
+      },
+      {
+       "do": "optional",
+       "q": "相手の進化ではないクリーチャーを破壊しますか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 0,
+         "as": "L",
+         "who": "opp"
+        },
+        {
+         "do": "filter",
+         "from": "$L",
+         "filter": {
+          "evolution": false
+         },
+         "as": "X"
+        },
+        {
+         "do": "destroy",
+         "ids": "$X"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmsd01-011",
+  "name": "ジョジョジョ・ジョーカーズ",
+  "sec": 6.1,
+  "result": {
+   "abilities": [
+    {
+     "ev": "spell",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "自分の山札の上から４枚を見る。その中からジョーカーズ・クリーチャーを１体、相手に見せてから手札に加えてもよい。残りを好きな順序で自分の山札の一番下に置く。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 4,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "optional",
+       "q": "ジョーカーズ・クリーチャーを手札に加えますか？",
+       "steps": [
+        {
+         "do": "filter",
+         "from": "$L",
+         "filter": {
+          "race": "ジョーカーズ",
+          "type": "クリーチャー"
+         },
+         "as": "X"
+        },
+        {
+         "do": "choose",
+         "q": "ジョーカーズ・クリーチャーを選んでください",
+         "from": "$X",
+         "min": 1,
+         "max": 1,
+         "as": "C",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$C",
+         "to": "hand"
+        },
+        {
+         "do": "move",
+         "ids": "$L",
+         "except": "$C",
+         "to": "deckBottom"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": []
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26rp3-042",
+  "name": "銃車逆夢 ザ・マグニー / ジョリー・ザ・スクラッパー",
+  "sec": 11.9,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "EXライフ（このクリーチャーを出す時、自分の山札の上から１枚をシールド化する。このクリーチャーが離れる時、かわりにそのシールドを墓地に置く）",
+     "steps": [
+      {
+       "do": "look",
+       "n": 1,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "move",
+       "ids": "$L",
+       "to": "shield"
+      }
+     ]
+    },
+    {
+     "ev": "attack",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "スマッシュ・バースト（このクリーチャーが攻撃する時、このカードの呪文側を、バトルゾーンに置いたままコストを支払わずに唱えてもよい）",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "呪文側をコストを支払わずに唱えますか？",
+       "steps": [
+        {
+         "do": "cast",
+         "ids": "$MY_BATTLE"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "spell",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手のコスト３以下のエレメントを１つ選び、破壊する。",
+     "steps": [
+      {
+       "do": "mode",
+       "q": "破壊するエレメントを選びますか？",
+       "options": [
+        {
+         "label": "選ぶ",
+         "steps": [
+          {
+           "do": "filter",
+           "from": "$OPP_BATTLE",
+           "filter": {
+            "type": "エレメント",
+            "maxCost": 3
+           },
+           "as": "X"
+          },
+          {
+           "do": "choose",
+           "q": "破壊するエレメントを選んでください",
+           "from": "$X",
+           "min": 1,
+           "max": 1,
+           "as": "Y",
+           "by": "me"
+          },
+          {
+           "do": "destroy",
+           "ids": "$Y"
+          }
+         ]
+        }
+       ],
+       "times": 1
+      }
+     ]
+    }
+   ],
+   "static": [
+    "EXライフ（このクリーチャーを出す時、自分の山札の上から１枚をシールド化する。このクリーチャーが離れる時、かわりにそのシールドを墓地に置く）",
+    "スマッシュ・バースト（このクリーチャーが攻撃する時、このカードの呪文側を、バトルゾーンに置いたままコストを支払わずに唱えてもよい）"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26rp3-S003",
+  "name": "Dr.富士山ッピング",
+  "sec": 14.2,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "自分のターンの終わりに、このクリーチャーが自分の手札にあれば、自分のジョーカーズ・クリーチャーをコストの合計が７以上になるように好きな数手札に戻してもよい。そうしたら、このクリーチャーを出す。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "自分のターンの終わりに、このクリーチャーが自分の手札にあれば、自分のジョーカーズ・クリーチャーをコストの合計が７以上になるように好きな数手札に戻しますか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 0,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "filter",
+         "from": "$MY_HAND",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "as": "X"
+        },
+        {
+         "do": "choose",
+         "q": "コストの合計が7以上になるように、好きな数のジョーカーズ・クリーチャーを選んで手札に戻しますか？",
+         "from": "$X",
+         "filter": {},
+         "min": 0,
+         "max": 99,
+         "as": "Y",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$Y",
+         "to": "deckTop"
+        }
+       ]
+      },
+      {
+       "do": "optional",
+       "q": "このクリーチャーを出しますか？",
+       "steps": [
+        {
+         "do": "move",
+         "ids": "$THIS",
+         "to": "battle"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "ブロッカー　ジャストダイバー　W・ブレイカーこのクリーチャーが出た時、自分の山札の上から３枚を表向きにする。その中からジョーカーズ・カードを好きな枚数手札に加え、残りを好きな順序で山札の下に置く。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 3,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "choose",
+       "q": "ジョーカーズ・カードを好きな枚数手札に加えますか？",
+       "from": "$L",
+       "filter": {
+        "race": "ジョーカーズ"
+       },
+       "min": 0,
+       "max": 3,
+       "as": "X",
+       "by": "me"
+      },
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "hand"
+      },
+      {
+       "do": "move",
+       "ids": "$L",
+       "except": "$X",
+       "to": "deckBottom"
+      }
+     ]
+    },
+    {
+     "ev": "strigger",
+     "once_per_turn": true,
+     "summon_only": false,
+     "text": "各ターンに１度、自分の他のジョーカーズが離れた時、それの出た時にトリガーする能力を１つ使ってもよい。",
+     "steps": []
+    },
+    "static=[",
+    "ブロッカー　ジャストダイバー　W・ブレイカー"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmrp06-s01",
+  "name": "キング・ザ・スロットン７ / 7777777",
+  "sec": 13.1,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "W・ブレイカーこのクリーチャーがバトルゾーンに出た時、自分の山札の上から３枚を表向きにする。それがすべてジョーカーズなら、その中からクリーチャーを１体、バトルゾーンに出す。そのターン、そのクリーチャーは、相手プレイヤーを攻击できる。残りのカードを好きな順序で自分の山札の一番下に置く。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 3,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "filter",
+       "from": "$L",
+       "filter": {
+        "race": "ジョーカーズ"
+       },
+       "as": "F"
+      },
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "deck",
+         "filter": {
+          "ids": "$F"
+         },
+         "op": "==",
+         "n": 3
+        }
+       ],
+       "steps": [
+        {
+         "do": "choose",
+         "q": "クリーチャーを1体選ぶ",
+         "from": "$F",
+         "filter": {
+          "type": "クリーチャー"
+         },
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "battle"
+        },
+        {
+         "do": "note",
+         "text": "そのターン、このクリーチャーは相手プレイヤーを攻撃できる"
+        }
+       ],
+       "else": []
+      },
+      {
+       "do": "move",
+       "ids": "$L",
+       "to": "deckBottom"
+      }
+     ]
+    },
+    {
+     "ev": "strigger",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "S・トリガー相手は自身の山札の上から３枚を表向きにし、自分はその中から１枚を選ぶ。その選んだカードとコストが同じ相手のクリーチャーをすべてと、表向きにした３枚を、相手は好きな順序で自身の山札の一番下に置く。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 3,
+       "as": "L",
+       "who": "opp"
+      },
+      {
+       "do": "choose",
+       "q": "カードを1枚選ぶ",
+       "from": "$L",
+       "min": 1,
+       "max": 1,
+       "as": "X",
+       "by": "me"
+      },
+      {
+       "do": "filter",
+       "from": "$L",
+       "filter": {
+        "cost": {
+         "==": [
+          "$X.cost"
+         ]
+        }
+       },
+       "as": "F"
+      },
+      {
+       "do": "move",
+       "ids": "$F",
+       "to": "deckBottom"
+      },
+      {
+       "do": "move",
+       "ids": "$L",
+       "to": "deckBottom"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "W・ブレイカー",
+    "S・トリガー"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26rp3-S005",
+  "name": "“↑↑”ブランド",
+  "sec": 11.4,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "Ｊ・Ｏ・Ｅ ４ (このクリーチャーを、コストを４少なくして召喚してもよい。こうして出したら、このターンの終わりに、それを自分の山札の下に置く。そうしたら、カードを１枚引く)",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このクリーチャーをコスト4少なくして召喚しますか？",
+       "steps": [
+        {
+         "do": "move",
+         "ids": "$THIS",
+         "to": "battle"
+        },
+        {
+         "do": "note",
+         "text": "このターンの終わりに、このクリーチャーを自分の山札の下に置きます。その後、カードを1枚引きます。"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "自分の手札を好きな数捨ててもよい。こうして捨てたカード１枚につき、相手のパワー6000以下のクリーチャーを１体選び、破壊する",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "自分の手札を捨てますか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 0,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "choose",
+         "q": "捨てる手札を選んでください",
+         "from": "$MY_HAND",
+         "min": 0,
+         "max": 5,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "grave"
+        },
+        {
+         "do": "note",
+         "text": "捨てたカード1枚につき、相手のパワー6000以下のクリーチャーを1体破壊します。"
+        },
+        {
+         "do": "look",
+         "n": 0,
+         "as": "L",
+         "who": "opp"
+        },
+        {
+         "do": "filter",
+         "from": "$L",
+         "filter": {
+          "zone": "battle",
+          "power": 6000,
+          "maxPower": 6000
+         },
+         "as": "Y"
+        },
+        {
+         "do": "choose",
+         "q": "破壊するクリーチャーを選んでください",
+         "from": "$Y",
+         "min": 0,
+         "max": 5,
+         "as": "Z",
+         "by": "me"
+        },
+        {
+         "do": "destroy",
+         "ids": "$Z"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26ex1-N002",
+  "name": "ジョギメラゴン＆メラビート ～Jの焔舞～",
+  "sec": 10.3,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、自分の山札の上から４枚を見る。その中からジョーカーズ・カードを１枚表向きにし、手札に加えてもよい。残りを好きな順序で山札の下に置く。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 4,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "optional",
+       "q": "ジョーカーズ・カードを手札に加えますか？",
+       "steps": [
+        {
+         "do": "filter",
+         "from": "$L",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "as": "X"
+        },
+        {
+         "do": "choose",
+         "q": "ジョーカーズ・カードを選んでください",
+         "from": "$X",
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "hand"
+        },
+        {
+         "do": "move",
+         "ids": "$L",
+         "except": "$X",
+         "to": "deckBottom"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "gstrike",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G・ストライク自分の、ジョーカーズとマナゾーンにあるジョーカーズ・カードが合計４つ以上なら、このクリーチャーの召喚コストを３少なくする。",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 4
+        },
+        {
+         "who": "me",
+         "zone": "hand",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 0
+        }
+       ],
+       "steps": [
+        {
+         "do": "note",
+         "text": "このクリーチャーの召喚コストが3少なくなります"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "スピードアタッカーW・ブレイカーこのクリーチャーの攻撃先は変更されない。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm25ex2-008",
+  "name": "メラベンチャー・ザ・ジョニー",
+  "sec": 16.4,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "W・ブレイカーこのクリーチャーが出た時、ジョーカーズ・クリーチャーを２体まで自分の手札から出し、それらに「スピードアタッカー」を与える。このターンの終わりに、それらを好きな順序で山札の下に置き、こうして下に置いたクリーチャー１体につき、カードを１枚引く。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 2,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "filter",
+       "from": "$L",
+       "filter": {
+        "type": "クリーチャー",
+        "race": "ジョーカーズ"
+       },
+       "as": "X"
+      },
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "battle"
+      },
+      {
+       "do": "note",
+       "text": "「スピードアタッカー」を与えた"
+      },
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 2
+        }
+       ],
+       "steps": [
+        {
+         "do": "look",
+         "n": 2,
+         "as": "L2",
+         "who": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$L2",
+         "to": "deckBottom"
+        },
+        {
+         "do": "draw",
+         "n": 2,
+         "who": "me"
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "gstrike",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "{GS} G・ストライク進化：ジョーカーズ・クリーチャー１体の上に置く。",
+     "steps": [
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "battle"
+      }
+     ]
+    },
+    {
+     "ev": "attack",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが攻撃する時、自分の、ジョーカーズとマナゾーンにあるジョーカーズ・カードが合計７つ以上なら、相手の「ブロッカー」を持つクリーチャーをすべて破壊する。",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        },
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 0
+        }
+       ],
+       "steps": [
+        {
+         "do": "filter",
+         "from": "$OPP_BATTLE",
+         "filter": {
+          "text": "ブロッカー"
+         },
+         "as": "X"
+        },
+        {
+         "do": "destroy",
+         "ids": "$X"
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "turnEnd",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このターンの終わりに、それらを好きな順序で山札の下に置き、こうして下に置いたクリーチャー１体につき、カードを１枚引く。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 2,
+       "as": "L3",
+       "who": "me"
+      },
+      {
+       "do": "move",
+       "ids": "$L3",
+       "to": "deckBottom"
+      },
+      {
+       "do": "draw",
+       "n": 2,
+       "who": "me"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "{GS} G・ストライク進化：ジョーカーズ・クリーチャー１体の上に置く。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmex12-s03",
+  "name": "ジョギラゴン＆ジョニー ～Jの旅路～",
+  "sec": 15.8,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": true,
+     "summon_only": true,
+     "text": "このクリーチャーがバトルゾーンに出た時、カードを１枚引き、その後、自分の手札を１枚捨てる。こうして捨てたカードがジョーカーズなら、そのカードの「このクリーチャーがバトルゾーンに出た時」で始まる能力を１つ使ってもよい。",
+     "steps": [
+      {
+       "do": "draw",
+       "n": 1,
+       "who": "me"
+      },
+      {
+       "do": "optional",
+       "q": "自分の手札からカードを１枚捨てますか？",
+       "steps": [
+        {
+         "do": "choose",
+         "q": "捨てるカードを選んでください",
+         "from": "$MY_HAND",
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "grave"
+        }
+       ]
+      },
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "grave",
+         "filter": {
+          "id": "$X",
+          "race": "ジョーカーズ"
+         },
+         "op": "==",
+         "n": 1
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "このカードの「このクリーチャーがバトルゾーンに出た時」で始まる能力を１つ使いますか？",
+         "steps": [
+          {
+           "do": "look",
+           "n": 1,
+           "as": "L",
+           "who": "me"
+          },
+          {
+           "do": "filter",
+           "from": "$L",
+           "filter": {
+            "text": "このクリーチャーがバトルゾーンに出た時"
+           },
+           "as": "L"
+          }
+         ]
+        },
+        {
+         "do": "note",
+         "text": "選択されたカードの「このクリーチャーがバトルゾーンに出た時」で始まる能力は、このカードの能力として処理されます。"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "attack",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "コスト５以上のジョーカーズ（自分のコスト５以上のジョーカーズが攻撃する時、そのクリーチャーと手札にあるこのクリーチャーを入れ替えてもよい）",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "コスト5以上のジョーカーズが攻撃する時、そのクリーチャーと手札にあるこのクリーチャーを入れ替えますか？",
+       "steps": [
+        {
+         "do": "choose",
+         "q": "入れ替えるジョーカーズを選んでください",
+         "from": "$MY_BATTLE",
+         "filter": {
+          "cost": ">=5",
+          "race": "ジョーカーズ"
+         },
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "choose",
+         "q": "手札にあるこのクリーチャーを選んでください",
+         "from": "$MY_HAND",
+         "filter": {
+          "id": "ジョギラゴン＆ジョニー ～Jの旅路～"
+         },
+         "min": 1,
+         "max": 1,
+         "as": "Y",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "hand"
+        },
+        {
+         "do": "move",
+         "ids": "$Y",
+         "to": "battle"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "相手は、自身の各ターンに１枚しか呪文を唱えられない。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26rp3-DM001",
+  "name": "勝敵逆夢王 モウジャキンガ",
+  "sec": 10.0,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、相手の、シールド１つとクリーチャー１体を選ぶ。その後、相手の手札を１枚見ないで選ぶ。相手はそれらをすべて墓地に置く。",
+     "steps": [
+      {
+       "do": "choose",
+       "q": "相手のシールド１つとクリーチャー１体を選んでください",
+       "from": [],
+       "filter": {},
+       "min": 1,
+       "max": 1,
+       "as": "X",
+       "by": "opp"
+      },
+      {
+       "do": "choose",
+       "q": "相手の手札から１枚を選んでください",
+       "from": "$OPP_HAND",
+       "filter": {},
+       "min": 1,
+       "max": 1,
+       "as": "Y",
+       "by": "opp"
+      },
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "grave"
+      },
+      {
+       "do": "move",
+       "ids": "$Y",
+       "to": "grave"
+      }
+     ]
+    },
+    {
+     "ev": "attack",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーの攻撃の終わりに、カードを１枚引き、自分の手札を１枚捨てる。こうして多色カードを捨てたら、このクリーチャーをアンタップする。",
+     "steps": [
+      {
+       "do": "draw",
+       "n": 1,
+       "who": "me"
+      },
+      {
+       "do": "choose",
+       "q": "自分の手札から１枚を選んでください",
+       "from": "$MY_HAND",
+       "filter": {},
+       "min": 1,
+       "max": 1,
+       "as": "Z",
+       "by": "me"
+      },
+      {
+       "do": "move",
+       "ids": "$Z",
+       "to": "grave"
+      },
+      {
+       "do": "untap",
+       "ids": "$Z"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "キリフダッシュ [水/闇/火(5)]",
+    "EXライフ",
+    "ブロッカー　スピードアタッカー　W・ブレイカー"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26rp3-013",
+  "name": "にやにYAH",
+  "sec": 7.3,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "S・トリガーこのクリーチャーが出た時、次の中から１回選ぶ。▶相手のクリーチャーをすべてタップする。▶Jビッグ１する。（自分の他のジョーカーズの、Jビッグ１以外の、出た時にトリガーする能力を１つ使う)",
+     "steps": [
+      {
+       "do": "mode",
+       "q": "どれを選ぶ？",
+       "options": [
+        {
+         "label": "相手のクリーチャーをすべてタップする",
+         "steps": [
+          {
+           "do": "tap",
+           "ids": "$OPP_BATTLE"
+          }
+         ]
+        },
+        {
+         "label": "Jビッグ１する",
+         "steps": [
+          {
+           "do": "look",
+           "n": 1,
+           "as": "L",
+           "who": "me"
+          },
+          {
+           "do": "filter",
+           "from": "$L",
+           "filter": {
+            "type": "クリーチャー",
+            "race": "ジョーカーズ",
+            "ev": "etb",
+            "nonEvolution": true
+           },
+           "as": "X"
+          },
+          {
+           "do": "if",
+           "conds": [
+            {
+             "who": "me",
+             "zone": "hand",
+             "filter": {
+              "ids": "$X"
+             },
+             "op": "==",
+             "n": 1
+            }
+           ],
+           "steps": [
+            {
+             "do": "move",
+             "ids": "$X",
+             "to": "manaTapped"
+            }
+           ],
+           "else": []
+          },
+          {
+           "do": "cast",
+           "ids": "$X"
+          }
+         ]
+        }
+       ],
+       "times": 1
+      }
+     ]
+    }
+   ],
+   "static": []
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmex19-003",
+  "name": "勝熱と弾丸と自由の決断",
+  "sec": 112.0,
+  "result": {
+   "abilities": [
+    {
+     "ev": "spell",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G・ゼロ：バトルゾーンまたはマナゾーンに自分のジョーカーズが合計７枚以上あれば、この呪文をコストを支払わずに唱えてもよい。次の中から２回選ぶ。（同じものを選んでもよい）",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        },
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "コストを支払わずにこの呪文を唱えますか？",
+         "steps": [
+          {
+           "do": "mode",
+           "q": "どれを選ぶ？",
+           "options": [
+            {
+             "label": "バトルゾーンにある、コスト３以下のカードを１枚選び、持ち主の山札の下に置く。",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "バトルゾーンにあるコスト3以下のカードを1枚選ぶ",
+               "from": "$MY_BATTLE",
+               "filter": {
+                "maxCost": 3
+               },
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "move",
+               "ids": "$X",
+               "to": "deckBottom"
+              }
+             ]
+            },
+            {
+             "label": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる",
+             "steps": [
+              {
+               "do": "note",
+               "text": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる"
+              }
+             ]
+            },
+            {
+             "label": "相手のクリーチャーを１体選ぶ。このターン、そのクリーチャーの能力をすべて無視する",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "相手のクリーチャーを1体選ぶ",
+               "from": "$OPP_BATTLE",
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "note",
+               "text": "このターン、$Xの能力はすべて無視される"
+              }
+             ]
+            }
+           ],
+           "times": 2
+          }
+         ]
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G・ゼロ：バトルゾーンまたはマナゾーンに自分のジョーカーズが合計７枚以上あれば、この呪文をコストを支払わずに唱えてもよい。次の中から２回選ぶ。（同じものを選んでもよい）",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        },
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "コストを支払わずにこの呪文を唱えますか？",
+         "steps": [
+          {
+           "do": "mode",
+           "q": "どれを選ぶ？",
+           "options": [
+            {
+             "label": "バトルゾーンにある、コスト３以下のカードを１枚選び、持ち主の山札の下に置く。",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "バトルゾーンにあるコスト3以下のカードを1枚選ぶ",
+               "from": "$MY_BATTLE",
+               "filter": {
+                "maxCost": 3
+               },
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "move",
+               "ids": "$X",
+               "to": "deckBottom"
+              }
+             ]
+            },
+            {
+             "label": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる",
+             "steps": [
+              {
+               "do": "note",
+               "text": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる"
+              }
+             ]
+            },
+            {
+             "label": "相手のクリーチャーを１体選ぶ。このターン、そのクリーチャーの能力をすべて無視する",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "相手のクリーチャーを1体選ぶ",
+               "from": "$OPP_BATTLE",
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "note",
+               "text": "このターン、$Xの能力はすべて無視される"
+              }
+             ]
+            }
+           ],
+           "times": 2
+          }
+         ]
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G・ゼロ：バトルゾーンまたはマナゾーンに自分のジョーカーズが合計７枚以上あれば、この呪文をコストを支払わずに唱えてもよい。次の中から２回選ぶ。（同じものを選んでもよい）",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        },
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "コストを支払わずにこの呪文を唱えますか？",
+         "steps": [
+          {
+           "do": "mode",
+           "q": "どれを選ぶ？",
+           "options": [
+            {
+             "label": "バトルゾーンにある、コスト３以下のカードを１枚選び、持ち主の山札の下に置く。",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "バトルゾーンにあるコスト3以下のカードを1枚選ぶ",
+               "from": "$MY_BATTLE",
+               "filter": {
+                "maxCost": 3
+               },
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "move",
+               "ids": "$X",
+               "to": "deckBottom"
+              }
+             ]
+            },
+            {
+             "label": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる",
+             "steps": [
+              {
+               "do": "note",
+               "text": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる"
+              }
+             ]
+            },
+            {
+             "label": "相手のクリーチャーを１体選ぶ。このターン、そのクリーチャーの能力をすべて無視する",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "相手のクリーチャーを1体選ぶ",
+               "from": "$OPP_BATTLE",
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "note",
+               "text": "このターン、$Xの能力はすべて無視される"
+              }
+             ]
+            }
+           ],
+           "times": 2
+          }
+         ]
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G・ゼロ：バトルゾーンまたはマナゾーンに自分のジョーカーズが合計７枚以上あれば、この呪文をコストを支払わずに唱えてもよい。次の中から２回選ぶ。（同じものを選んでもよい）",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        },
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "コストを支払わずにこの呪文を唱えますか？",
+         "steps": [
+          {
+           "do": "mode",
+           "q": "どれを選ぶ？",
+           "options": [
+            {
+             "label": "バトルゾーンにある、コスト３以下のカードを１枚選び、持ち主の山札の下に置く。",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "バトルゾーンにあるコスト3以下のカードを1枚選ぶ",
+               "from": "$MY_BATTLE",
+               "filter": {
+                "maxCost": 3
+               },
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "move",
+               "ids": "$X",
+               "to": "deckBottom"
+              }
+             ]
+            },
+            {
+             "label": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる",
+             "steps": [
+              {
+               "do": "note",
+               "text": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる"
+              }
+             ]
+            },
+            {
+             "label": "相手のクリーチャーを１体選ぶ。このターン、そのクリーチャーの能力をすべて無視する",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "相手のクリーチャーを1体選ぶ",
+               "from": "$OPP_BATTLE",
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "note",
+               "text": "このターン、$Xの能力はすべて無視される"
+              }
+             ]
+            }
+           ],
+           "times": 2
+          }
+         ]
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G・ゼロ：バトルゾーンまたはマナゾーンに自分のジョーカーズが合計７枚以上あれば、この呪文をコストを支払わずに唱えてもよい。次の中から２回選ぶ。（同じものを選んでもよい）",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        },
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "コストを支払わずにこの呪文を唱えますか？",
+         "steps": [
+          {
+           "do": "mode",
+           "q": "どれを選ぶ？",
+           "options": [
+            {
+             "label": "バトルゾーンにある、コスト３以下のカードを１枚選び、持ち主の山札の下に置く。",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "バトルゾーンにあるコスト3以下のカードを1枚選ぶ",
+               "from": "$MY_BATTLE",
+               "filter": {
+                "maxCost": 3
+               },
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "move",
+               "ids": "$X",
+               "to": "deckBottom"
+              }
+             ]
+            },
+            {
+             "label": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる",
+             "steps": [
+              {
+               "do": "note",
+               "text": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる"
+              }
+             ]
+            },
+            {
+             "label": "相手のクリーチャーを１体選ぶ。このターン、そのクリーチャーの能力をすべて無視する",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "相手のクリーチャーを1体選ぶ",
+               "from": "$OPP_BATTLE",
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "note",
+               "text": "このターン、$Xの能力はすべて無視される"
+              }
+             ]
+            }
+           ],
+           "times": 2
+          }
+         ]
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G・ゼロ：バトルゾーンまたはマナゾーンに自分のジョーカーズが合計７枚以上あれば、この呪文をコストを支払わずに唱えてもよい。次の中から２回選ぶ。（同じものを選んでもよい）",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        },
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "コストを支払わずにこの呪文を唱えますか？",
+         "steps": [
+          {
+           "do": "mode",
+           "q": "どれを選ぶ？",
+           "options": [
+            {
+             "label": "バトルゾーンにある、コスト３以下のカードを１枚選び、持ち主の山札の下に置く。",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "バトルゾーンにあるコスト3以下のカードを1枚選ぶ",
+               "from": "$MY_BATTLE",
+               "filter": {
+                "maxCost": 3
+               },
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "move",
+               "ids": "$X",
+               "to": "deckBottom"
+              }
+             ]
+            },
+            {
+             "label": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる",
+             "steps": [
+              {
+               "do": "note",
+               "text": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる"
+              }
+             ]
+            },
+            {
+             "label": "相手のクリーチャーを１体選ぶ。このターン、そのクリーチャーの能力をすべて無視する",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "相手のクリーチャーを1体選ぶ",
+               "from": "$OPP_BATTLE",
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "note",
+               "text": "このターン、$Xの能力はすべて無視される"
+              }
+             ]
+            }
+           ],
+           "times": 2
+          }
+         ]
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G・ゼロ：バトルゾーンまたはマナゾーンに自分のジョーカーズが合計７枚以上あれば、この呪文をコストを支払わずに唱えてもよい。次の中から２回選ぶ。（同じものを選んでもよい）",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        },
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "コストを支払わずにこの呪文を唱えますか？",
+         "steps": [
+          {
+           "do": "mode",
+           "q": "どれを選ぶ？",
+           "options": [
+            {
+             "label": "バトルゾーンにある、コスト３以下のカードを１枚選び、持ち主の山札の下に置く。",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "バトルゾーンにあるコスト3以下のカードを1枚選ぶ",
+               "from": "$MY_BATTLE",
+               "filter": {
+                "maxCost": 3
+               },
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "move",
+               "ids": "$X",
+               "to": "deckBottom"
+              }
+             ]
+            },
+            {
+             "label": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる",
+             "steps": [
+              {
+               "do": "note",
+               "text": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる"
+              }
+             ]
+            },
+            {
+             "label": "相手のクリーチャーを１体選ぶ。このターン、そのクリーチャーの能力をすべて無視する",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "相手のクリーチャーを1体選ぶ",
+               "from": "$OPP_BATTLE",
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "note",
+               "text": "このターン、$Xの能力はすべて無視される"
+              }
+             ]
+            }
+           ],
+           "times": 2
+          }
+         ]
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G・ゼロ：バトルゾーンまたはマナゾーンに自分のジョーカーズが合計７枚以上あれば、この呪文をコストを支払わずに唱えてもよい。次の中から２回選ぶ。（同じものを選んでもよい）",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        },
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "コストを支払わずにこの呪文を唱えますか？",
+         "steps": [
+          {
+           "do": "mode",
+           "q": "どれを選ぶ？",
+           "options": [
+            {
+             "label": "バトルゾーンにある、コスト３以下のカードを１枚選び、持ち主の山札の下に置く。",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "バトルゾーンにあるコスト3以下のカードを1枚選ぶ",
+               "from": "$MY_BATTLE",
+               "filter": {
+                "maxCost": 3
+               },
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "move",
+               "ids": "$X",
+               "to": "deckBottom"
+              }
+             ]
+            },
+            {
+             "label": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる",
+             "steps": [
+              {
+               "do": "note",
+               "text": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる"
+              }
+             ]
+            },
+            {
+             "label": "相手のクリーチャーを１体選ぶ。このターン、そのクリーチャーの能力をすべて無視する",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "相手のクリーチャーを1体選ぶ",
+               "from": "$OPP_BATTLE",
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "note",
+               "text": "このターン、$Xの能力はすべて無視される"
+              }
+             ]
+            }
+           ],
+           "times": 2
+          }
+         ]
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G・ゼロ：バトルゾーンまたはマナゾーンに自分のジョーカーズが合計７枚以上あれば、この呪文をコストを支払わずに唱えてもよい。次の中から２回選ぶ。（同じものを選んでもよい）",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        },
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "コストを支払わずにこの呪文を唱えますか？",
+         "steps": [
+          {
+           "do": "mode",
+           "q": "どれを選ぶ？",
+           "options": [
+            {
+             "label": "バトルゾーンにある、コスト３以下のカードを１枚選び、持ち主の山札の下に置く。",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "バトルゾーンにあるコスト3以下のカードを1枚選ぶ",
+               "from": "$MY_BATTLE",
+               "filter": {
+                "maxCost": 3
+               },
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "move",
+               "ids": "$X",
+               "to": "deckBottom"
+              }
+             ]
+            },
+            {
+             "label": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる",
+             "steps": [
+              {
+               "do": "note",
+               "text": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる"
+              }
+             ]
+            },
+            {
+             "label": "相手のクリーチャーを１体選ぶ。このターン、そのクリーチャーの能力をすべて無視する",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "相手のクリーチャーを1体選ぶ",
+               "from": "$OPP_BATTLE",
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "note",
+               "text": "このターン、$Xの能力はすべて無視される"
+              }
+             ]
+            }
+           ],
+           "times": 2
+          }
+         ]
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G・ゼロ：バトルゾーンまたはマナゾーンに自分のジョーカーズが合計７枚以上あれば、この呪文をコストを支払わずに唱えてもよい。次の中から２回選ぶ。（同じものを選んでもよい）",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        },
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "race": "ジョーカーズ"
+         },
+         "op": ">=",
+         "n": 7
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "コストを支払わずにこの呪文を唱えますか？",
+         "steps": [
+          {
+           "do": "mode",
+           "q": "どれを選ぶ？",
+           "options": [
+            {
+             "label": "バトルゾーンにある、コスト３以下のカードを１枚選び、持ち主の山札の下に置く。",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "バトルゾーンにあるコスト3以下のカードを1枚選ぶ",
+               "from": "$MY_BATTLE",
+               "filter": {
+                "maxCost": 3
+               },
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "move",
+               "ids": "$X",
+               "to": "deckBottom"
+              }
+             ]
+            },
+            {
+             "label": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる",
+             "steps": [
+              {
+               "do": "note",
+               "text": "このターン、自分のクリーチャー１体は相手プレイヤーを攻撃できる"
+              }
+             ]
+            },
+            {
+             "label": "相手のクリーチャーを１体選ぶ。このターン、そのクリーチャーの能力をすべて無視する",
+             "steps": [
+              {
+               "do": "choose",
+               "q": "相手のクリーチャーを1体選ぶ",
+               "from": "$OPP_BATTLE",
+               "min": 1,
+               "max": 1,
+               "as": "X",
+               "by": "me"
+              },
+              {
+               "do": "note",
+               "text": "このターン、$Xの能力はすべて無視される"
+              }
+             ]
+            }
+           ],
+           "times": 2
+          }
+         ]
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "static": [
+      "G・ゼロ：バトルゾーンまたはマナゾーンに自分のジョーカーズが合計７枚以上あれば、この呪文をコストを支払わずに唱えてもよい。次の中から２回選ぶ。（同じものを選んでもよい）"
+     ]
+    }
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmrp04s-s01",
+  "name": "最終兵ッキー",
+  "sec": 12.4,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーがバトルゾーンに出た時または攻撃する時、バトルゾーンにある他のクリーチャーを１体選んでもよい。そうしたら、そのクリーチャーの持ち主はそれを自身の山札の一番下に置き、カードを１枚引く。その後、選んだクリーチャー以下のコストを持つクリーチャーを１体、その持ち主は自身の手札からバトルゾーンに出してもよい。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このクリーチャーがバトルゾーンに出た時または攻撃する時、バトルゾーンにある他のクリーチャーを１体選んでもよい",
+       "steps": [
+        {
+         "do": "choose",
+         "q": "バトルゾーンにある他のクリーチャーを１体選ぶ",
+         "from": "$MY_BATTLE $OPP_BATTLE",
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        }
+       ]
+      },
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "deckBottom",
+       "who": "me"
+      },
+      {
+       "do": "draw",
+       "n": 1,
+       "who": "me"
+      },
+      {
+       "do": "optional",
+       "q": "選んだクリーチャー以下のコストを持つクリーチャーを１体、その持ち主は自身の手札からバトルゾーンに出してもよい",
+       "steps": [
+        {
+         "do": "choose",
+         "q": "選んだクリーチャー以下のコストを持つクリーチャーを１体選ぶ",
+         "from": "$MY_HAND",
+         "filter": {
+          "maxCost": 5
+         },
+         "min": 1,
+         "max": 1,
+         "as": "Y",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$Y",
+         "to": "battle",
+         "who": "me"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "このクリーチャーがバトルゾーンに出た時または攻撃する時、バトルゾーンにある他のクリーチャーを１体選んでもよい。そうしたら、そのクリーチャーの持ち主はそれを自身の山札の一番下に置き、カードを１枚引く。その後、選んだクリーチャー以下のコストを持つクリーチャーを１体、その持ち主は自身の手札からバトルゾーンに出してもよい。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmrp05-s08",
+  "name": "アイアン・マンハッタン",
+  "sec": 12.1,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーがバトルゾーンに出た時、相手のシールドを２つ選ぶ。このクリーチャーは、相手のそれ以外のシールドをすべてブレイクする。その後、自分の手札を１枚捨ててもよい。そうしたら、次のターン、相手は２体以上クリーチャーをバトルゾーンに出せない。",
+     "steps": [
+      {
+       "do": "choose",
+       "q": "相手のシールドから2つ選ぶ",
+       "from": "$MY_SHIELD",
+       "min": 2,
+       "max": 2,
+       "as": "X",
+       "by": "me"
+      },
+      {
+       "do": "note",
+       "text": "このクリーチャーは、相手のそれ以外のシールドをすべてブレイクする"
+      },
+      {
+       "do": "optional",
+       "q": "自分の手札を1枚捨てますか？",
+       "steps": [
+        {
+         "do": "choose",
+         "q": "手札から1枚選ぶ",
+         "from": "$MY_HAND",
+         "min": 1,
+         "max": 1,
+         "as": "Y",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$Y",
+         "to": "grave"
+        }
+       ]
+      },
+      {
+       "do": "note",
+       "text": "次のターン、相手は2体以上クリーチャーをバトルゾーンに出せない"
+      }
+     ]
+    },
+    {
+     "ev": "spell",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "Ｊ・Ｏ・Ｅ ２ (このクリーチャーを、コストを２少なくして召喚してもよい。そうしたら、このターンの終わりに、これを自分の山札の一番下に置く。下に置いたら、カードを１枚引く)",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "コストを2少なくしてこのクリーチャーを召喚しますか？",
+       "steps": [
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "battle"
+        },
+        {
+         "do": "note",
+         "text": "このターンの終わりに、これを自分の山札の一番下に置く"
+        },
+        {
+         "do": "note",
+         "text": "カードを1枚引く"
+        },
+        {
+         "do": "turnEnd",
+         "steps": [
+          {
+           "do": "move",
+           "ids": "$X",
+           "to": "deckBottom"
+          },
+          {
+           "do": "draw",
+           "n": 1,
+           "who": "me"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "スピードアタッカー　W・ブレイカー"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26rp1-057",
+  "name": "我竜塔第一層 セイント・キャッスル",
+  "sec": 6.4,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G城は実行したら、表向きでシールド化される。このカードが表向きで自分のシールドゾーンを離れる時、かわりに墓地に置く",
+     "steps": [
+      {
+       "do": "move",
+       "ids": "$THIS",
+       "to": "shield",
+       "except": "$MY_SHIELD"
+      }
+     ]
+    },
+    {
+     "ev": "shieldPlaced",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手のクリーチャーがシールドを１つ以上ブレイクする時、かわりにこのシールドをブレイクさせてもよい",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "相手のクリーチャーがシールドをブレイクする代わりにこのシールドをブレイクさせますか？",
+       "steps": [
+        {
+         "do": "move",
+         "ids": "$THIS",
+         "to": "grave"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "G城は実行したら、表向きでシールド化される。このカードが表向きで自分のシールドゾーンを離れる時、かわりに墓地に置く"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm24rp3-S02",
+  "name": "楯教の求道者 ザゼ・ゼーン",
+  "sec": 9.4,
+  "result": {
+   "abilities": [
+    {
+     "ev": "shieldPlaced",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "自分のシールドゾーンにカードが置かれた時、このクリーチャーをアンタップし、その後、次のうちいずれか１つを選ぶ。",
+     "steps": [
+      {
+       "do": "untap",
+       "ids": "$THIS"
+      },
+      {
+       "do": "mode",
+       "q": "どれを選ぶ？",
+       "options": [
+        {
+         "label": "カードを１枚引く。",
+         "steps": [
+          {
+           "do": "draw",
+           "n": 1,
+           "who": "me"
+          }
+         ]
+        },
+        {
+         "label": "相手のクリーチャーを１体選び、タップする。次の相手のターンのはじめに、そのクリーチャーはアンタップしない。",
+         "steps": [
+          {
+           "do": "choose",
+           "q": "相手のクリーチャーを１体選ぶ",
+           "from": "$OPP_BATTLE",
+           "min": 1,
+           "max": 1,
+           "as": "X",
+           "by": "me"
+          },
+          {
+           "do": "tap",
+           "ids": "$X"
+          },
+          {
+           "do": "note",
+           "text": "次の相手のターンのはじめに、$Xはアンタップしない。"
+          }
+         ]
+        },
+        {
+         "label": "次の自分のターンのはじめまで、このクリーチャーは離れない。",
+         "steps": [
+          {
+           "do": "note",
+           "text": "次の自分のターンのはじめまで、このクリーチャーは離れない。"
+          }
+         ]
+        }
+       ],
+       "times": 1
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーはタップして出て、自分のターンのはじめにアンタップしない。",
+     "steps": [
+      {
+       "do": "tap",
+       "ids": "$THIS"
+      },
+      {
+       "do": "note",
+       "text": "自分のターンのはじめにアンタップしない。"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "ブロッカーW・ブレイカー"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm25rp2-012",
+  "name": "一音の妖精",
+  "sec": 10.2,
+  "result": {
+   "abilities": [
+    {
+     "ev": "gstrike",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "光、水、または自然のクリーチャー１体の上に置いてもよい。（カードが下にあれば、これをNEO進化クリーチャーとして扱う）",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "光、水、または自然のクリーチャー１体の上に置きますか？",
+       "steps": [
+        {
+         "do": "choose",
+         "q": "光、水、または自然のクリーチャー１体を選んでください",
+         "from": "$MY_BATTLE",
+         "filter": {
+          "type": "クリーチャー",
+          "civ": [
+           "光",
+           "水",
+           "自然"
+          ],
+          "nonEvolution": true
+         },
+         "min": 0,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        }
+       ]
+      },
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "battle"
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手は各ターン１回しか呪文を唱えられない。これが進化クリーチャーなら、相手は各ターン１体しかクリーチャーを出せない。",
+     "steps": [
+      {
+       "do": "note",
+       "text": "相手は各ターン１回しか呪文を唱えられない。このカードが進化クリーチャーなら、相手は各ターン１体しかクリーチャーを出せない。"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "{GS} G・ストライクNEO進化：光、水、または自然のクリーチャー１体の上に置いてもよい。（カードが下にあれば、これをNEO進化クリーチャーとして扱う）相手は各ターン１回しか呪文を唱えられない。これが進化クリーチャーなら、相手は各ターン１体しかクリーチャーを出せない。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26rp2-S002",
+  "name": "天V王 エバーラスト",
+  "sec": 18.8,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "マナ武装 ３：自分のマナゾーンに光のカードが３枚以上あれば、このクリーチャーの召喚コストを２少なくする。",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "type": "光"
+         },
+         "op": ">=",
+         "n": 3
+        }
+       ],
+       "steps": [
+        {
+         "do": "note",
+         "text": "このクリーチャーの召喚コストが2少なくなります。"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "ブロッカーT・ブレイカーこのクリーチャーが出た時または攻撃する時、エレメントを１つ選び、シールド化してもよい。そうしなければ、自分の山札の上から１枚をシールド化してもよい。",
+     "steps": [
+      {
+       "do": "mode",
+       "q": "シールド化する方法を選びなさい",
+       "options": [
+        {
+         "label": "エレメントを選び、シールド化する",
+         "steps": [
+          {
+           "do": "choose",
+           "q": "エレメントを選びなさい",
+           "from": "$MY_SHIELD",
+           "filter": {
+            "type": "エレメント"
+           },
+           "min": 1,
+           "max": 1,
+           "as": "X",
+           "by": "me"
+          },
+          {
+           "do": "move",
+           "ids": "$X",
+           "to": "shield"
+          }
+         ]
+        },
+        {
+         "label": "山札の上から1枚をシールド化する",
+         "steps": [
+          {
+           "do": "look",
+           "n": 1,
+           "as": "L",
+           "who": "me"
+          },
+          {
+           "do": "move",
+           "ids": "$L",
+           "to": "shield"
+          }
+         ]
+        }
+       ],
+       "times": 1
+      }
+     ]
+    },
+    {
+     "ev": "attack",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "ブロッカーT・ブレイカーこのクリーチャーが出た時または攻撃する時、エレメントを１つ選び、シールド化してもよい。そうしなければ、自分の山札の上から１枚をシールド化してもよい。",
+     "steps": [
+      {
+       "do": "mode",
+       "q": "シールド化する方法を選びなさい",
+       "options": [
+        {
+         "label": "エレメントを選び、シールド化する",
+         "steps": [
+          {
+           "do": "choose",
+           "q": "エレメントを選びなさい",
+           "from": "$MY_SHIELD",
+           "filter": {
+            "type": "エレメント"
+           },
+           "min": 1,
+           "max": 1,
+           "as": "X",
+           "by": "me"
+          },
+          {
+           "do": "move",
+           "ids": "$X",
+           "to": "shield"
+          }
+         ]
+        },
+        {
+         "label": "山札の上から1枚をシールド化する",
+         "steps": [
+          {
+           "do": "look",
+           "n": 1,
+           "as": "L",
+           "who": "me"
+          },
+          {
+           "do": "move",
+           "ids": "$L",
+           "to": "shield"
+          }
+         ]
+        }
+       ],
+       "times": 1
+      }
+     ]
+    },
+    {
+     "ev": "destroyed",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "マナ武装 ５：自分のクリーチャーが離れる時、自分のマナゾーンに光のカードが５枚以上あれば、かわりに自分のシールドを２つ手札に加えてもよい。その「S・トリガー」は使えない。",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "type": "光"
+         },
+         "op": ">=",
+         "n": 5
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "シールドを手札に加えますか？",
+         "steps": [
+          {
+           "do": "choose",
+           "q": "シールドを選びなさい",
+           "from": "$MY_SHIELD",
+           "min": 2,
+           "max": 2,
+           "as": "X",
+           "by": "me"
+          },
+          {
+           "do": "move",
+           "ids": "$X",
+           "to": "hand"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm26rp1-024",
+  "name": "魂が休む庭園 グリーン・グランドクロス",
+  "sec": 10.2,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G城は実行したら、表向きでシールド化される。このカードが表向きで自分のシールドゾーンを離れる時、かわりに墓地に置く",
+     "steps": [
+      {
+       "do": "move",
+       "ids": "$THIS",
+       "to": "shield",
+       "except": "$MY_SHIELD"
+      }
+     ]
+    },
+    {
+     "ev": "turnEnd",
+     "once_per_turn": true,
+     "summon_only": false,
+     "text": "自分のターンの終わりに、自分のクリーチャーの数が相手のより多ければ、自分はカードを１枚引いてもよい",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "type": "クリーチャー"
+         },
+         "op": ">=",
+         "n": 1
+        },
+        {
+         "who": "opp",
+         "zone": "battle",
+         "filter": {
+          "type": "クリーチャー"
+         },
+         "op": "<=",
+         "n": 1
+        }
+       ],
+       "steps": [
+        {
+         "do": "draw",
+         "n": 1,
+         "who": "me"
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "各ターンに１度、自分のクリーチャーの召喚コストを１少なくしてもよい。ただしコストは０以下にならない",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "自分のクリーチャーの召喚コストを1少なくしますか？",
+       "steps": [
+        {
+         "do": "note",
+         "text": "このカードの効果により、自分のクリーチャーの召喚コストが1減少します。"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "G城は実行したら、表向きでシールド化される。このカードが表向きで自分のシールドゾーンを離れる時、かわりに墓地に置く",
+    "各ターンに１度、自分のクリーチャーの召喚コストを１少なくしてもよい。ただしコストは０以下にならない"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm24rp1-S02",
+  "name": "ウィリデ・ゴル・ゲルス",
+  "sec": 14.0,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手のクリーチャーが３体以上あれば、自分のシールドゾーンにあるこのクリーチャーに「S・トリガー」を与える。自分のシールドが相手より多ければ、このクリーチャーを[光(2)]支払って召喚してもよい。",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "opp",
+         "zone": "battle",
+         "filter": {
+          "type": "クリーチャー"
+         },
+         "op": ">=",
+         "n": 3
+        }
+       ],
+       "steps": [
+        {
+         "do": "trigger",
+         "ev": "strigger",
+         "ids": "$THIS"
+        }
+       ],
+       "else": []
+      },
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "shield",
+         "filter": {},
+         "op": ">",
+         "n": {
+          "who": "opp",
+          "zone": "shield",
+          "filter": {}
+         }
+        }
+       ],
+       "steps": [
+        {
+         "do": "optional",
+         "q": "このクリーチャーを[光(2)]支払って召喚しますか？",
+         "steps": [
+          {
+           "do": "pay",
+           "cost": {
+            "type": "光",
+            "n": 2
+           }
+          },
+          {
+           "do": "move",
+           "ids": "$THIS",
+           "to": "battle"
+          }
+         ]
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "spell",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "ブロッカーW・ブレイカー相手のターン中に、はじめて相手のエレメントが出た時、または相手が呪文を唱えた時、自分はカードを１枚引いてもよい。その後、そのエレメントまたは呪文以下のコストを持つクリーチャーを１体、自分の手札から出してもよい。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "カードを１枚引いてもよいですか？",
+       "steps": [
+        {
+         "do": "draw",
+         "n": 1,
+         "who": "me"
+        }
+       ]
+      },
+      {
+       "do": "optional",
+       "q": "そのエレメントまたは呪文以下のコストを持つクリーチャーを１体、自分の手札から出してもよいですか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 0,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "filter",
+         "from": "$MY_HAND",
+         "filter": {
+          "type": "クリーチャー",
+          "maxCost": {
+           "who": "last",
+           "zone": "element|spell",
+           "filter": {}
+          }
+         },
+         "as": "L"
+        },
+        {
+         "do": "choose",
+         "q": "出すクリーチャーを選んでください",
+         "from": "$L",
+         "filter": {
+          "type": "クリーチャー",
+          "maxCost": {
+           "who": "last",
+           "zone": "element|spell",
+           "filter": {}
+          }
+         },
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "battle"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmex12-s04",
+  "name": "神聖龍 エモーショナル・ハードコア",
+  "sec": 13.4,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーがバトルゾーンに出た時、《神聖龍 エモーショナル・ハードコア》以外のクリーチャーの名前を１つ選ぶ。選んだ名前を持つクリーチャーの能力をすべて無視する。",
+     "steps": [
+      {
+       "do": "mode",
+       "q": "選ぶクリーチャーの名前は？",
+       "options": [
+        {
+         "label": "選ぶ",
+         "steps": [
+          {
+           "do": "choose",
+           "q": "《神聖龍 エモーショナル・ハードコア》以外のクリーチャーの名前を持つクリーチャーを選んでください",
+           "from": "$MY_BATTLE,$OPP_BATTLE",
+           "filter": {
+            "type": "クリーチャー",
+            "nonEvolution": true
+           },
+           "min": 1,
+           "max": 1,
+           "as": "X",
+           "by": "me"
+          }
+         ]
+        },
+        {
+         "label": "選ばない",
+         "steps": []
+        }
+       ]
+      },
+      {
+       "do": "note",
+       "text": "選んだ名前を持つクリーチャーの能力は無視されます"
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手がクリーチャーを選ぶ時、バトルゾーンに自分の他のオラクルがあれば、このクリーチャーは選ばれない。（ただし、このクリーチャーを攻撃またはブロックしてもよい）",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "オラクル",
+          "nonEvolution": true
+         },
+         "op": ">=",
+         "n": 1
+        }
+       ],
+       "steps": [
+        {
+         "do": "note",
+         "text": "このクリーチャーは相手の選択から除外されます（ただし、攻撃またはブロックは可能）"
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "attack",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーは攻撃してもよい",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このクリーチャーを攻撃しますか？",
+       "steps": [
+        {
+         "do": "attack",
+         "ids": "$X"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "block",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーはブロックしてもよい",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このクリーチャーをブロックしますか？",
+       "steps": [
+        {
+         "do": "block",
+         "ids": "$X"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "ブロッカーW・ブレイカー"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm25rp2-S07",
+  "name": "轟䡛合体 ゴルギーオージャー",
+  "sec": 20.8,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、このクリーチャーに含まれるカードの枚数まで、自分の山札の上からマナゾーンに置く。その後、カードを３枚まで自分のマナゾーンから手札に戻す。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 0,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "filter",
+       "from": "$L",
+       "filter": {
+        "type": "クリーチャー",
+        "maxCost": 9,
+        "minCost": 0,
+        "civ": "光",
+        "race": "メカ・デル・ディネロ",
+        "text": "ブロッカー",
+        "nonEvolution": true
+       },
+       "as": "X"
+      },
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "mana"
+      },
+      {
+       "do": "look",
+       "n": 3,
+       "as": "Y",
+       "who": "me"
+      },
+      {
+       "do": "move",
+       "ids": "$Y",
+       "to": "hand"
+      }
+     ]
+    },
+    {
+     "ev": "attack",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが攻撃する時、このクリーチャーに含まれるカードが10枚以上あれば、自分はゲームに勝つ。",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "mana",
+         "filter": {
+          "type": "クリーチャー",
+          "maxCost": 9,
+          "minCost": 0,
+          "civ": "光",
+          "race": "メカ・デル・ディネロ",
+          "text": "ブロッカー",
+          "nonEvolution": true
+         },
+         "op": ">=",
+         "n": 10
+        }
+       ],
+       "steps": [
+        {
+         "do": "win"
+        }
+       ],
+       "else": []
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "G-NEO進化：光、水、または自然のクリーチャー１体の上に置いてもよい。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このクリーチャーを進化させるクリーチャーを選択しますか？",
+       "steps": [
+        {
+         "do": "mode",
+         "q": "どのクリーチャーの上に置く？",
+         "options": [
+          {
+           "label": "光のクリーチャー",
+           "steps": [
+            {
+             "do": "choose",
+             "q": "光のクリーチャーを選択してください",
+             "from": "$MY_BATTLE",
+             "filter": {
+              "type": "クリーチャー",
+              "maxCost": 9,
+              "minCost": 0,
+              "civ": "光",
+              "nonEvolution": true
+             },
+             "min": 1,
+             "max": 1,
+             "as": "X",
+             "by": "me"
+            },
+            {
+             "do": "move",
+             "ids": "$X",
+             "to": "battle"
+            }
+           ]
+          },
+          {
+           "label": "水のクリーチャー",
+           "steps": [
+            {
+             "do": "choose",
+             "q": "水のクリーチャーを選択してください",
+             "from": "$MY_BATTLE",
+             "filter": {
+              "type": "クリーチャー",
+              "maxCost": 9,
+              "minCost": 0,
+              "civ": "水",
+              "nonEvolution": true
+             },
+             "min": 1,
+             "max": 1,
+             "as": "X",
+             "by": "me"
+            },
+            {
+             "do": "move",
+             "ids": "$X",
+             "to": "battle"
+            }
+           ]
+          },
+          {
+           "label": "自然のクリーチャー",
+           "steps": [
+            {
+             "do": "choose",
+             "q": "自然のクリーチャーを選択してください",
+             "from": "$MY_BATTLE",
+             "filter": {
+              "type": "クリーチャー",
+              "maxCost": 9,
+              "minCost": 0,
+              "civ": "自然",
+              "nonEvolution": true
+             },
+             "min": 1,
+             "max": 1,
+             "as": "X",
+             "by": "me"
+            },
+            {
+             "do": "move",
+             "ids": "$X",
+             "to": "battle"
+            }
+           ]
+          }
+         ],
+         "times": 1
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーの召喚コストを、進化元に含まれるカード１枚につき２少なくする。ただしコストは２以下にはならない。",
+     "steps": []
+    }
+   ],
+   "static": [
+    "このクリーチャーの召喚コストを、進化元に含まれるカード１枚につき２少なくする。ただしコストは２以下にはならない。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm25rp2-S01",
+  "name": "華謡の精霊カンツォーネ",
+  "sec": 83.6,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "NEO進化：光、水、または自然のクリーチャー１体の上に置いてもよい。超魂レイド（このクリーチャーが出た時、山札の上から３枚を表向きにする。その中からこのクリーチャーの進化元になれるカードを１枚、この下に置いてもよい。残りを好きな順序で山札の下に置く）",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このクリーチャーをNEO進化で置きますか？",
+       "steps": [
+        {
+         "do": "mode",
+         "q": "どのクリーチャーの上に置きますか？",
+         "options": [
+          {
+           "label": "光のクリーチャー",
+           "steps": [
+            {
+             "do": "filter",
+             "from": "$MY_BATTLE",
+             "filter": {
+              "type": "クリーチャー",
+              "civ": "光"
+             },
+             "as": "X"
+            },
+            {
+             "do": "if",
+             "conds": [
+              {
+               "who": "me",
+               "zone": "battle",
+               "filter": {
+                "type": "クリーチャー",
+                "civ": "光"
+               },
+               "op": ">=",
+               "n": 1
+              }
+             ],
+             "steps": [
+              {
+               "do": "choose",
+               "q": "光のクリーチャーを選んでください",
+               "from": "$X",
+               "min": 1,
+               "max": 1,
+               "as": "Y",
+               "by": "me"
+              },
+              {
+               "do": "move",
+               "ids": "$Y",
+               "to": "battle"
+              }
+             ],
+             "else": [
+              {
+               "do": "note",
+               "text": "光のクリーチャーがいません"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "label": "水のクリーチャー",
+           "steps": [
+            {
+             "do": "filter",
+             "from": "$MY_BATTLE",
+             "filter": {
+              "type": "クリーチャー",
+              "civ": "水"
+             },
+             "as": "X"
+            },
+            {
+             "do": "if",
+             "conds": [
+              {
+               "who": "me",
+               "zone": "battle",
+               "filter": {
+                "type": "クリーチャー",
+                "civ": "水"
+               },
+               "op": ">=",
+               "n": 1
+              }
+             ],
+             "steps": [
+              {
+               "do": "choose",
+               "q": "水のクリーチャーを選んでください",
+               "from": "$X",
+               "min": 1,
+               "max": 1,
+               "as": "Y",
+               "by": "me"
+              },
+              {
+               "do": "move",
+               "ids": "$Y",
+               "to": "battle"
+              }
+             ],
+             "else": [
+              {
+               "do": "note",
+               "text": "水のクリーチャーがいません"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "label": "自然のクリーチャー",
+           "steps": [
+            {
+             "do": "filter",
+             "from": "$MY_BATTLE",
+             "filter": {
+              "type": "クリーチャー",
+              "civ": "自然"
+             },
+             "as": "X"
+            },
+            {
+             "do": "if",
+             "conds": [
+              {
+               "who": "me",
+               "zone": "battle",
+               "filter": {
+                "type": "クリーチャー",
+                "civ": "自然"
+               },
+               "op": ">=",
+               "n": 1
+              }
+             ],
+             "steps": [
+              {
+               "do": "choose",
+               "q": "自然のクリーチャーを選んでください",
+               "from": "$X",
+               "min": 1,
+               "max": 1,
+               "as": "Y",
+               "by": "me"
+              },
+              {
+               "do": "move",
+               "ids": "$Y",
+               "to": "battle"
+              }
+             ],
+             "else": [
+              {
+               "do": "note",
+               "text": "自然のクリーチャーがいません"
+              }
+             ]
+            }
+           ]
+          }
+         ],
+         "times": 1
+        }
+       ]
+      },
+      {
+       "do": "look",
+       "n": 3,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "optional",
+       "q": "このクリーチャーの進化元になれるカードを1枚選んで、この下に置きますか？",
+       "steps": [
+        {
+         "do": "choose",
+         "q": "進化元になれるカードを選んでください",
+         "from": "$L",
+         "filter": {
+          "type": "クリーチャー",
+          "evolution": true
+         },
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "battle"
+        }
+       ]
+      },
+      {
+       "do": "move",
+       "ids": "$L",
+       "to": "deckBottom"
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "ブロッカーこのクリーチャーが出た時、相手のエレメントを1つ選び、シールド化してもよい。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "相手のエレメントを1つ選び、シールド化しますか？",
+       "steps": [
+        {
+         "do": "mode",
+         "q": "どのエレメントをシールド化しますか？",
+         "options": [
+          {
+           "label": "光",
+           "steps": [
+            {
+             "do": "put",
+             "ids": "光",
+             "to": "shield"
+            }
+           ]
+          },
+          {
+           "label": "水",
+           "steps": [
+            {
+             "do": "put",
+             "ids": "水",
+             "to": "shield"
+            }
+           ]
+          },
+          {
+           "label": "火",
+           "steps": [
+            {
+             "do": "put",
+             "ids": "火",
+             "to": "shield"
+            }
+           ]
+          },
+          {
+           "label": "風",
+           "steps": [
+            {
+             "do": "put",
+             "ids": "風",
+             "to": "shield"
+            }
+           ]
+          },
+          {
+           "label": "大地",
+           "steps": [
+            {
+             "do": "put",
+             "ids": "大地",
+             "to": "shield"
+            }
+           ]
+          },
+          {
+           "label": "闇",
+           "steps": [
+            {
+             "do": "put",
+             "ids": "闇",
+             "to": "shield"
+            }
+           ]
+          },
+          {
+           "label": "自然",
+           "steps": [
+            {
+             "do": "put",
+             "ids": "自然",
+             "to": "shield"
+            }
+           ]
+          }
+         ],
+         "times": 1
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "destroyed",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが破壊された時、下にあったカードをすべて墓地から、自分のNEOクリーチャーまたは進化クリーチャー１体の下に置くか、表向きの１つのシールドとしてシールド化する。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 1,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "optional",
+       "q": "下にあったカードをシールド化しますか？",
+       "steps": [
+        {
+         "do": "put",
+         "ids": "$L",
+         "to": "shield"
+        }
+       ]
+      },
+      {
+       "do": "optional",
+       "q": "下にあったカードを、自分のNEOクリーチャーまたは進化クリーチャーの下に置きますか？",
+       "steps": [
+        {
+         "do": "filter",
+         "from": "$MY_BATTLE",
+         "filter": {
+          "type": "クリーチャー",
+          "evolution": true
+         },
+         "as": "X"
+        },
+        {
+         "do": "if",
+         "conds": [
+          {
+           "who": "me",
+           "zone": "battle",
+           "filter": {
+            "type": "クリーチャー",
+            "evolution": true
+           },
+           "op": ">=",
+           "n": 1
+          }
+         ],
+         "steps": [
+          {
+           "do": "choose",
+           "q": "NEOクリーチャーまたは進化クリーチャーを選んでください",
+           "from": "$X",
+           "min": 1,
+           "max": 1,
+           "as": "Y",
+           "by": "me"
+          },
+          {
+           "do": "move",
+           "ids": "$L",
+           "to": "battle"
+          }
+         ],
+         "else": [
+          {
+           "do": "note",
+           "text": "NEOクリーチャーまたは進化クリーチャーがいません"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "NEO進化：光、水、または自然のクリーチャー１体の上に置いてもよい。",
+    "ブロッカーこのクリーチャーが出た時、相手のエレメントを1つ選び、シールド化してもよい。",
+    "このクリーチャーが破壊された時、下にあったカードをすべて墓地から、自分のNEOクリーチャーまたは進化クリーチャー１体の下に置くか、表向きの１つのシールドとしてシールド化する。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm25rp4-050",
+  "name": "大集合！アカネ&アサギ&コハク",
+  "sec": 9.0,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、自分の山札の上から２枚を見る。その中から１枚を手札に加えるかマナゾーンに置き、残りの１枚を山札の下に置く。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 2,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "choose",
+       "q": "手札に加えるかマナゾーンに置くカードを選びますか？",
+       "from": "$L",
+       "min": 1,
+       "max": 1,
+       "as": "X",
+       "by": "me"
+      },
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "hand"
+      },
+      {
+       "do": "move",
+       "ids": "$L",
+       "except": "$X",
+       "to": "deckBottom"
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": true,
+     "summon_only": true,
+     "text": "自分のマナゾーンに光、水、自然の各文明があれば、このクリーチャーを[無色(2)]支払って召喚してもよい。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "光、水、自然の各文明が自分のマナゾーンにある場合、このクリーチャーを[無色(2)]支払って召喚しますか？",
+       "steps": [
+        {
+         "do": "pay",
+         "cost": "無色(2)"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "NEO進化：光、水、または自然のクリーチャー１体の上に置いてもよい。（カードが下にあれば、これをNEO進化クリーチャーとして扱う）"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm25rp2-024",
+  "name": "観覧！ホールインランド・ヘラクレス",
+  "sec": 4.6,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、カードを２枚引く。その後、このクリーチャーに含まれるカード１枚につき、自分のマナゾーンにあるカードを１枚アンタップする。",
+     "steps": [
+      {
+       "do": "draw",
+       "n": 2,
+       "who": "me"
+      },
+      {
+       "do": "untap",
+       "ids": "$MY_MANA",
+       "n": 1,
+       "times": 1
+      }
+     ]
+    }
+   ],
+   "static": [
+    "NEO進化：光、水、または自然のクリーチャー１体の上に置いてもよい。（カードが下にあれば、これをNEO進化クリーチャーとして扱う）"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm25rp3-049",
+  "name": "TAKASUGI-死合乱闘3000",
+  "sec": 10.9,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが、進化して出た時、または進化元になる時、自分の山札の上から４枚を見る。その中からクリーチャーを１体表向きにし、手札に加えてもよい。その後、残りを好きな順序で山札の下に置く。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 4,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "optional",
+       "q": "山札の上から4枚を見て、その中からクリーチャーを1体選んで手札に加えますか？",
+       "steps": [
+        {
+         "do": "choose",
+         "q": "クリーチャーを1体選んでください",
+         "from": "$L",
+         "filter": {
+          "type": "クリーチャー",
+          "maxCost": 9,
+          "minCost": 0
+         },
+         "min": 0,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "hand"
+        },
+        {
+         "do": "filter",
+         "from": "$L",
+         "filter": {
+          "id": {
+           "notIn": [
+            "$X"
+           ]
+          }
+         },
+         "as": "Y"
+        },
+        {
+         "do": "move",
+         "ids": "$Y",
+         "to": "deckBottom"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "attack",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "自分のクリーチャーが攻撃する時、このカードを [自然(2)]支払って自分の手札から実行してもよい",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このカードを[自然(2)]支払って実行しますか？",
+       "steps": [
+        {
+         "do": "pay",
+         "cost": {
+          "natural": 2
+         },
+         "who": "me"
+        },
+        {
+         "do": "cast",
+         "ids": "TAKASUGI-死合乱闘3000"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "NEO進化：光、火、または自然のクリーチャー１体の上に置いてもよい。（カードが下にあれば、これをNEO進化クリーチャーとして扱う）"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dmsd20-015",
+  "name": "ジャスミンの地版",
+  "sec": 7.6,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このタマシードが出た時、自分の山札の上から１枚目をタップしてマナゾーンに置く。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 1,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "move",
+       "ids": "$L",
+       "to": "manaTapped"
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "シンカライズ：このタマシードがクリーチャーであるかのように、この上に進化クリーチャーを置いてもよい。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "進化クリーチャーをこの上に置きますか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 1,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "choose",
+         "q": "進化クリーチャーを選んでください",
+         "from": "$L",
+         "filter": {
+          "type": "進化クリーチャー",
+          "nonEvolution": true
+         },
+         "min": 1,
+         "max": 1,
+         "as": "X",
+         "by": "me"
+        },
+        {
+         "do": "move",
+         "ids": "$X",
+         "to": "battle"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "シンカライズ：このタマシードがクリーチャーであるかのように、この上に進化クリーチャーを置いてもよい。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm25rp2-013",
+  "name": "ソウルサンライト コハク",
+  "sec": 5.6,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、次の自分のターンのはじめまで、このクリーチャーは離れない",
+     "steps": [
+      {
+       "do": "note",
+       "text": "このクリーチャーは次の自分のターンのはじめまで離れない"
+      }
+     ]
+    },
+    {
+     "ev": "static",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "超魂X（これがクリーチャーの下にあれば、そのクリーチャーにも以下の能力を与える）自分のNEOクリーチャーの召喚コストを１少なくする。ただし、コストは０以下にはならない"
+    }
+   ],
+   "static": [
+    "超魂X（これがクリーチャーの下にあれば、そのクリーチャーにも以下の能力を与える）自分のNEOクリーチャーの召喚コストを１少なくする。ただし、コストは０以下にはならない"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm25rp4-030",
+  "name": "吟弾の妖精",
+  "sec": 11.0,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、このクリーチャーに含まれるカード１枚につき、相手のクリーチャーを１体選び、タップする。次の自分のターンのはじめまで、それらはアンタップしない。",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "この能力を実行しますか？",
+       "steps": [
+        {
+         "do": "look",
+         "n": 1,
+         "as": "L",
+         "who": "me"
+        },
+        {
+         "do": "filter",
+         "from": "$L",
+         "filter": {
+          "type": "クリーチャー"
+         },
+         "as": "X"
+        },
+        {
+         "do": "choose",
+         "q": "このクリーチャーに含まれるカードを選んでください",
+         "from": "$X",
+         "min": 1,
+         "max": 1,
+         "as": "C",
+         "by": "me"
+        },
+        {
+         "do": "look",
+         "n": 1,
+         "as": "L2",
+         "who": "opp"
+        },
+        {
+         "do": "filter",
+         "from": "$L2",
+         "filter": {
+          "type": "クリーチャー"
+         },
+         "as": "Y"
+        },
+        {
+         "do": "choose",
+         "q": "相手のクリーチャーを選んでください",
+         "from": "$Y",
+         "min": 1,
+         "max": 1,
+         "as": "T",
+         "by": "me"
+        },
+        {
+         "do": "tap",
+         "ids": "$T"
+        },
+        {
+         "do": "note",
+         "text": "選んだクリーチャーは次の自分のターンのはじめまでアンタップしない"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "strigger",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "S・トリガー（このカードをシールドゾーンから手札に加える時、コストを支払わずにすぐ実行してもよい）",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このS・トリガーを実行しますか？",
+       "steps": [
+        {
+         "do": "cast",
+         "ids": "$MY_SHIELD"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "NEO進化：光、水、または自然のクリーチャー１体の上に置いてもよい。（カードが下にあれば、これをNEO進化クリーチャーとして扱う）"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm23rp4-014",
+  "name": "巨魔天 アオフェシー",
+  "sec": 8.9,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "相手のクリーチャーは、出たターン、攻撃できない。",
+     "steps": [
+      {
+       "do": "note",
+       "text": "相手のクリーチャーは、出たターン、攻撃できない。"
+      }
+     ]
+    },
+    {
+     "ev": "attack",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "コスト３以上のジャイアントまたはコスト３以上のマジック（自分のコスト３以上のジャイアントまたはコスト３以上のマジックが攻撃する時、そのクリーチャーと手札にあるこのクリーチャーを入れ替えてもよい）",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このクリーチャーと手札にある《巨魔天 アオフェシー》を入れ替えますか？",
+       "steps": [
+        {
+         "do": "move",
+         "ids": "$MY_BATTLE",
+         "to": "hand"
+        },
+        {
+         "do": "move",
+         "ids": "$MY_HAND",
+         "to": "battle"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "W・ブレイカーこのクリーチャーが「革命チェンジ」によって出た時、カードを２枚引く。",
+     "steps": [
+      {
+       "do": "draw",
+       "n": 2,
+       "who": "me"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "革命チェンジ：コスト３以上のジャイアントまたはコスト３以上のマジック（自分のコスト３以上のジャイアントまたはコスト３以上のマジックが攻撃する時、そのクリーチャーと手札にあるこのクリーチャーを入れ替えてもよい）"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm23rp4-030",
+  "name": "アシステスト・シネラリア",
+  "sec": 7.5,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、自分の他のジャイアントがあれば、カードを１枚引く。自分のジャイアントを使うコストを１少なくする。ただし、コストは０以下にはならない",
+     "steps": [
+      {
+       "do": "if",
+       "conds": [
+        {
+         "who": "me",
+         "zone": "battle",
+         "filter": {
+          "race": "ジャイアント",
+          "notSelf": true
+         },
+         "op": "==",
+         "n": 1
+        }
+       ],
+       "steps": [
+        {
+         "do": "draw",
+         "n": 1,
+         "who": "me"
+        }
+       ],
+       "else": []
+      },
+      {
+       "do": "note",
+       "text": "自分のジャイアントを使うコストを１少なくする。ただし、コストは０以下にはならない"
+      }
+     ]
+    },
+    {
+     "ev": "destroyed",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "ウルトラ・セイバー：ジャイアント（自分のジャイアントが離れる時、かわりにこのクリーチャーを破壊してもよい",
+     "steps": [
+      {
+       "do": "optional",
+       "q": "このクリーチャーを破壊しますか？",
+       "steps": [
+        {
+         "do": "destroy",
+         "ids": "$THIS"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "static": [
+    "ウルトラ・セイバー：ジャイアント（自分のジャイアントが離れる時、かわりにこのクリーチャーを破壊してもよい"
+   ]
+  },
+  "raw": null,
+  "error": null
+ },
+ {
+  "id": "dm23ex1-003",
+  "name": "飛翔龍 5000VT",
+  "sec": 7.9,
+  "result": {
+   "abilities": [
+    {
+     "ev": "etb",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーが出た時、相手のパワー5000以下のクリーチャーをすべて、持ち主の手札に戻す。次の相手のターン中、相手はパワー5000以下のクリーチャーを出せない。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 0,
+       "as": "L",
+       "who": "opp"
+      },
+      {
+       "do": "filter",
+       "from": "$OPP_BATTLE",
+       "filter": {
+        "power": 5000,
+        "op": "<="
+       },
+       "as": "X"
+      },
+      {
+       "do": "move",
+       "ids": "$X",
+       "to": "hand"
+      }
+     ]
+    },
+    {
+     "ev": "spell",
+     "once_per_turn": false,
+     "summon_only": false,
+     "text": "このクリーチャーの召喚コストを、バトルゾーンにあるクリーチャー１体につき１少なくする。ただし、コストは０以下にはならない。",
+     "steps": [
+      {
+       "do": "look",
+       "n": 0,
+       "as": "L",
+       "who": "me"
+      },
+      {
+       "do": "filter",
+       "from": "$MY_BATTLE",
+       "filter": {},
+       "as": "X"
+      },
+      {
+       "do": "power",
+       "ids": "$X",
+       "delta": 0,
+       "ev": "costReduction"
+      }
+     ]
+    }
+   ],
+   "static": [
+    "このクリーチャーの召喚コストを、バトルゾーンにあるクリーチャー１体につき１少なくする。ただし、コストは０以下にはならない。"
+   ]
+  },
+  "raw": null,
+  "error": null
+ }
+]
