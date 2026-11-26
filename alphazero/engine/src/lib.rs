@@ -6,6 +6,7 @@ pub mod ai;
 pub mod features;
 pub mod net;
 pub mod az;
+pub mod playbook;
 pub mod bridge;
 pub mod textfx;
 pub mod textfx_progs;

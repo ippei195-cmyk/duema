@@ -72,14 +72,18 @@ impl<'a> Az<'a> {
                 let m = lg.iter().cloned().fold(f32::MIN, f32::max);
                 let e: Vec<f32> = lg.iter().map(|x| (x - m).exp()).collect();
                 let z: f32 = e.iter().sum();
-                (v, e.iter().map(|x| x / z).collect())
+                let mut pr: Vec<f32> = e.iter().map(|x| x / z).collect();
+                crate::playbook::apply(s, &mut pr);
+                (v, pr)
             }
             None => {
                 let mut c = s.clone();
                 playout(&mut c, rng);
                 let w = c.winner.unwrap();
                 let v = if w == 2 { 0.0 } else if w == d.player { 1.0 } else { -1.0 };
-                (v, vec![1.0 / n as f32; n])
+                let mut pr = vec![1.0 / n as f32; n];
+                crate::playbook::apply(s, &mut pr);
+                (v, pr)
             }
         }
     }

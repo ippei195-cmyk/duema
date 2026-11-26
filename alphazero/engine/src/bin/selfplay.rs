@@ -1,5 +1,5 @@
 //! 自己対戦で学習データを作る。
-//! selfplay <重み|none> <局数> <スレッド> <seed> <出力.bin> [深い読み回数=200] [浅い読み回数=40] [深い読みの割合=0.25] [focus=0] [重点デッキ=0（例 0,3,4）]
+//! selfplay <重み|none> <局数> <スレッド> <seed> <出力.bin> [深い読み回数=200] [浅い読み回数=40] [深い読みの割合=0.25] [focus=0] [重点デッキ=0（例 0,3,4）] [決めパターン直前から始める割合=0] [noteの方針バイアスの強さ=0]
 //! 深く読んだ判断だけを記録する（KataGo の読み回数ランダム化）。
 use dmengine::az::*;
 use dmengine::cards::*;
@@ -35,6 +35,11 @@ fn main() {
     let focus: f64 = a.get(9).and_then(|s| s.parse().ok()).unwrap_or(0.0);
     let focus_decks: Vec<usize> = a.get(10).map(|s| s.split(',').filter_map(|x| x.parse().ok()).filter(|&x: &usize| x < DECKS.len()).collect()).unwrap_or_else(|| vec![0]);
     let focus_decks = Arc::new(if focus_decks.is_empty() { vec![0] } else { focus_decks });
+    // note の考え方（playbook.rs）：ギリガザミ・創世竜の「決めの直前」から始める割合と、方策バイアスの強さ
+    let scen: f64 = a.get(11).and_then(|s| s.parse().ok()).unwrap_or(0.0);
+    dmengine::playbook::set_strength(a.get(12).and_then(|s| s.parse().ok()).unwrap_or(0.0));
+    let combo: Vec<usize> = ["giri4c", "sousei"].iter().filter_map(|n| DECKS.iter().position(|d| d == n)).collect();
+    let combo = Arc::new(combo);
     let net: Arc<Option<Net>> = Arc::new(if wpath == "none" { None } else { Some(Net::load(&wpath).expect("weights")) });
     let file = Arc::new(Mutex::new(std::io::BufWriter::new(std::fs::File::create(&out).unwrap())));
     file.lock().unwrap().write_all(b"DMS1").unwrap();
@@ -43,7 +48,7 @@ fn main() {
     let t = Instant::now();
     let mut hs = vec![];
     for _ in 0..threads {
-        let (net, file, next, stats, fd) = (net.clone(), file.clone(), next.clone(), stats.clone(), focus_decks.clone());
+        let (net, file, next, stats, fd, combo) = (net.clone(), file.clone(), next.clone(), stats.clone(), focus_decks.clone(), combo.clone());
         hs.push(std::thread::spawn(move || loop {
             let i = next.fetch_add(1, Ordering::SeqCst);
             if i >= games { break; }
@@ -55,7 +60,16 @@ fn main() {
                 let f = fd[rng.below(fd.len())];
                 if rng.below(2) == 0 { da = f } else { db = f }
             }
+            let mut side = 2;
+            if !combo.is_empty() && (rng.below(1_000_000) as f64) < scen * 1e6 {
+                let c = combo[rng.below(combo.len())];
+                side = rng.below(2);
+                if side == 0 { da = c } else { db = c }
+            }
             let mut g = Game::new(&deck(DECKS[da]), &deck(DECKS[db]), seed);
+            if side < 2 {
+                dmengine::playbook::scenario(&mut g, side, &mut rng);
+            }
             let mut recs: Vec<(usize, Vec<u8>)> = vec![]; // (判断した人, 記録)
             let mut moves = [0u32; 2];
             let mut decisions = 0u64;
