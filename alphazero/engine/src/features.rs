@@ -6,11 +6,11 @@ use crate::engine::*;
 
 const NC: usize = NCARDS;
 /// 効果の質問の種類のための枠
-pub const KN: usize = 128;
+pub const KN: usize = 160;
 /// 判断の種類の特徴の始まり
 pub const DBASE: usize = 9 * NC + 40;
-pub const S: usize = 904; // 局面の特徴の数（DBASE + 115 以上）
-pub const O: usize = 216; // 選択肢の特徴の数
+pub const S: usize = 1072; // 局面の特徴の数（DBASE + 115 以上）
+pub const O: usize = 248; // 選択肢の特徴の数
 const _: () = assert!(DBASE + 8 + KN + 7 <= S);
 // 選択肢の特徴の位置
 pub const OC: usize = 10; // 札の種類 OC..OC+NC+1

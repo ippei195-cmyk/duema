@@ -83,6 +83,9 @@ pub struct Player {
     pub pend_sh: u8,                // グレイテスト・ジャオウガ：召喚の時に選んだシールドの数（出た時に手札へ）
     pub lost_used: Vec<(u16, u8)>,  // デス・ザ・ロストの黒像：選んだモード（uid, ビット）
     pub sealed: Vec<(Cre, Card)>,   // 封印されたクリーチャーと封印のカード（無視される＝バトルゾーンから外して持つ）
+    pub drache_used: u8,            // 創世竜：このターン、マナからタマシードを実行した回数
+    pub esmel_pend: u8,             // 「お茶はいかがですか？」：次の自分のターンのはじめにシールドを手札へ
+    pub alspa: u8,                  // ♪立ち上がる：このコストのエレメントの能力を無視・呪文を唱えられない（0=なし）
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -299,6 +302,7 @@ impl Game {
                 let p = &mut self.ps[tp];
                 p.charged = false;
                 p.once = 0;
+                p.drache_used = 0;
                 p.no_lose = false;
                 p.entered_this_turn = 0;
                 p.no_free_this_turn = false;
@@ -398,6 +402,8 @@ impl Game {
                         c.ignored = false;
                     }
                 }
+                // ♪立ち上がる：無視は次の唱えた人のターンのはじめまで続く
+                crate::effects::alspa_apply(self);
                 // ラフルル：相手のターンの終わりまで
                         self.ps[tp].creature_limit_next_turn = false;
                 self.tp = 1 - tp;
@@ -711,7 +717,7 @@ impl Game {
 
     pub fn check_state(&mut self) {
         for p in 0..2 {
-            if self.ps[p].deck.is_empty() && self.winner.is_none() && !self.ps[p].no_lose {
+            if self.ps[p].deck.is_empty() && self.winner.is_none() && !self.ps[p].no_lose && !crate::effects::valhalla(self, p) {
                 self.winner = Some(1 - p);
             }
         }
@@ -723,8 +729,13 @@ impl Game {
 
     /// コスト cost・文明 civ を払えるマナの選び方（タップするマナの添字）。払えなければ None。
     pub fn pay_plan(&self, p: usize, civ: u8, cost: usize) -> Option<Vec<usize>> {
+        self.pay_plan_ex(p, civ, cost, None)
+    }
+
+    /// ex のマナ（添字）は使わない（創世竜でマナから実行するカード自身）
+    pub fn pay_plan_ex(&self, p: usize, civ: u8, cost: usize, ex: Option<usize>) -> Option<Vec<usize>> {
         let mana = &self.ps[p].mana;
-        let free: Vec<usize> = (0..mana.len()).filter(|&i| !mana[i].tapped).collect();
+        let free: Vec<usize> = (0..mana.len()).filter(|&i| !mana[i].tapped && Some(i) != ex).collect();
         let cost = cost.max(civ.count_ones() as usize).max(1.min(cost));
         if free.len() < cost {
             return None;

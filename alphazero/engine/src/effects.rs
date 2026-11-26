@@ -125,6 +125,27 @@ pub enum K {
     DmcAtk,        // DMC：攻撃する時に下のカードを墓地へ（Pick か Pass）
     Seal,          // 秩序の意志：封印するクリーチャー
     SBack,         // S・バック（Yes/No、a=シールドから来たカード b=実行するカード）
+    // ---- 第2段階：創世竜 ----
+    DracheUnder,   // 創世竜：出たタマシード（a）をNEO・進化クリーチャーの下に置くか
+    TrapPick,      // トラップの地版：コスト4以下のクリーチャーかタマシードを持ち主のマナへ
+    PearlyPlayer,  // パーリ騎士：墓地を山札の下に戻すプレイヤー（Mode 0=自分 1=相手）
+    PearlyReturn,  // パーリ騎士のシンカパワー：マナから手札に戻すカード
+    GbCre,         // グレートブルー：手札に加えるクリーチャー（list=見ているカード）
+    GbNon,         // グレートブルー：手札に加えるクリーチャーではないカード
+    AtlDestroy,    // アトランティス：破壊する自分のタマシード
+    AtlRevive,     // アトランティス：墓地から出すコスト4以下のタマシード
+    AtlBounce,     // アトランティスのシンカパワー：手札に戻すクリーチャーかタマシード
+    LevyaPut,      // レヴィヤ：マナから出すコスト3以下
+    MhOwn,         // マンハッタンの心絵：残す自分のクリーチャー
+    MhOpp,         // マンハッタンの心絵：残す相手のクリーチャー（a=残す自分の）
+    EmeShield,     // エメラルのシンカパワー：シールド化する手札
+    EmeTake,       // エメラル：手札に加えるシールド
+    EsmelShield,   // エスメル：シールドをマナへ（Yes/No）
+    EringiMana,    // エリンギ：マナに置く手札
+    WokPick,       // ウォカンナ：手札に戻す相手のエレメント（a=コスト上限）
+    ChiryuPick,    // 地龍神の魔陣：選ぶカード（list=見ているカード）
+    ChiryuDest,    // 地龍神の魔陣：手札（Mode 0）かマナ（Mode 1）
+    AlspaNum,      // ♪立ち上がる：数字（Mode）
     ChooseRepl,    // 未使用（必ず最後）
 }
 
@@ -161,6 +182,8 @@ pub enum Fx {
     MomoGrow { p: usize, uid: u16 },   // モモキングダムX：他のレクスターズが出た時
     DmcGrow { p: usize, uid: u16 },    // DMC：他のクリーチャーが離れた時／ターンのはじめ
     SanganDig { p: usize },            // 三眼鬼：このターン最初の攻撃
+    DracheUnder { p: usize, uid: u16 }, // 創世竜：タマシードが出た時
+    Sinka { p: usize, c: C, uid: u16 }, // シンカパワー：タマシード c の上に uid が進化した
 }
 
 fn push(g: &mut Game, fx: Fx) {
@@ -417,6 +440,78 @@ fn auto_base(g: &Game, p: usize, c: C, prefer: Option<u16>) -> Option<Option<u16
         return Some(Some(x));
     }
     b.first().map(|&x| Some(x))
+}
+
+/// 創世竜の数（無視されていないもの）
+fn drache_n(g: &Game, p: usize) -> usize {
+    g.ps[p].battle.iter().filter(|x| x.card.c == C::Drache && !x.ign()).count()
+}
+
+/// ヴァルハラの天宝：攻撃される以外の方法でゲームに負けない
+pub fn valhalla(g: &Game, p: usize) -> bool {
+    g.ps[p].tama.iter().any(|t| t.c == C::Valhalla)
+}
+
+/// ♪立ち上がる：無視するコストのクリーチャーに印をつける
+pub fn alspa_apply(g: &mut Game) {
+    for p in 0..2 {
+        let k = g.ps[p].alspa;
+        if k == 0 {
+            continue;
+        }
+        for x in g.ps[p].battle.iter_mut() {
+            if cost_of(x.card.c) == k {
+                x.ignored = true;
+            }
+        }
+    }
+}
+
+/// uid のエレメントの持ち主と、クリーチャーか（false=タマシード）
+fn elem_owner(g: &Game, u: u16) -> Option<(usize, bool)> {
+    for q in 0..2 {
+        if g.find(q, u).is_some() {
+            return Some((q, true));
+        }
+        if g.ps[q].tama.iter().any(|t| t.uid == u) {
+            return Some((q, false));
+        }
+    }
+    None
+}
+
+/// エレメントを持ち主の手札かマナへ（p=効果を使うプレイヤー）
+fn elem_to(g: &mut Game, p: usize, u: u16, dest: Dest) {
+    let Some((q, cre)) = elem_owner(g, u) else { return };
+    if cre {
+        leave2(g, q, u, dest, q != p, true);
+    } else if let Some(i) = g.ps[q].tama.iter().position(|t| t.uid == u) {
+        let t = g.ps[q].tama.remove(i);
+        if dest == Dest::Mana {
+            g.put_mana(q, t, false);
+        } else {
+            g.ps[q].hand.push(t);
+        }
+    }
+}
+
+/// コスト max 以下のクリーチャーとタマシード（自分のものは全部、相手のものは選べるものだけ）
+fn elems_cost_le(g: &Game, p: usize, max: u8, mine: bool, theirs: bool, tamas: bool) -> Vec<u16> {
+    let op = 1 - p;
+    let mut l = vec![];
+    if mine {
+        l.extend(g.ps[p].battle.iter().filter(|x| cost_of(x.card.c) <= max).map(|x| x.card.uid));
+        if tamas {
+            l.extend(g.ps[p].tama.iter().filter(|t| cost_of(t.c) <= max).map(|t| t.uid));
+        }
+    }
+    if theirs {
+        l.extend(targetable(g, op).into_iter().filter(|&u| g.find(op, u).map(|i| cost_of(g.ps[op].battle[i].card.c) <= max).unwrap_or(false)));
+        if tamas {
+            l.extend(g.ps[op].tama.iter().filter(|t| cost_of(t.c) <= max).map(|t| t.uid));
+        }
+    }
+    l
 }
 
 /// 自分のシールドを n 個、手札へ（S・トリガーは使えない）
@@ -776,6 +871,10 @@ pub fn play_cost_b(g: &Game, p: usize, c: C, side: u8, how: u8, base: Option<u16
             };
         }
     }
+    // 創世竜：自分のタマシードを実行するコストを2少なく（0以下にはならない）
+    if side == 0 && s.kind == Kind::Tama {
+        cost -= 2 * drache_n(g, p) as i32;
+    }
     // シネラリア：自分のジャイアントを使うコスト-1
     if side == 0 && is_giant(c) {
         cost -= g.ps[p].battle.iter().filter(|x| x.card.c == C::Cineraria && !x.ign()).count() as i32;
@@ -795,6 +894,9 @@ pub fn play_cost_b(g: &Game, p: usize, c: C, side: u8, how: u8, base: Option<u16
 
 fn can_cast_spell(g: &Game, p: usize, cost: u8) -> bool {
     let op = 1 - p;
+    if g.ps[p].alspa != 0 && g.ps[p].alspa == cost {
+        return false;
+    }
     if g.ps[p].spell_lock_until >= g.turn {
         return false;
     }
@@ -879,9 +981,40 @@ pub fn main_options(g: &Game, opts: &mut Vec<Opt>) {
             }
         }
     }
+    // 創世竜：自分のターン中、タマシードを1つ、マナゾーンから実行してもよい（how=7）。回数の制限は書かれていないので何度でも
+    // （ループで使う）。近似：終わらないループを避けるため1ターン20回まで
+    if drache_n(g, p) > 0 && g.ps[p].drache_used < 20 {
+        for (mi, m) in g.ps[p].mana.iter().enumerate() {
+            let c = m.card.c;
+            if def(c).main.kind != Kind::Tama || seen.contains(&(c, 0, 7)) {
+                continue;
+            }
+            let (cost, civ) = play_cost(g, p, c, 0, 0);
+            if g.pay_plan_ex(p, civ, cost, Some(mi)).is_some() {
+                seen.push((c, 0, 7));
+                opts.push(Opt::Play { uid: m.card.uid, side: 0, how: 7 });
+            }
+        }
+    }
 }
 
 pub fn play_from_hand(g: &mut Game, p: usize, uid: u16, side: u8, how: u8) {
+    if how == 7 {
+        // 創世竜：マナゾーンからタマシードを実行。そうしたら山札の上から1枚をタップしてマナへ（近似：山札が5枚より多ければ置く）
+        let Some(mi) = g.ps[p].mana.iter().position(|m| m.card.uid == uid) else { return };
+        let c = g.ps[p].mana[mi].card.c;
+        let (cost, civ) = play_cost(g, p, c, 0, 0);
+        let Some(plan) = g.pay_plan_ex(p, civ, cost, Some(mi)) else { return };
+        g.pay(p, &plan);
+        let card = g.take_mana(p, uid).unwrap();
+        g.ps[p].drache_used += 1;
+        executed(g, p);
+        put_tama(g, p, card);
+        if g.ps[p].deck.len() > 5 {
+            g.mill_to_mana(p, 1, true);
+        }
+        return;
+    }
     if how == 3 {
         let (cost, civ) = play_cost(g, p, C::Javert, 0, 0);
         let Some(plan) = g.pay_plan(p, civ, cost) else { return };
@@ -964,7 +1097,7 @@ fn evo_ok(c: C, base: C) -> bool {
         C::RedZone => civ & (D | F | N) != 0,
         C::Madan => civ & (W | D | F) != 0,
         C::Takasugi => civ & (L | F | N) != 0,
-        C::Ichion | C::Canzone | C::Akane | C::Heracles | C::Gindan | C::Gorgi => civ & (L | W | N) != 0,
+        C::Ichion | C::Canzone | C::Akane | C::Heracles | C::Gindan | C::Gorgi | C::Drache => civ & (L | W | N) != 0,
         C::Jolagon => is_jokers(base),
         C::Deaddam => civ & (W | D | N) != 0,
         C::Seikimatsu | C::Konpeki | C::Seihou => civ & (L | W | D) != 0,
@@ -1008,11 +1141,15 @@ fn evo_choices(g: &Game, p: usize, c: C, side: u8, how: u8, pay: bool) -> Vec<Op
 /// タマシードを出す（ジャスミンの地版）
 fn put_tama(g: &mut Game, p: usize, card: Card) {
     g.ps[p].tama.push(card);
+    // 創世竜：自分のタマシードが出た時（近似：そのタマシードの出た時の能力の後で解決）
+    if drache_n(g, p) > 0 {
+        push(g, Fx::DracheUnder { p, uid: card.uid });
+    }
     first_event(g, p, cost_of(card.c));
     if card.c == C::Jasmine {
         g.mill_to_mana(p, 1, true);
     }
-    if matches!(card.c, C::Helcop | C::Bakuro | C::Ichiou) {
+    if matches!(card.c, C::Helcop | C::Bakuro | C::Ichiou | C::Trap | C::Pearly | C::GreatBlue | C::Atlantis | C::Scorpion | C::Levya | C::ManhattanT | C::Emeral) {
         push(g, Fx::TamaEnter { p, uid: card.uid });
     }
     if is_rex(card.c) {
@@ -1052,6 +1189,10 @@ fn enter_replacement(g: &Game, p: usize, c: C, how: How) -> Option<bool> {
     }
     // ハッスル・キャッスル：召喚以外で出る時マナへ
     if how == How::Put && g.ps[op].shields.iter().any(|s| s.faceup && s.card.c == C::Hustle) {
+        mana_r = true;
+    }
+    // マンハッタンの心絵：相手のターン中、相手の他のクリーチャーが2体以上出ていれば、かわりにマナ
+    if g.tp == p && g.ps[op].tama.iter().any(|t| t.c == C::ManhattanT) && g.ps[p].entered_this_turn >= 2 {
         mana_r = true;
     }
     // PP-「P」：マナの枚数よりコストが大きい
@@ -1097,8 +1238,12 @@ pub fn enter(g: &mut Game, p: usize, card: Card, how: How, base: Option<u16>, jo
         g.ps[p].no_free_this_turn = true;
     }
     let mut cre = g.new_cre(card);
+    if g.ps[p].alspa != 0 && cost_of(card.c) == g.ps[p].alspa {
+        cre.ignored = true;
+    }
     let mut taka_base = false;
     let mut on_cre = false;
+    let mut sinka = None;
     if let Some(b) = base {
         if let Some(i) = g.find(p, b) {
             on_cre = true;
@@ -1116,6 +1261,9 @@ pub fn enter(g: &mut Game, p: usize, card: Card, how: How, base: Option<u16>, jo
             let t = g.ps[p].tama.remove(ti);
             cre.under.push(t);
             cre.sick = false;
+            if matches!(t.c, C::Pearly | C::Atlantis | C::Levya | C::Emeral) {
+                sinka = Some(t.c);
+            }
         }
     }
     if joe == 2 {
@@ -1144,6 +1292,10 @@ pub fn enter(g: &mut Game, p: usize, card: Card, how: How, base: Option<u16>, jo
         push(g, Fx::DragonEntered { p });
     }
     push(g, Fx::Enter { p, uid });
+    // シンカパワー：進化する時（出た時の能力より先に解決）
+    if let Some(c) = sinka {
+        push(g, Fx::Sinka { p, c, uid });
+    }
     if is_rex(card.c) {
         rex_entered(g, p, uid);
     }
@@ -1413,6 +1565,26 @@ fn enter_ability(g: &mut Game, p: usize, src: u16, c: C) {
         }
         C::Paradiso => {
             g.stack.push(Task::Fx(Fx::Ask(EQ { k: K::ParadisoReturn, p, a: 2, b: 0, list: vec![] })));
+        }
+        // ---- 第2段階：創世竜 ----
+        C::Esmel => {
+            if !g.ps[p].shields.is_empty() {
+                ask(g, K::EsmelShield, p, 0, 0, vec![]);
+            }
+        }
+        C::Eringi => {
+            g.draw1(p);
+            g.draw1(p);
+            if !g.ps[p].hand.is_empty() {
+                ask(g, K::EringiMana, p, 0, 0, vec![]);
+            }
+        }
+        C::Wokanna => {
+            if let Some(c) = g.ps[op].deck.pop() {
+                g.ps[op].grave.push(c);
+                g.check_state();
+                ask(g, K::WokPick, p, cost_of(c.c) as i32, 0, vec![]);
+            }
         }
         // ---- 第2段階：デアリデモニオ ----
         C::Canbero => {
@@ -1748,6 +1920,11 @@ pub fn use_trigger(g: &mut Game, owner: usize, uid: u16, what: u8) {
                 } else {
                     g.ps[owner].hand.push(card);
                 }
+            } else if s.kind == Kind::Tama {
+                // タマシードの S・トリガー：コストを支払わずに実行
+                let card = g.take_hand(owner, uid).unwrap();
+                executed(g, owner);
+                put_tama(g, owner, card);
             } else if creature_blocked(g, owner) || small_locked(g, owner, c) {
                 // 出せない：手札に残る（46851）
             } else if d.evo != Evo::None {
@@ -1864,6 +2041,22 @@ fn spell_effect(g: &mut Game, p: usize, c: C, side: u8) {
             ask(g, K::Slot7Pick, p, 0, 0, l);
         }
         (C::Kesshin, _) => ask(g, K::Kesshin, p, 2, 0, vec![]),
+        (C::Chiryu, _) => {
+            let top = top_n(g, p, 3);
+            g.check_state();
+            if !top.is_empty() {
+                let l = stash(g, p, &top);
+                ask(g, K::ChiryuPick, p, 0, 0, l);
+            }
+        }
+        (C::Esmel, 1) => {
+            shieldify_top(g, p);
+            g.ps[p].esmel_pend += 1;
+        }
+        (C::Alspa, _) => {
+            g.draw1(p);
+            ask(g, K::AlspaNum, p, 0, 0, vec![]);
+        }
         (C::Chitsujo, _) => {
             let l = targetable(g, op);
             if !l.is_empty() {
@@ -2105,6 +2298,20 @@ pub fn turn_start(g: &mut Game) {
                     g.winner = Some(op);
                 }
                 return;
+            }
+        }
+    }
+    // 「お茶はいかがですか？」：シールドを1つ手札へ（S・トリガーは使えない）
+    let n = std::mem::take(&mut g.ps[p].esmel_pend) as usize;
+    if n > 0 {
+        shields_to_hand_no_trigger(g, p, n);
+    }
+    // ♪立ち上がる：唱えた人の次のターンのはじめまで
+    let k = std::mem::take(&mut g.ps[op].alspa);
+    if k != 0 {
+        for x in g.ps[op].battle.iter_mut() {
+            if cost_of(x.card.c) == k {
+                x.ignored = false;
             }
         }
     }
@@ -2359,6 +2566,27 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
                         ask(g, K::IchiouKill, p, 0, 0, l);
                     }
                 }
+                C::Trap => ask(g, K::TrapPick, p, 0, 0, vec![]),
+                C::Pearly => ask(g, K::PearlyPlayer, p, 0, 0, vec![]),
+                C::GreatBlue => {
+                    let top = top_n(g, p, 3);
+                    g.check_state();
+                    if !top.is_empty() {
+                        let l = stash(g, p, &top);
+                        ask(g, K::GbCre, p, 0, 0, l);
+                    }
+                }
+                C::Atlantis => ask(g, K::AtlDestroy, p, 0, 0, vec![]),
+                C::Scorpion => untap_mana(g, p, 4),
+                C::Levya => ask(g, K::LevyaPut, p, 0, 0, vec![]),
+                C::ManhattanT => {
+                    if !g.ps[p].battle.is_empty() || !g.ps[1 - p].battle.is_empty() {
+                        ask(g, K::MhOwn, p, 0, 0, vec![]);
+                    }
+                }
+                C::Emeral => {
+                    g.draw1(p);
+                }
                 _ => {}
             }
         }
@@ -2388,6 +2616,30 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
                 g.ps[p].battle[i].tapped = false;
             }
         }
+        Fx::DracheUnder { p, uid } => {
+            if drache_n(g, p) == 0 || !g.ps[p].tama.iter().any(|t| t.uid == uid) {
+                return;
+            }
+            if g.ps[p].battle.iter().any(|x| is_neo(x.card.c) || is_evo_card(x.card.c)) {
+                ask(g, K::DracheUnder, p, uid as i32, 0, vec![]);
+            }
+        }
+        Fx::Sinka { p, c, uid: _ } => match c {
+            C::Pearly => {
+                g.mill_to_mana(p, 2, true);
+                if !g.ps[p].mana.is_empty() {
+                    ask(g, K::PearlyReturn, p, 0, 0, vec![]);
+                }
+            }
+            C::Atlantis => ask(g, K::AtlBounce, p, 0, 0, vec![]),
+            C::Levya => ask(g, K::LevyaPut, p, 0, 0, vec![]),
+            C::Emeral => {
+                if !g.ps[p].hand.is_empty() {
+                    ask(g, K::EmeShield, p, 0, 0, vec![]);
+                }
+            }
+            _ => {}
+        },
         Fx::SanganDig { p } => {
             // 山札の下から2枚を表向き。コスト5以下の進化クリーチャー最大1体とタマシード最大1枚を出し、残りは墓地（近似：タマシード→進化の順に自動）
             let n = g.ps[p].deck.len().min(2);
@@ -2429,7 +2681,7 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
 }
 
 fn has_enter_ability(c: C) -> bool {
-    matches!(c, C::Fujisan | C::Slotton | C::Brand | C::Jogimera | C::Melaventure | C::Jogiragon | C::Moujakinga | C::Niyani | C::Sakki | C::Manhattan | C::Odotta | C::Jolagon | C::Canbero | C::Momo)
+    matches!(c, C::Fujisan | C::Slotton | C::Brand | C::Jogimera | C::Melaventure | C::Jogiragon | C::Moujakinga | C::Niyani | C::Sakki | C::Manhattan | C::Odotta | C::Jolagon | C::Canbero | C::Momo | C::Esmel | C::Eringi | C::Wokanna)
 }
 
 /// 召喚したことを記録（VAN・クサビラガミの「召喚して出した時」）
@@ -2665,7 +2917,65 @@ fn options_for(g: &Game, q: &EQ) -> Vec<Opt> {
             if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
         }
         // ---- 第2段階：デアリデモニオ ----
-        K::GreatestAtk | K::IchiouExec | K::SBack => yn,
+        K::GreatestAtk | K::IchiouExec | K::SBack | K::EsmelShield => yn,
+        // ---- 第2段階：創世竜 ----
+        K::DracheUnder => {
+            let l: Vec<u16> = g.ps[p].battle.iter().filter(|x| is_neo(x.card.c) || is_evo_card(x.card.c)).map(|x| x.card.uid).collect();
+            with_pass(picks(&l))
+        }
+        K::TrapPick => {
+            let l = elems_cost_le(g, p, 4, true, true, true);
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::PearlyPlayer => vec![Opt::Mode(0), Opt::Mode(1)],
+        K::PearlyReturn => {
+            let l: Vec<u16> = g.ps[p].mana.iter().map(|m| m.card.uid).collect();
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::GbCre | K::GbNon => {
+            let cre = q.k == K::GbCre;
+            let l: Vec<u16> = q.list.iter().copied().filter(|&u| deck_card(g, p, u).map(|c| is_creature_card(c) == cre).unwrap_or(false)).collect();
+            with_pass(picks(&l))
+        }
+        K::AtlDestroy => {
+            let l: Vec<u16> = g.ps[p].tama.iter().map(|t| t.uid).collect();
+            with_pass(picks(&l))
+        }
+        K::AtlRevive => {
+            let l: Vec<u16> = g.ps[p].grave.iter().filter(|c| def(c.c).main.kind == Kind::Tama && cost_of(c.c) <= 4).map(|c| c.uid).collect();
+            with_pass(picks(&l))
+        }
+        K::AtlBounce => with_pass(picks(&elems_cost_le(g, p, 99, true, true, true))),
+        K::LevyaPut => {
+            let l: Vec<u16> = g.ps[p].mana.iter().filter(|m| cost_of(m.card.c) <= 3 && (def(m.card.c).main.kind == Kind::Tama || (is_creature_card(m.card.c) && def(m.card.c).evo != Evo::Evo))).map(|m| m.card.uid).collect();
+            with_pass(picks(&l))
+        }
+        K::MhOwn => {
+            let l: Vec<u16> = g.ps[p].battle.iter().map(|x| x.card.uid).collect();
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::MhOpp => {
+            let l = targetable(g, op);
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::EmeShield | K::EringiMana => {
+            let l: Vec<u16> = g.ps[p].hand.iter().map(|c| c.uid).collect();
+            if q.k == K::EringiMana { with_pass(picks(&l)) } else if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::EmeTake => {
+            let l: Vec<u16> = g.ps[p].shields.iter().map(|s| s.card.uid).collect();
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::WokPick => {
+            let l = elems_cost_le(g, p, q.a.max(0) as u8, false, true, true);
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::ChiryuPick => {
+            let l: Vec<u16> = q.list.iter().copied().filter(|&u| deck_card(g, p, u).is_some()).collect();
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::ChiryuDest => vec![Opt::Mode(0), Opt::Mode(1)],
+        K::AlspaNum => (1..=8u8).map(Opt::Mode).collect(),
         K::GreatestDiscard => {
             let l: Vec<u16> = g.ps[p].hand.iter().map(|c| c.uid).collect();
             if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
@@ -3597,6 +3907,165 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
                 let c = g.ps[op].battle.remove(i);
                 g.ps[op].sealed.push((c, seal));
                 g.check_state();
+            }
+        }
+        // ---- 第2段階：創世竜 ----
+        K::DracheUnder => {
+            if let Some(u) = pick {
+                let Some(ti) = g.ps[p].tama.iter().position(|t| t.uid == q.a as u16) else { return };
+                let Some(i) = g.find(p, u) else { return };
+                let t = g.ps[p].tama.remove(ti);
+                g.ps[p].battle[i].under.push(t);
+            }
+        }
+        K::TrapPick => {
+            if let Some(u) = pick {
+                elem_to(g, p, u, Dest::Mana);
+            }
+        }
+        K::PearlyPlayer => {
+            if let Opt::Mode(k) = o {
+                let t = if k == 0 { p } else { op };
+                let cs = std::mem::take(&mut g.ps[t].grave);
+                bottom_random(g, t, cs);
+            }
+        }
+        K::PearlyReturn => {
+            if let Some(u) = pick {
+                if let Some(c) = g.take_mana(p, u) {
+                    g.ps[p].hand.push(c);
+                }
+            }
+        }
+        K::GbCre | K::GbNon => {
+            let mut l = q.list.clone();
+            if let Some(u) = pick {
+                if let Some(c) = take_deck(g, p, u) {
+                    g.ps[p].hand.push(c);
+                }
+                l.retain(|&x| x != u);
+            }
+            if q.k == K::GbCre {
+                g.stack.push(Task::Fx(Fx::Ask(EQ { k: K::GbNon, p, a: 0, b: 0, list: l })));
+            } else {
+                send_looked_to_bottom(g, p, &l);
+            }
+        }
+        K::AtlDestroy => {
+            if let Some(u) = pick {
+                if let Some(i) = g.ps[p].tama.iter().position(|t| t.uid == u) {
+                    let t = g.ps[p].tama.remove(i);
+                    g.ps[p].grave.push(t);
+                    ask(g, K::AtlRevive, p, 0, 0, vec![]);
+                }
+            }
+        }
+        K::AtlRevive => {
+            if let Some(u) = pick {
+                if let Some(i) = g.ps[p].grave.iter().position(|c| c.uid == u) {
+                    let c = g.ps[p].grave.remove(i);
+                    put_tama(g, p, c);
+                }
+            }
+        }
+        K::AtlBounce => {
+            if let Some(u) = pick {
+                elem_to(g, p, u, Dest::Hand);
+            }
+        }
+        K::LevyaPut => {
+            if let Some(u) = pick {
+                let Some(c) = g.take_mana(p, u) else { return };
+                if def(c.c).main.kind == Kind::Tama {
+                    put_tama(g, p, c);
+                } else {
+                    enter(g, p, c, How::Put, None, 0);
+                }
+            }
+        }
+        K::MhOwn => {
+            ask(g, K::MhOpp, p, pick.map(|u| u as i32).unwrap_or(-1), 0, vec![]);
+        }
+        K::MhOpp => {
+            let keep_me = q.a;
+            let keep_op = pick;
+            let mine: Vec<u16> = g.ps[p].battle.iter().map(|x| x.card.uid).filter(|&u| u as i32 != keep_me).collect();
+            let theirs: Vec<u16> = g.ps[op].battle.iter().map(|x| x.card.uid).filter(|&u| Some(u) != keep_op).collect();
+            for u in mine {
+                leave2(g, p, u, Dest::Mana, false, true);
+            }
+            for u in theirs {
+                leave2(g, op, u, Dest::Mana, true, true);
+            }
+        }
+        K::EmeShield => {
+            if let Some(u) = pick {
+                if let Some(c) = g.take_hand(p, u) {
+                    g.ps[p].shields.push(Shield { card: c, faceup: false });
+                    push(g, Fx::ShieldPlaced { p, n: 1 });
+                    ask(g, K::EmeTake, p, 0, 0, vec![]);
+                }
+            }
+        }
+        K::EmeTake => {
+            if let Some(u) = pick {
+                if let Some((s, under)) = take_shield(g, p, u) {
+                    g.ps[p].hand.push(s.card);
+                    g.ps[p].hand.extend(under);
+                    push(g, Fx::Zrush { p });
+                }
+            }
+        }
+        K::EsmelShield => {
+            if o == Opt::Yes {
+                if let Some(su) = g.ps[p].shields.last().map(|s| s.card.uid) {
+                    if let Some((s, under)) = take_shield(g, p, su) {
+                        g.put_mana(p, s.card, false);
+                        for c in under {
+                            g.put_mana(p, c, false);
+                        }
+                        push(g, Fx::Zrush { p });
+                    }
+                }
+            }
+        }
+        K::EringiMana => {
+            if let Some(u) = pick {
+                if let Some(c) = g.take_hand(p, u) {
+                    g.put_mana(p, c, false);
+                }
+            }
+        }
+        K::WokPick => {
+            if let Some(u) = pick {
+                elem_to(g, p, u, Dest::Hand);
+            }
+        }
+        K::ChiryuPick => {
+            if let Some(u) = pick {
+                let mut l = q.list.clone();
+                l.retain(|&x| x != u);
+                ask(g, K::ChiryuDest, p, u as i32, 0, l);
+            } else {
+                send_looked_to_bottom(g, p, &q.list.clone());
+            }
+        }
+        K::ChiryuDest => {
+            if let Opt::Mode(k) = o {
+                if let Some(c) = take_deck(g, p, q.a as u16) {
+                    if k == 0 {
+                        g.ps[p].hand.push(c);
+                    } else {
+                        g.put_mana(p, c, false);
+                    }
+                }
+                send_looked_to_bottom(g, p, &q.list.clone());
+            }
+        }
+        K::AlspaNum => {
+            if let Opt::Mode(k) = o {
+                g.ps[op].alspa = k;
+                alspa_apply(g);
             }
         }
         K::SBack => {

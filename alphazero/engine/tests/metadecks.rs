@@ -389,3 +389,102 @@ fn deathlost_modes_not_repeated() {
     assert!(!d.opts.contains(&Opt::Mode(0)), "{:?}", d.opts);
     counts_ok(&g);
 }
+
+// ---- 第2段階：創世竜 ----
+
+#[test]
+fn drache_executes_tama_from_mana_with_reduction() {
+    let mut g = blank("sousei", "bike_meta", 0);
+    let dr = take(&mut g, 0, C::Drache);
+    put_battle(&mut g, 0, dr);
+    assert_eq!(play_cost(&g, 0, C::Levya, 0, 0).0, 3, "タマシードは 5-2");
+    assert_eq!(play_cost(&g, 0, C::Jasmine, 0, 0).0, 1, "0以下にはならない");
+    for c in [C::Akane, C::Akane, C::Chiryu] { mana_of(&mut g, 0, c); }
+    let pe = take(&mut g, 0, C::Pearly);
+    g.ps[0].mana.push(Mana { card: pe, tapped: false, facedown: false });
+    let mut o = vec![];
+    main_options(&g, &mut o);
+    assert!(o.contains(&Opt::Play { uid: pe.uid, side: 0, how: 7 }), "マナのパーリ騎士を実行できる {:?} {:?}", o, g.ps[0].mana);
+    let mana0 = g.ps[0].mana.len();
+    play_from_hand(&mut g, 0, pe.uid, 0, 7);
+    g.run();
+    while let Some(k) = k_of(&g) {
+        match k {
+            K::DracheUnder => choose(&mut g, Opt::Pick(dr.uid)),
+            _ => g.step(0),
+        }
+    }
+    g.winner = None;
+    let i = g.find(0, dr.uid).unwrap();
+    assert!(g.ps[0].battle[i].under.iter().any(|c| c.uid == pe.uid), "出たタマシードを創世竜の下に置ける");
+    assert_eq!(g.ps[0].mana.len(), mana0, "マナから1枚出て、山札の上から1枚マナへ");
+    assert_eq!(g.ps[0].drache_used, 1);
+    counts_ok(&g);
+}
+
+#[test]
+fn trap_sends_cost4_to_owner_mana() {
+    let mut g = blank("sousei", "bike_meta", 0);
+    let cad = take(&mut g, 1, C::Caddy);
+    let cu = put_battle(&mut g, 1, cad);
+    for c in [C::Akane, C::Akane, C::Akane] { mana_of(&mut g, 0, c); }
+    let tr = take(&mut g, 0, C::Trap);
+    g.ps[0].hand.push(tr);
+    play_from_hand(&mut g, 0, tr.uid, 0, 0);
+    g.run();
+    while let Some(k) = k_of(&g) {
+        match k {
+            K::TrapPick => choose(&mut g, Opt::Pick(cu)),
+            _ => g.step(0),
+        }
+    }
+    assert!(g.ps[1].mana.iter().any(|m| m.card.uid == cu), "キャディは持ち主のマナへ {:?} {:?} {:?}", g.ps[1].battle, g.ps[0].tama, g.decision);
+    counts_ok(&g);
+}
+
+#[test]
+fn levya_sinka_power_on_evolve() {
+    let mut g = blank("sousei", "bike_meta", 0);
+    let lv = take(&mut g, 0, C::Levya);
+    g.ps[0].tama.push(lv);
+    let ak = take(&mut g, 0, C::Akane);
+    g.ps[0].mana.push(Mana { card: ak, tapped: false, facedown: false });
+    let dr = take(&mut g, 0, C::Drache);
+    enter(&mut g, 0, dr, How::Put, Some(lv.uid), 0);
+    g.run();
+    let mut put = false;
+    while let Some(k) = k_of(&g) {
+        match k {
+            K::LevyaPut => { choose(&mut g, Opt::Pick(ak.uid)); put = true; }
+            _ => g.step(0),
+        }
+    }
+    assert!(put || g.find(0, ak.uid).is_some(), "シンカパワーでマナからコスト3以下");
+    assert!(g.find(0, ak.uid).is_some());
+    counts_ok(&g);
+}
+
+#[test]
+fn valhalla_prevents_deckout_and_alspa_locks_cost() {
+    let mut g = blank("sousei", "bike_meta", 0);
+    let va = take(&mut g, 0, C::Valhalla);
+    g.ps[0].tama.push(va);
+    let rest: Vec<Card> = g.ps[0].deck.drain(..).collect();
+    g.ps[0].grave.extend(rest);
+    g.check_state();
+    assert!(g.winner.is_none(), "山札が0枚でも負けない");
+    // ♪立ち上がる：コスト2を選ぶと相手のコスト2の呪文を唱えられず、コスト2のクリーチャーは無視
+    let mut g = blank("sousei", "bike_meta", 0);
+    let cot = take(&mut g, 1, C::Cotton);
+    let cu = put_battle(&mut g, 1, cot);
+    let al = take(&mut g, 0, C::Alspa);
+    g.ps[0].hand.push(al);
+    for c in [C::Akane, C::Akane, C::Chiryu, C::Chiryu] { mana_of(&mut g, 0, c); }
+    play_from_hand(&mut g, 0, al.uid, 0, 0);
+    g.run();
+    assert_eq!(k_of(&g), Some(K::AlspaNum));
+    let k = cost_of(C::Cotton);
+    choose(&mut g, Opt::Mode(k));
+    assert_eq!(g.ps[1].alspa, k);
+    assert!(g.ps[1].battle[g.find(1, cu).unwrap()].ign(), "同じコストのクリーチャーの能力を無視");
+}

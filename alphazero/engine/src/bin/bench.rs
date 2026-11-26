@@ -27,7 +27,7 @@ fn main() {
                 let i = r.below(d.opts.len());
                 if let Q::Custom(eq) = &d.q { STATS.with(|s| *s.borrow_mut().entry(format!("{:?}", eq.k)).or_insert(0) += 1); }
                 if let Q::UseTrigger { what, .. } = &d.q { STATS.with(|s| *s.borrow_mut().entry(format!("trigger{what}")).or_insert(0) += 1); }
-                if let Opt::Play { uid, side, how } = d.opts[i] { let c = g.ps[g.tp].hand.iter().chain(g.ps[g.tp].grave.iter()).find(|c| c.uid == uid).unwrap().c; STATS.with(|s| *s.borrow_mut().entry(format!("play {:?}/{side}/{how}", c)).or_insert(0) += 1); }
+                if let Opt::Play { uid, side, how } = d.opts[i] { let q = &g.ps[g.tp]; let c = q.hand.iter().chain(q.grave.iter()).find(|c| c.uid == uid).map(|c| c.c).or_else(|| q.mana.iter().find(|m| m.card.uid == uid).map(|m| m.card.c)).unwrap(); STATS.with(|s| *s.borrow_mut().entry(format!("play {:?}/{side}/{how}", c)).or_insert(0) += 1); }
                 g.step(i);
                 k += 1;
                 for p in 0..2 {

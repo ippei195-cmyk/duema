@@ -93,8 +93,10 @@ pub enum C {
     Odotta, Jolagon, Stella, Deaddam, Seikimatsu, Sekkei, Konpeki, Seihou, Paradiso, SixFall,
     // 第2段階：デアリデモニオ
     Helcop, Canbero, Greatest, Momo, Cry, Bakuro, DeathLost, Dmc, Ichiou, Sangan, Shurai, Chitsujo,
+    // 第2段階：創世竜
+    Drache, Esmel, Chiryu, Trap, Pearly, GreatBlue, Eringi, Atlantis, Scorpion, Levya, Valhalla, ManhattanT, Wokanna, Emeral, Alspa,
 }
-pub const NCARDS: usize = 80;
+pub const NCARDS: usize = 95;
 
 pub fn all() -> [C; NCARDS] {
     use C::*;
@@ -104,7 +106,8 @@ pub fn all() -> [C; NCARDS] {
      SaintCastle, Zaze, Ichion, Everlast, GrandCross, Willide, Emotional,
      Gorgi, Canzone, Akane, Heracles, Takasugi, Jasmine, Kohaku, Gindan, Aofesy, Cineraria, Vt5000,
      Odotta, Jolagon, Stella, Deaddam, Seikimatsu, Sekkei, Konpeki, Seihou, Paradiso, SixFall,
-     Helcop, Canbero, Greatest, Momo, Cry, Bakuro, DeathLost, Dmc, Ichiou, Sangan, Shurai, Chitsujo]
+     Helcop, Canbero, Greatest, Momo, Cry, Bakuro, DeathLost, Dmc, Ichiou, Sangan, Shurai, Chitsujo,
+     Drache, Esmel, Chiryu, Trap, Pearly, GreatBlue, Eringi, Atlantis, Scorpion, Levya, Valhalla, ManhattanT, Wokanna, Emeral, Alspa]
 }
 
 pub fn def(c: C) -> &'static CardDef {
@@ -200,6 +203,22 @@ pub static DEFS: [CardDef; NCARDS] = [
     CardDef { id: "dmrp21-2B", main: side!("邪王来混沌三眼鬼", Creature, F, 5, 7000, R_DEMONIO | R_REX, K_WB), spell: None, hyper: None, evo: Evo::Evo },
     CardDef { id: "dmsd21-001", main: side!("終来王鬼 ジャオウガ", Creature, F, 5, 8000, R_DEMONIO | R_REX, K_WB), spell: None, hyper: None, evo: Evo::Evo },
     CardDef { id: "dmex12-035", main: side!("秩序の意志", Spell, D, 4, 0, NONE, 0), spell: None, hyper: None, evo: Evo::None },
+    // ---- 第2段階：創世竜（2026-11-26） ----
+    CardDef { id: "dm25rp4-S07", main: side!("創世竜 Drache der'Zen", Creature, L | W | N, 3, 3500, R_MAGIC | R_COMMAND | R_DRAGON, 0), spell: None, hyper: None, evo: Evo::GNeo },
+    CardDef { id: "dmex12-016", main: side!("天体妖精エスメル", Creature, N, 2, 2000, NONE, 0), spell: Some(side!("「お茶はいかがですか？」", Spell, L, 4, 0, NONE, K_STRIG)), hyper: None, evo: Evo::None },
+    CardDef { id: "dmrp20-055", main: side!("地龍神の魔陣", Spell, W | N, 2, 0, NONE, K_GSTRIKE), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dmrp21-074", main: side!("トラップの地版", Tama, N, 3, 0, R_GIANT | R_REX, K_STRIG), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dmrp22-044", main: side!("パーリ騎士の心絵", Tama, N, 3, 0, R_JOKERS | R_REX, 0), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm25rp4-016", main: side!("グレートブルーの海幻", Tama, W, 3, 0, R_DRAGON | R_FUSION, 0), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm24bd5-006", main: side!("宇宙妖精エリンギ", Creature, L | W | N, 5, 4500, NONE, K_STRIG | K_BLOCKER), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dmrp22-013", main: side!("アトランティスの海幻", Tama, W, 5, 0, R_REX, K_STRIG), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm22rp1-8A", main: side!("轟廻！グランドスラム・スコーピオン", Tama, N, 5, 0, R_GIANT, 0), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dmrp22-025", main: side!("レヴィヤの地版", Tama, N, 5, 0, R_DRAGON | R_COMMAND | R_REX, K_STRIG), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm25ex1-054", main: side!("ヴァルハラの天宝", Tama, L, 3, 0, R_DRAGON | R_COMMAND, 0), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dmrp22-024", main: side!("マンハッタンの心絵", Tama, N, 6, 0, R_JOKERS | R_REX, 0), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm24ex1-038", main: side!("冥土人形ウォカンナ・ピエール", Creature, W, 3, 2000, NONE, K_STRIG | K_BLOCKER), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dmrp22-031", main: side!("エメラルの海幻", Tama, W, 3, 0, R_REX, 0), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm24rp4-002", main: side!("♪立ち上がる 悪魔に天使 堕ちるかな", Spell, W, 4, 0, NONE, K_STRIG), spell: None, hyper: None, evo: Evo::None },
 ];
 
 pub fn by_id(id: &str) -> Option<C> {
@@ -222,6 +241,7 @@ pub fn deck(name: &str) -> Vec<C> {
         "jokers_meta" => &[(4, JoJoJo), (4, Odotta), (4, Fujisan), (4, Brand), (4, Jogimera), (4, Melaventure), (4, Slotton), (4, Jogiragon), (3, Niyani), (2, Moujakinga), (1, Sakki), (1, Jolagon), (1, Manhattan)],
         "gorgi_trv" => &[(4, Gorgi), (4, Heracles), (4, Akane), (4, Kohaku), (4, Ichion), (4, Canzone), (4, Sekkei), (4, Caddy), (2, Konpeki), (1, Seihou), (1, Shacogail), (3, Paradiso), (1, SixFall)],
         "demonio" => &[(4, Helcop), (4, Canbero), (4, Jasmine), (4, Greatest), (4, Momo), (4, Cry), (4, Bakuro), (3, DeathLost), (1, Dmc), (3, Ichiou), (2, Sangan), (1, Shurai), (2, Chitsujo)],
+        "sousei" => &[(4, Akane), (4, Drache), (3, Jasmine), (1, Esmel), (4, Chiryu), (4, Trap), (4, Pearly), (2, GreatBlue), (4, Eringi), (2, Atlantis), (2, Scorpion), (1, Levya), (1, Valhalla), (1, ManhattanT), (1, Wokanna), (1, Emeral), (1, Alspa)],
         "bike_meta" => &[(4, Kiyuri), (4, Antiham), (4, Cotton), (4, Humpty), (4, Caddy), (4, Chakra), (4, Dagura), (4, RedZone), (3, PPP), (4, Fujin), (1, Magnum)],
         _ => panic!("unknown deck {name}"),
     };
@@ -236,4 +256,4 @@ pub fn deck(name: &str) -> Vec<C> {
 }
 
 /// 0〜4 は学習中（train5）の5デッキ。5〜 は DMラボの環境デッキ（2026-11-26 追加、train6 から）
-pub const DECKS: [&str; 12] = ["leasebike", "hustle", "jokers", "willide", "gorgi", "zaze", "seitokai", "dogi4c", "jokers_meta", "gorgi_trv", "bike_meta", "demonio"];
+pub const DECKS: [&str; 13] = ["leasebike", "hustle", "jokers", "willide", "gorgi", "zaze", "seitokai", "dogi4c", "jokers_meta", "gorgi_trv", "bike_meta", "demonio", "sousei"];
