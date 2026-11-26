@@ -86,6 +86,9 @@ pub struct Player {
     pub drache_done: Vec<u16>,      // 創世竜：このターン、マナから実行する権利を使った創世竜（uid）
     pub esmel_pend: u8,             // 「お茶はいかがですか？」：次の自分のターンのはじめにシールドを手札へ
     pub alspa: u8,                  // ♪立ち上がる：このコストのエレメントの能力を無視・呪文を唱えられない（0=なし）
+    pub xb: Vec<u16>,               // スーパー・S・トリガーで xB 能力を得たカード
+    pub dokin_ign: bool,            // ドキンダンテXXII：このプレイヤーのクリーチャーの能力を無視（相手の次のターンのはじめまで）
+    pub mana_frozen: bool,          // エンドレス・フローズン・カーニバル：次の自分のターンのはじめにマナがアンタップしない
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -178,10 +181,12 @@ pub struct Game {
     pub attack_cancel: bool,
     pub summoned: Vec<u16>,
     pub limbo: Vec<Card>, // 効果の途中で一時的に置いているカード（キユリ）
+    pub limbo_p: usize,   // limbo のカードの持ち主
     pub steps: u32,
     pub revch: Vec<u16>,       // 革命チェンジで出たクリーチャー（アオフェシー）
     pub saint: Option<u16>,    // セイント・キャッスルの置換で今ブレイクしているシールド
     pub attacks_turn: u8,      // このターンの攻撃の数（邪王来混沌三眼鬼）
+    pub cur_spell: u16,        // いま効果を解決している呪文の uid
 }
 
 pub const MAX_TURNS: u32 = 80;
@@ -204,10 +209,12 @@ impl Game {
             attack_cancel: false,
             summoned: vec![],
             limbo: vec![],
+            limbo_p: 0,
             steps: 0,
             revch: vec![],
             saint: None,
             attacks_turn: 0,
+            cur_spell: u16::MAX,
         };
         for (p, d) in [deck0, deck1].iter().enumerate() {
             for &c in d.iter() {
@@ -353,8 +360,12 @@ impl Game {
                     c.sick = false;
                 }
                 crate::effects::untapped(self, tp, untapped);
-                for m in self.ps[tp].mana.iter_mut() {
-                    m.tapped = false;
+                if std::mem::take(&mut self.ps[tp].mana_frozen) {
+                    // エンドレス・フローズン・カーニバル：アンタップしない
+                } else {
+                    for m in self.ps[tp].mana.iter_mut() {
+                        m.tapped = false;
+                    }
                 }
             }
             Task::StartTriggers => {
@@ -847,7 +858,7 @@ impl Game {
             + q.battle.iter().map(|c| 1 + c.under.len()).sum::<usize>()
             + q.tama.len() + q.sh_under.len()
             + q.sealed.iter().map(|(c, _)| 2 + c.under.len()).sum::<usize>()
-            + if p == self.tp { self.limbo.len() } else { 0 }
+            + if p == self.limbo_p { self.limbo.len() } else { 0 }
     }
 }
 

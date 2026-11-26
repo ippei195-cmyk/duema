@@ -546,3 +546,77 @@ fn sousei_mana_boost_loop_from_note() {
     }
     counts_ok(&g);
 }
+
+// ---- 第3段階：4Cギリガザミ ----
+
+#[test]
+fn petens_breaks_own_shields_and_giri_gets_xb() {
+    // ペテンズ・ゲートで自分のシールドをすべてブレイク → シールド0でギリガザミをスーパー・S・トリガー → xB で手札の呪文
+    let mut g = blank("giri4c", "bike_meta", 0);
+    let cad = take(&mut g, 1, C::Caddy);
+    let cu = put_battle(&mut g, 1, cad);
+    let gi = take(&mut g, 0, C::Giri);
+    g.ps[0].shields.push(Shield { card: gi, faceup: false });
+    let kk = take(&mut g, 0, C::Kamigami);
+    g.ps[0].hand.push(kk);
+    let pt = take(&mut g, 0, C::Petens);
+    g.ps[0].hand.push(pt);
+    for _ in 0..8 { let c = g.ps[0].deck.remove(0); g.ps[0].mana.push(Mana { card: c, tapped: false, facedown: false }); }
+    // 色：光・水・闇が必要なので文明をそろえたカードを足す
+    for c in [C::Shinkirou, C::Shinkirou] { mana_of(&mut g, 0, c); }
+    play_from_hand(&mut g, 0, pt.uid, 0, 0);
+    g.run();
+    let mut xb_cast = false;
+    while let Some(d) = g.decision.as_ref() {
+        match &d.q {
+            Q::UseTrigger { uid, .. } if *uid == gi.uid => { let i = d.opts.iter().position(|o| *o == Opt::Yes).unwrap_or(0); g.step(i); }
+            Q::Custom(e) if e.k == K::GiriCast => { xb_cast = true; choose(&mut g, Opt::Pick(kk.uid)); }
+            Q::Custom(e) if e.k == K::GiriBounce => choose(&mut g, Opt::Pick(cu)),
+            _ => g.step(0),
+        }
+    }
+    g.winner = None;
+    assert!(g.ps[0].shields.is_empty());
+    assert!(g.ps[1].battle.iter().all(|x| x.card.uid != cu), "キャディを手札へ");
+    assert!(xb_cast, "シールド0でトリガーしたので xB が使える");
+    assert!(g.ps[0].mana.is_empty() && g.ps[1].mana.is_empty(), "神々の逆流で全員のマナが手札へ");
+    counts_ok(&g);
+}
+
+#[test]
+fn shinkirou_executes_trigger_from_grave_to_bottom() {
+    let mut g = blank("giri4c", "bike_meta", 0);
+    let kg = take(&mut g, 0, C::Kakugo);
+    g.ps[0].grave.push(kg);
+    let sh = take(&mut g, 0, C::Shinkirou);
+    g.ps[0].hand.push(sh);
+    let ak = take(&mut g, 0, C::Akashic);
+    g.ps[0].tama.push(ak);
+    let mut o = vec![];
+    main_options(&g, &mut o);
+    assert!(o.contains(&Opt::Play { uid: sh.uid, side: 0, how: 0 }), "アカシック3：マナが無くても呪文を唱えられる");
+    play_from_hand(&mut g, 0, sh.uid, 0, 0);
+    g.run();
+    let mut n = 0;
+    while let Some(k) = k_of(&g) {
+        match k {
+            K::ShinMode => { n += 1; choose(&mut g, Opt::Mode(if n == 1 { 1 } else { 0 })); }
+            K::ShinTrig => choose(&mut g, Opt::Pick(kg.uid)),
+            _ => g.step(0),
+        }
+    }
+    g.winner = None;
+    assert_eq!(g.ps[0].deck[0].uid, kg.uid, "墓地から唱えた覚悟の決闘は山札の下へ");
+    counts_ok(&g);
+}
+
+#[test]
+fn kurin_limits_opponent_to_two_creatures() {
+    let mut g = blank("bike_meta", "giri4c", 0);
+    let ku = take(&mut g, 1, C::Kurin);
+    put_battle(&mut g, 1, ku);
+    g.ps[0].entered_this_turn = 2;
+    assert!(creature_blocked(&g, 0), "クリン・ラビィ：相手は各ターン2体まで");
+    g.ps[0].entered_this_turn = 1;
+    assert!(!creature_blocked(&g, 0));
+}
