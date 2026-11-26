@@ -7,14 +7,15 @@ thread_local! { static STATS: std::cell::RefCell<std::collections::BTreeMap<Stri
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let n: u64 = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(1000);
-    let mut wins = [[0u32; 3]; 25];
+    const ND: usize = DECKS.len();
+    let mut wins = [[0u32; 3]; ND * ND];
     let t = Instant::now();
     let mut decisions = 0u64;
     let mut turns = 0u64;
     let mut errors = 0u64;
     for seed in 0..n {
-        let a = (seed % 5) as usize;
-        let b = ((seed / 5) % 5) as usize;
+        let a = (seed % ND as u64) as usize;
+        let b = ((seed / ND as u64) % ND as u64) as usize;
         let da = deck(DECKS[a]);
         let db = deck(DECKS[b]);
         let res = std::panic::catch_unwind(|| {
@@ -37,7 +38,7 @@ fn main() {
         });
         match res {
             Ok((w, k, tn)) => {
-                wins[a * 5 + b][w] += 1;
+                wins[a * ND + b][w] += 1;
                 decisions += k;
                 turns += tn as u64;
             }
@@ -52,9 +53,9 @@ fn main() {
     if args.get(2).map(|s| s == "stats").unwrap_or(false) {
         STATS.with(|s| for (k, v) in s.borrow().iter() { println!("{k:>28} {v}"); });
     }
-    for a in 0..5 {
-        for b in 0..5 {
-            let w = wins[a * 5 + b];
+    for a in 0..ND {
+        for b in 0..ND {
+            let w = wins[a * ND + b];
             println!("{:>10} vs {:<10} first-listed wins {} / {} draws {}", DECKS[a], DECKS[b], w[0], w[1], w[2]);
         }
     }
