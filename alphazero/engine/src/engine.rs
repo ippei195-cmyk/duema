@@ -83,7 +83,7 @@ pub struct Player {
     pub pend_sh: u8,                // グレイテスト・ジャオウガ：召喚の時に選んだシールドの数（出た時に手札へ）
     pub lost_used: Vec<(u16, u8)>,  // デス・ザ・ロストの黒像：選んだモード（uid, ビット）
     pub sealed: Vec<(Cre, Card)>,   // 封印されたクリーチャーと封印のカード（無視される＝バトルゾーンから外して持つ）
-    pub drache_used: u8,            // 創世竜：このターン、マナからタマシードを実行した回数
+    pub drache_done: Vec<u16>,      // 創世竜：このターン、マナから実行する権利を使った創世竜（uid）
     pub esmel_pend: u8,             // 「お茶はいかがですか？」：次の自分のターンのはじめにシールドを手札へ
     pub alspa: u8,                  // ♪立ち上がる：このコストのエレメントの能力を無視・呪文を唱えられない（0=なし）
 }
@@ -302,7 +302,7 @@ impl Game {
                 let p = &mut self.ps[tp];
                 p.charged = false;
                 p.once = 0;
-                p.drache_used = 0;
+                p.drache_done.clear();
                 p.no_lose = false;
                 p.entered_this_turn = 0;
                 p.no_free_this_turn = false;

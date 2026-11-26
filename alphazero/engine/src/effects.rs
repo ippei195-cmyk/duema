@@ -447,6 +447,11 @@ fn drache_n(g: &Game, p: usize) -> usize {
     g.ps[p].battle.iter().filter(|x| x.card.c == C::Drache && !x.ign()).count()
 }
 
+/// マナから実行する権利が残っている創世竜
+fn drache_free(g: &Game, p: usize) -> Option<u16> {
+    g.ps[p].battle.iter().find(|x| x.card.c == C::Drache && !x.ign() && !g.ps[p].drache_done.contains(&x.card.uid)).map(|x| x.card.uid)
+}
+
 /// ヴァルハラの天宝：攻撃される以外の方法でゲームに負けない
 pub fn valhalla(g: &Game, p: usize) -> bool {
     g.ps[p].tama.iter().any(|t| t.c == C::Valhalla)
@@ -981,9 +986,8 @@ pub fn main_options(g: &Game, opts: &mut Vec<Opt>) {
             }
         }
     }
-    // 創世竜：自分のターン中、タマシードを1つ、マナゾーンから実行してもよい（how=7）。回数の制限は書かれていないので何度でも
-    // （ループで使う）。近似：終わらないループを避けるため1ターン20回まで
-    if drache_n(g, p) > 0 && g.ps[p].drache_used < 20 {
+    // 創世竜：自分のターン中、タマシードを1つ、マナゾーンから実行してもよい（how=7）。創世竜1体ごとに1回（新しく出た創世竜はまた使える）
+    if drache_free(g, p).is_some() {
         for (mi, m) in g.ps[p].mana.iter().enumerate() {
             let c = m.card.c;
             if def(c).main.kind != Kind::Tama || seen.contains(&(c, 0, 7)) {
@@ -1007,7 +1011,9 @@ pub fn play_from_hand(g: &mut Game, p: usize, uid: u16, side: u8, how: u8) {
         let Some(plan) = g.pay_plan_ex(p, civ, cost, Some(mi)) else { return };
         g.pay(p, &plan);
         let card = g.take_mana(p, uid).unwrap();
-        g.ps[p].drache_used += 1;
+        if let Some(d) = drache_free(g, p) {
+            g.ps[p].drache_done.push(d);
+        }
         executed(g, p);
         put_tama(g, p, card);
         if g.ps[p].deck.len() > 5 {
@@ -1141,10 +1147,6 @@ fn evo_choices(g: &Game, p: usize, c: C, side: u8, how: u8, pay: bool) -> Vec<Op
 /// タマシードを出す（ジャスミンの地版）
 fn put_tama(g: &mut Game, p: usize, card: Card) {
     g.ps[p].tama.push(card);
-    // 創世竜：自分のタマシードが出た時（近似：そのタマシードの出た時の能力の後で解決）
-    if drache_n(g, p) > 0 {
-        push(g, Fx::DracheUnder { p, uid: card.uid });
-    }
     first_event(g, p, cost_of(card.c));
     if card.c == C::Jasmine {
         g.mill_to_mana(p, 1, true);
@@ -1155,6 +1157,19 @@ fn put_tama(g: &mut Game, p: usize, card: Card) {
     if is_rex(card.c) {
         rex_entered(g, p, card.uid);
     }
+    // 創世竜：自分のタマシードが出た時、下に置いてもよい。同時にトリガーした出た時の能力より先に解決する
+    // （noteのループ「全部敷いてからトラップで創世竜を選ぶ」の順。下に置かれても出た時の能力は解決する）
+    if drache_n(g, p) > 0 {
+        push(g, Fx::DracheUnder { p, uid: card.uid });
+    }
+}
+
+/// p のカード uid の種類（どのゾーンでも）
+fn card_c(g: &Game, p: usize, uid: u16) -> Option<C> {
+    let q = &g.ps[p];
+    q.tama.iter().chain(q.hand.iter()).chain(q.grave.iter()).find(|c| c.uid == uid).map(|c| c.c)
+        .or_else(|| q.battle.iter().flat_map(|x| x.under.iter().chain(std::iter::once(&x.card))).find(|c| c.uid == uid).map(|c| c.c))
+        .or_else(|| q.mana.iter().find(|m| m.card.uid == uid).map(|m| m.card.c))
 }
 
 fn put_gcastle(g: &mut Game, p: usize, card: Card) {
@@ -1279,6 +1294,9 @@ pub fn enter(g: &mut Game, p: usize, card: Card, how: How, base: Option<u16>, jo
     // EXライフ：出す時、山札の上から1枚をシールド化
     if def(card.c).main.kw & K_EXLIFE != 0 {
         cre.exlife = shieldify_top(g, p);
+    }
+    if card.c == C::Drache {
+        g.ps[p].drache_done.retain(|&u| u != card.uid);
     }
     g.ps[p].battle.push(cre);
     g.ps[p].entered_this_turn += 1;
@@ -2545,7 +2563,7 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
             ask(g, K::SixUnder, p, 0, t as i32, vec![]);
         }
         Fx::TamaEnter { p, uid } => {
-            let Some(c) = g.ps[p].tama.iter().find(|t| t.uid == uid).map(|t| t.c) else { return };
+            let Some(c) = card_c(g, p, uid) else { return };
             match c {
                 C::Helcop => {
                     let top = top_n(g, p, 4);
@@ -3916,6 +3934,10 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
                 let Some(i) = g.find(p, u) else { return };
                 let t = g.ps[p].tama.remove(ti);
                 g.ps[p].battle[i].under.push(t);
+                // 下に置かれた時もシンカパワーはトリガーする（48122：「進化元になる時」として扱う）
+                if matches!(t.c, C::Pearly | C::Atlantis | C::Levya | C::Emeral) {
+                    push(g, Fx::Sinka { p, c: t.c, uid: u });
+                }
             }
         }
         K::TrapPick => {

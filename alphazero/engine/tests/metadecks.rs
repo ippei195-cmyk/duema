@@ -417,8 +417,11 @@ fn drache_executes_tama_from_mana_with_reduction() {
     g.winner = None;
     let i = g.find(0, dr.uid).unwrap();
     assert!(g.ps[0].battle[i].under.iter().any(|c| c.uid == pe.uid), "出たタマシードを創世竜の下に置ける");
-    assert_eq!(g.ps[0].mana.len(), mana0, "マナから1枚出て、山札の上から1枚マナへ");
-    assert_eq!(g.ps[0].drache_used, 1);
+    assert_eq!(g.ps[0].mana.len(), mana0 + 1, "マナから1枚出て、山札から1枚、パーリのシンカパワー（下に置いた時もトリガー 48122）で2枚置いて1枚戻す");
+    assert_eq!(g.ps[0].drache_done, vec![dr.uid]);
+    let mut o = vec![];
+    main_options(&g, &mut o);
+    assert!(!o.iter().any(|x| matches!(x, Opt::Play { how: 7, .. })), "創世竜1体につき1回");
     counts_ok(&g);
 }
 
@@ -487,4 +490,59 @@ fn valhalla_prevents_deckout_and_alspa_locks_cost() {
     choose(&mut g, Opt::Mode(k));
     assert_eq!(g.ps[1].alspa, k);
     assert!(g.ps[1].battle[g.find(1, cu).unwrap()].ign(), "同じコストのクリーチャーの能力を無視");
+}
+
+#[test]
+fn sousei_mana_boost_loop_from_note() {
+    // JO「創世竜ループ一覧」のマナブーストループ：場 創世竜／手 パーリ／マナ パーリ パーリ レヴィヤ トラップ → 1周でマナ+4
+    let mut g = blank("sousei", "bike_meta", 0);
+    let dr = take(&mut g, 0, C::Drache);
+    put_battle(&mut g, 0, dr);
+    let pa = take(&mut g, 0, C::Pearly);
+    g.ps[0].hand.push(pa);
+    let pb = take(&mut g, 0, C::Pearly);
+    let pc = take(&mut g, 0, C::Pearly);
+    let lv = take(&mut g, 0, C::Levya);
+    let tr = take(&mut g, 0, C::Trap);
+    let ak = take(&mut g, 0, C::Akane); // 近似：支払うマナは自動で選ぶので1枚余分に置く
+    for c in [pb, pc, lv, tr, ak] {
+        g.ps[0].mana.push(Mana { card: c, tapped: false, facedown: false });
+    }
+    let mana0 = g.ps[0].mana.len();
+    let mut returns = 0;
+    let mut levya = 0;
+    let mut drive = |g: &mut Game, returns: &mut i32, levya: &mut i32| {
+        while let Some(k) = k_of(g) {
+            match k {
+                K::DracheUnder | K::TrapPick => choose(g, Opt::Pick(dr.uid)),
+                K::PearlyReturn => {
+                    *returns += 1;
+                    let target = if *returns == 1 { lv.uid } else { pb.uid };
+                    choose(g, Opt::Pick(target));
+                }
+                K::PearlyPlayer => choose(g, Opt::Mode(0)),
+                K::LevyaPut => {
+                    *levya += 1;
+                    choose(g, Opt::Pick(if *levya == 1 { pc.uid } else { tr.uid }));
+                }
+                _ => g.step(0),
+            }
+        }
+        g.winner = None;
+    };
+    play_from_hand(&mut g, 0, pa.uid, 0, 0);
+    g.run();
+    drive(&mut g, &mut returns, &mut levya);
+    assert!(g.ps[0].hand.iter().any(|c| c.uid == lv.uid), "パーリのシンカパワーでレヴィヤを回収");
+    play_from_hand(&mut g, 0, lv.uid, 0, 0);
+    g.run();
+    drive(&mut g, &mut returns, &mut levya);
+    let i = g.find(0, dr.uid).expect("創世竜は残る（G-NEO：かわりに下のカードがマナへ）");
+    assert!(g.ps[0].battle[i].under.is_empty());
+    assert!(g.ps[0].hand.iter().any(|c| c.uid == pb.uid), "タップしているパーリを回収して初期盤面へ");
+    assert_eq!(g.ps[0].mana.len(), mana0 + 4, "1周でマナが4枚増える");
+    for u in [pa.uid, pc.uid, lv.uid, tr.uid] {
+        assert!(g.ps[0].mana.iter().any(|m| m.card.uid == u));
+    }
+    counts_ok(&g);
 }
