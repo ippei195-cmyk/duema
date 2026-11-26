@@ -1,5 +1,5 @@
 //! 自己対戦で学習データを作る。
-//! selfplay <重み|none> <局数> <スレッド> <seed> <出力.bin> [深い読み回数=200] [浅い読み回数=40] [深い読みの割合=0.25] [focus=0] [重点デッキ=0（例 0,3,4）] [決めパターン直前から始める割合=0] [noteの方針バイアスの強さ=0]
+//! selfplay <重み|none> <局数> <スレッド> <seed> <出力.bin> [深い読み回数=200] [浅い読み回数=40] [深い読みの割合=0.25] [focus=0] [重点デッキ=0（例 0,3,4）] [決めパターン直前から始める割合=0] [noteの方針バイアスの強さ=0] [手本の割合=0] [外すデッキ（例 4,9,12）]
 //! 深く読んだ判断だけを記録する（KataGo の読み回数ランダム化）。
 use dmengine::az::*;
 use dmengine::cards::*;
@@ -35,10 +35,18 @@ fn main() {
     let focus: f64 = a.get(9).and_then(|s| s.parse().ok()).unwrap_or(0.0);
     let focus_decks: Vec<usize> = a.get(10).map(|s| s.split(',').filter_map(|x| x.parse().ok()).filter(|&x: &usize| x < DECKS.len()).collect()).unwrap_or_else(|| vec![0]);
     let focus_decks = Arc::new(if focus_decks.is_empty() { vec![0] } else { focus_decks });
+
     // note の考え方（playbook.rs）：ギリガザミ・創世竜の「決めの直前」から始める割合と、方策バイアスの強さ
     let scen: f64 = a.get(11).and_then(|s| s.parse().ok()).unwrap_or(0.0);
+    // 手本：直前局面から始めた対局のうちこの割合で、コンボ側はネットを使わない先読み（一様な事前確率＋プレイアウト）で指す。
+    // まだコンボを知らないネットの評価に引っぱられず、noteの定石どおりに決め切る対局を学習データに入れるため（2026-11-27）
+    let teach: f64 = a.get(13).and_then(|s| s.parse().ok()).unwrap_or(0.0);
     dmengine::playbook::set_strength(a.get(12).and_then(|s| s.parse().ok()).unwrap_or(0.0));
-    let combo: Vec<usize> = ["giri4c", "sousei"].iter().filter_map(|n| DECKS.iter().position(|d| d == n)).collect();
+    // 外すデッキ（2026-11-27 一平：創世竜とゴルギーはほかと違って自己学習だと難しいので外す）
+    let skip: Vec<usize> = a.get(14).map(|s| s.split(',').filter_map(|x| x.parse().ok()).collect()).unwrap_or_default();
+    let pool: Vec<usize> = (0..DECKS.len()).filter(|d| !skip.contains(d)).collect();
+    let pool = Arc::new(pool);
+    let combo: Vec<usize> = ["giri4c", "sousei"].iter().filter_map(|n| DECKS.iter().position(|d| d == n)).filter(|d| !skip.contains(d)).collect();
     let combo = Arc::new(combo);
     let net: Arc<Option<Net>> = Arc::new(if wpath == "none" { None } else { Some(Net::load(&wpath).expect("weights")) });
     let file = Arc::new(Mutex::new(std::io::BufWriter::new(std::fs::File::create(&out).unwrap())));
@@ -49,15 +57,17 @@ fn main() {
     let mut hs = vec![];
     for _ in 0..threads {
         let (net, file, next, stats, fd, combo) = (net.clone(), file.clone(), next.clone(), stats.clone(), focus_decks.clone(), combo.clone());
+        let (pool, skip) = (pool.clone(), skip.clone());
         hs.push(std::thread::spawn(move || loop {
             let i = next.fetch_add(1, Ordering::SeqCst);
             if i >= games { break; }
             let seed = seed0 * 1_000_003 + i;
             let mut rng = Rng::new(seed ^ 0xA2A2);
-            let mut da = rng.below(DECKS.len());
-            let mut db = rng.below(DECKS.len());
+            let mut da = pool[rng.below(pool.len())];
+            let mut db = pool[rng.below(pool.len())];
             if (rng.below(1_000_000) as f64) < focus * 1e6 {
                 let f = fd[rng.below(fd.len())];
+                let f = if skip.contains(&f) { pool[rng.below(pool.len())] } else { f };
                 if rng.below(2) == 0 { da = f } else { db = f }
             }
             let mut side = 2;
@@ -67,6 +77,7 @@ fn main() {
                 if side == 0 { da = c } else { db = c }
             }
             let mut g = Game::new(&deck(DECKS[da]), &deck(DECKS[db]), seed);
+            let teacher = side < 2 && (rng.below(1_000_000) as f64) < teach * 1e6;
             if side < 2 {
                 dmengine::playbook::scenario(&mut g, side, &mut rng);
             }
@@ -88,7 +99,8 @@ fn main() {
                 let p = d.player;
                 decisions += 1;
                 let deep = (rng.below(1_000_000) as f64) < pfull * 1e6;
-                let az = Az { net: net.as_ref().as_ref(), sims: if deep { full } else { fast }, cpuct: 1.5, noise: deep };
+                let use_net = if teacher && p == side { None } else { net.as_ref().as_ref() };
+                let az = Az { net: use_net, sims: if deep { full } else { fast }, cpuct: 1.5, noise: deep };
                 let r = az.search(&g, &mut rng);
                 if deep {
                     let mut b = vec![];

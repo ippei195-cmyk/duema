@@ -4,7 +4,8 @@
 世代ごと：①自己対戦（いま一番強いネット）→ ②学習 → ③一番強いネットと対戦して 55% 以上なら交代
          ④3世代ごとにフェーズ2版（ismcts:300）と先読み1200回で対戦し、80% 以上（540局で確認）で合格。自己対戦は15デッキ（学習用5＋環境デッキ10）。3割はリースバイク・デモニオ・創世竜・ギリガザミ・王道刈のどれかを入れる（focus）。
          15%はギリガザミ・創世竜の決めパターン直前の局面から始め、note の定石を方策の後押しに使う（scenario・bias）。
-         新しい版との交代判定は15デッキ、合格判定（ismcts:300 に80%）は前と同じ学習用5デッキ
+         2026-11-27 一平の判断で創世竜・ゴルギー・ゴルギー（環境版）は自己学習から外す（skip_decks）。
+         交代判定は残り12デッキ、合格判定（ismcts:300 に80%）は学習用のうちゴルギーを除く4デッキ（リースバイク・ハッスル・ジョーカーズ・白緑ウィリデ）
 記録：log.csv（世代ごと）、elo.csv（各ネットのレート）
 古い学習データ（直近10世代より前）と、交代しなかったネットは自動で消す
 """
@@ -16,7 +17,8 @@ SELFPLAY = os.path.join(D, 'selfplay' + EXE)
 ARENA = os.path.join(D, 'arena' + EXE)
 TH = str(max(2, (os.cpu_count() or 4) - 2))
 CFG = dict(games=2000, sims_full=200, sims_fast=40, p_full=0.25, window=6, epochs=2,
-           eval_games=180, eval_sims=200, promote=0.55, phase2_every=3, phase2_games=180, phase2_sims=1200, focus=0.3, focus_decks='0,11,12,13,14', scenario=0.15, bias=1.0, eval_decks=15,
+           eval_games=180, eval_sims=200, promote=0.55, phase2_every=3, phase2_games=180, phase2_sims=1200, focus=0.3, focus_decks='0,11,13,14', scenario=0.15, bias=1.0, teach=0, skip_decks='4,9,12',
+           eval_decks='0,1,2,3,5,6,7,8,10,11,13,14', phase2_decks='0,1,2,3',
            keep_samples=10)  # 学習データは直近この世代数だけ残す（学習に使うのは window 世代）
 for d in ['samples', 'nets']:
     os.makedirs(os.path.join(D, d), exist_ok=True)
@@ -98,7 +100,7 @@ def main():
         t0 = time.time()
         smp = os.path.join(D, 'samples', f'gen{g:04d}.bin')
         out = run([SELFPLAY, s['best'], str(CFG['games']), TH, str(1000 + g), smp,
-                   str(CFG['sims_full']), str(CFG['sims_fast']), str(CFG['p_full']), str(CFG['focus']), CFG['focus_decks'], str(CFG['scenario']), str(CFG['bias'])], f'selfplay gen{g}')
+                   str(CFG['sims_full']), str(CFG['sims_fast']), str(CFG['p_full']), str(CFG['focus']), CFG['focus_decks'], str(CFG['scenario']), str(CFG['bias']), str(CFG['teach']), CFG['skip_decks']], f'selfplay gen{g}')
         nsamp = int(re.search(r'samples=(\d+)', out).group(1))
         t1 = time.time()
         data = [os.path.join(D, 'samples', f'gen{k:04d}.bin') for k in range(max(0, g - CFG['window'] + 1), g + 1)]
@@ -121,10 +123,10 @@ def main():
             s['best_elo'] = elo
         p2 = ''
         if (g + 1) % CFG['phase2_every'] == 0 and s['best'] != 'none':
-            p2 = winrate(run([ARENA, f"az:{CFG['phase2_sims']}:{s['best']}", 'ismcts:300', str(CFG['phase2_games']), TH, str(g + 77)], f'phase2 gen{g}'))
+            p2 = winrate(run([ARENA, f"az:{CFG['phase2_sims']}:{s['best']}", 'ismcts:300', str(CFG['phase2_games']), TH, str(g + 77), CFG['phase2_decks']], f'phase2 gen{g}'))
             if p2 >= 0.80 and not s['passed']:
                 # 180局だとばらつきが大きいので、3倍の局数で測り直して 80% 以上の時だけ合格にする
-                p2c = winrate(run([ARENA, f"az:{CFG['phase2_sims']}:{s['best']}", 'ismcts:300', str(CFG['phase2_games'] * 3), TH, str(g + 7777)], f'phase2 confirm gen{g}'))
+                p2c = winrate(run([ARENA, f"az:{CFG['phase2_sims']}:{s['best']}", 'ismcts:300', str(CFG['phase2_games'] * 3), TH, str(g + 7777), CFG['phase2_decks']], f'phase2 confirm gen{g}'))
                 append('phase2_confirm.csv', [g + 1, os.path.basename(s['best']), round(p2, 3), round(p2c, 3), time.strftime('%Y-%m-%d %H:%M')],
                        ['gen', 'net', 'vs_phase2_180', 'vs_phase2_540', 'time'])
                 p2 = p2c
