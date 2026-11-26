@@ -14,7 +14,7 @@ pub enum Who { Me, Opp }
 pub enum Zone { Hand, Mana, Grave, Battle, Shield, Deck }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Src { Var(u8), Zone(Who, Zone) }
+pub enum Src { Var(u8), Zone(Who, Zone), SelfCard }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum To { Hand, Mana, ManaTapped, Grave, Shield, DeckTop, DeckBottom, Battle }
@@ -45,6 +45,7 @@ pub enum Op {
     Look { who: Who, n: u8, var: u8 },
     Choose { from: Src, f: Filt, min: u8, max: u8, var: u8, by: Who },
     Filter { from: Src, f: Filt, var: u8 },
+    Random { from: Src, f: Filt, n: u8, var: u8 }, // 見ないで選ぶ
     Move { var: u8, except: u8, to: To }, // except=255 なし
     Destroy { var: u8 },
     Draw { who: Who, n: u8 },
@@ -201,6 +202,7 @@ fn zone_uids(g: &Game, q: usize, z: Zone) -> Vec<u16> {
 fn src_uids(g: &Game, vm: &Vm, s: Src) -> Vec<u16> {
     match s {
         Src::Var(v) => vm.vars[v as usize].iter().copied().filter(|&u| locate(g, u).is_some()).collect(),
+        Src::SelfCard => if vm.src != 0 && locate(g, vm.src).is_some() { vec![vm.src] } else { vec![] },
         Src::Zone(w, z) => {
             let q = pl(vm, w);
             let mut l = zone_uids(g, q, z);
@@ -237,6 +239,7 @@ fn move_to(g: &mut Game, vm: &Vm, uid: u16, to: To) {
             for u in under {
                 g.ps[q].hand.push(u); // 近似：重なっていた下のカードは手札へ
             }
+            g.stack.push(Task::Fx(Fx::Zrush { p: q })); // シールドが離れた時（Zラッシュ）
             s.card
         }),
         Zone::Battle => None,
@@ -298,6 +301,18 @@ pub fn run(g: &mut Game, mut vm: Vm) {
             Op::Filter { from, f, var } => {
                 let l: Vec<u16> = src_uids(g, &vm, from).into_iter().filter(|&u| matches(g, u, &f)).collect();
                 vm.vars[var as usize] = l;
+            }
+            Op::Random { from, f, n, var } => {
+                let mut l: Vec<u16> = src_uids(g, &vm, from).into_iter().filter(|&u| matches(g, u, &f)).collect();
+                let mut out = vec![];
+                for _ in 0..n {
+                    if l.is_empty() {
+                        break;
+                    }
+                    let i = g.rng.below(l.len());
+                    out.push(l.remove(i));
+                }
+                vm.vars[var as usize] = out;
             }
             Op::Choose { from, f, min, max, var, by } => {
                 let l: Vec<u16> = src_uids(g, &vm, from).into_iter().filter(|&u| matches(g, u, &f)).collect();

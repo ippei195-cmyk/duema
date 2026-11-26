@@ -15,7 +15,7 @@ ID2C = dict(zip(IDS, VARIANTS))
 CIV = {'光': 'L', '水': 'W', '闇': 'D', '火': 'F', '自然': 'N'}
 RACE = {'ドラゴン': 'R_DRAGON', 'ジョーカーズ': 'R_JOKERS', '生徒会組': 'R_SEITOKAI', 'アビス': 'R_ABYSS', 'コマンド': 'R_COMMAND', 'ジャイアント': 'R_GIANT', 'マジック': 'R_MAGIC', 'オラクル': 'R_ORACLE'}
 KW = {'ブロッカー': 'K_BLOCKER', 'スピードアタッカー': 'K_SA', 'マッハファイター': 'K_MACH', 'S・トリガー': 'K_STRIG', 'G・ストライク': 'K_GSTRIKE', 'ジャストダイバー': 'K_JUSTDIVER', 'EXライフ': 'K_EXLIFE', 'W・ブレイカー': 'K_WB', 'T・ブレイカー': 'K_TB'}
-KIND = {'クリーチャー': 1, '呪文': 2, 'フィールド': 4, 'G城': 4, 'タマシード': 8, 'エレメント': 1 | 4 | 8}
+KIND = {'カード': 0, 'クリーチャー': 1, '呪文': 2, 'フィールド': 4, 'G城': 4, 'タマシード': 8, 'エレメント': 1 | 4 | 8}
 ZONE = {'MY_HAND': ('Me', 'Hand'), 'MY_BATTLE': ('Me', 'Battle'), 'MY_MANA': ('Me', 'Mana'), 'MY_GRAVE': ('Me', 'Grave'), 'MY_SHIELD': ('Me', 'Shield'),
         'OPP_HAND': ('Opp', 'Hand'), 'OPP_BATTLE': ('Opp', 'Battle'), 'OPP_MANA': ('Opp', 'Mana'), 'OPP_GRAVE': ('Opp', 'Grave'), 'OPP_SHIELD': ('Opp', 'Shield')}
 CZ = {'mana': 'Mana', 'hand': 'Hand', 'grave': 'Grave', 'battle': 'Battle', 'shield': 'Shield', 'deck': 'Deck'}
@@ -38,7 +38,7 @@ def filt(f):
     for k, v in f.items():
         if k == 'type':
             if v not in KIND: raise Fail(f'種類 {v}')
-            out['kinds'] = str(KIND[v])
+            if KIND[v]: out['kinds'] = str(KIND[v])
         elif k == 'civ':
             cs = [c for c in re.split(r'[/・、]', v) if c]
             if any(c not in CIV for c in cs): raise Fail(f'文明 {v}')
@@ -84,13 +84,14 @@ class Comp:
         if isinstance(r, list): raise Fail('カードidの指定（対局ごとに違う）')
         if not isinstance(r, str) or not r.startswith('$'): raise Fail(f'参照 {r}')
         k = r[1:]
+        if k == 'SELF': return 'Src::SelfCard'
         if k in ZONE:
             w, z = ZONE[k]; return f'Src::Zone(Who::{w}, Zone::{z})'
         return f'Src::Var({self.var(k)})'
 
     def ids_var(self, r):
         """move などの対象を変数にそろえる"""
-        if isinstance(r, str) and r[1:] in ZONE:
+        if isinstance(r, str) and (r[1:] in ZONE or r == '$SELF'):
             t = self.tmp(); self.emit(f'Filter {{ from: {self.src(r)}, f: ANY, var: {t} }}'); return t
         if isinstance(r, list) and len(r) == 1: return self.ids_var(r[0])
         if isinstance(r, str) and r.startswith('$'): return self.var(r[1:])
@@ -122,6 +123,8 @@ class Comp:
             self.emit(f'Look {{ who: Who::{who(st.get("who"))}, n: {n()}, var: {self.var(st.get("as", "L"), True)} }}')
         elif d == 'choose':
             frm = self.src(st.get('from', st.get('cands')))
+            if st.get('random'):
+                self.emit(f'Random {{ from: {frm}, f: {filt(st.get("filter"))}, n: {int(st.get("max", 1))}, var: {self.var(st.get("as", "X"), True)} }}'); return
             mx = int(st.get('max', 1) if st.get('max') is not None else 1); mn = int(st.get('min', 0) or 0)
             self.emit(f'Choose {{ from: {frm}, f: {filt(st.get("filter"))}, min: {min(mn, 99)}, max: {min(mx, 99)}, var: {self.var(st.get("as", "X"), True)}, by: Who::{who(st.get("by"))} }}')
         elif d == 'filter':
@@ -197,7 +200,7 @@ def main():
     for p in progs:
         try:
             lines.append(f'    // {p.get("name", p["id"])} {p["ev"]}\n' + compile_one(p))
-        except Fail as e:
+        except (Fail, TypeError, ValueError, KeyError, AttributeError) as e:
             ng += 1; print(f'NG {p.get("name", p["id"])} {p["ev"]}: {e}', file=sys.stderr)
     print('// textfx/compile.py が作るファイル（手で書き換えない）。効果文から作った手順の一覧。')
     print(f'#[allow(unused_imports)]\nuse {cr}::cards::*;\nuse {cr}::textfx::*;\n\n#[allow(unused_imports)]\nuse {cr}::textfx::Op::*;\n')
