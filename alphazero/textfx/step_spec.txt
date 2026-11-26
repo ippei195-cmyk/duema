@@ -1,0 +1,14 @@
+# 手順の書き方（JSON配列 steps）
+idは状況に出ているカードid。"$名前"で変数（choose/lookのas）を参照。特別な変数: $MY_HAND $MY_BATTLE $MY_MANA $MY_GRAVE $MY_SHIELD $OPP_HAND $OPP_BATTLE $OPP_MANA $OPP_GRAVE $OPP_SHIELD（MY=能力の持ち主側）
+{"do":"optional","q":"〜しますか？","steps":[...]}  「〜てもよい」部分は必ずこれで囲む（持ち主に承認を求める）
+{"do":"mode","q":"どれを選ぶ？","options":[{"label":"…","steps":[...]}],"times":1}  モード選択
+{"do":"look","n":4,"as":"L","who":"me|opp"}  山札の上n枚を見る／表向きにする（whoは能力の持ち主から見て）
+{"do":"choose","q":"…","from":"$L"または["id",...],"filter":{"type":"クリーチャー","maxCost":9,"minCost":0,"civ":"光","race":"…","text":"ブロッカー","nonEvolution":true},"min":0,"max":1,"as":"X","by":"me|opp"}  カードを選ぶ（byは選ぶ人。省略で持ち主）
+{"do":"move","ids":"$X","except":"$Y","to":"hand|mana|manaTapped|grave|shield|deckTop|deckBottom|battle"}
+{"do":"destroy","ids":"$X"} / {"do":"put","ids":"$X","destroyAtEnd":false}（バトルゾーンに出す）/ {"do":"cast","ids":"$X"}（コストなしで唱える・実行）
+{"do":"draw","n":1,"who":"me|opp"} / {"do":"topToMana","n":1,"tapped":true,"who":"me"} / {"do":"topToShield","n":1,"who":"me"} / {"do":"shuffle","who":"me"}
+{"do":"tap"|"untap"|"freeze"|"noattack"|"protect","ids":"$X"} / {"do":"power","ids":"$X","delta":3000}
+{"do":"note","text":"…"}  アプリで処理できない継続効果などをプレイヤーに知らせる
+{"do":"filter","from":"$L","filter":{...},"as":"X"}  条件に合うカードをすべて選んだことにする（選択なし）
+{"do":"if","conds":[{"who":"me|opp","zone":"mana|hand|grave|battle|shield|deck","filter":{...},"op":">=|<=|==","n":7}],"steps":[...],"else":[...]}  条件（すべて満たす）で分ける。例：自分のマナが10枚以上
+{"do":"win"}（能力の持ち主がゲームに勝つ） / {"do":"lose","who":"opp"}（そのプレイヤーがゲームに負ける）
