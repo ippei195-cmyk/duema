@@ -28,6 +28,8 @@ fn main() {
     let games: u64 = a.get(3).and_then(|s| s.parse().ok()).unwrap_or(100);
     let threads: u64 = a.get(4).and_then(|s| s.parse().ok()).unwrap_or(4);
     let seed0: u64 = a.get(5).and_then(|s| s.parse().ok()).unwrap_or(0);
+    // 使うデッキの数（既定5＝学習用5デッキ。15で環境デッキも入れる。5より多い時は組み合わせをランダムに選ぶ）
+    let nd: u64 = a.get(6).and_then(|s| s.parse().ok()).unwrap_or(5).clamp(1, DECKS.len() as u64);
     let next = Arc::new(AtomicU64::new(0));
     let t = Instant::now();
     let mut hs = vec![];
@@ -41,9 +43,12 @@ fn main() {
                     break;
                 }
                 // デッキの組み合わせ25通り × 席の入れ替え
-                let da = (i % 5) as usize;
-                let db = ((i / 5) % 5) as usize;
-                let swap = (i / 25) % 2 == 1;
+                let (da, db, swap) = if nd == 5 {
+                    ((i % 5) as usize, ((i / 5) % 5) as usize, (i / 25) % 2 == 1)
+                } else {
+                    let mut r = dmengine::rng::Rng::new(seed0 ^ (i / 2).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+                    (r.below(nd as usize), r.below(nd as usize), i % 2 == 1)
+                };
                 let (d0, d1) = (deck(DECKS[da]), deck(DECKS[db]));
                 let agents = if swap { [ag[1], ag[0]] } else { [ag[0], ag[1]] };
                 let w = play_game(&d0, &d1, agents, seed0 * 1_000_003 + i);
