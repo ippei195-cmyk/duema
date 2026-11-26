@@ -249,3 +249,143 @@ fn jolagon_neo_cost_and_put() {
     }
     assert!(g.find(0, fu.uid).is_some(), "コスト5の富士山を出す");
 }
+
+// ---- 第2段階：デアリデモニオ ----
+
+/// 決定を最初の選択肢で進め、積まれた処理がなくなった時の引き分け扱いを戻す
+fn settle(g: &mut Game) {
+    g.run();
+    while g.decision.is_some() {
+        g.step(0);
+    }
+    if g.winner == Some(2) && g.stack.is_empty() {
+        g.winner = None;
+    }
+}
+
+
+fn shields(g: &mut Game, p: usize, n: usize) {
+    for _ in 0..n {
+        let c = g.ps[p].deck.remove(0);
+        g.ps[p].shields.push(Shield { card: c, faceup: false });
+    }
+}
+
+#[test]
+fn greatest_shield_cost_and_hand() {
+    let mut g = blank("demonio", "bike_meta", 0);
+    shields(&mut g, 0, 3);
+    assert_eq!(play_cost(&g, 0, C::Greatest, 0, 32).0, 3, "シールド2つで 5-2");
+    let he = take(&mut g, 0, C::Helcop);
+    g.ps[0].tama.push(he);
+    let gr = take(&mut g, 0, C::Greatest);
+    g.ps[0].pend_sh = 2;
+    let hand = g.ps[0].hand.len();
+    enter(&mut g, 0, gr, How::Put, Some(he.uid), 0);
+    settle(&mut g);
+    assert_eq!(g.ps[0].shields.len(), 1);
+    assert_eq!(g.ps[0].hand.len(), hand + 2, "選んだシールド2つを手札へ（S・トリガーなし）");
+    let i = g.find(0, gr.uid).unwrap();
+    assert_eq!(g.ps[0].battle[i].under.len(), 1, "ヘルコプ太の上に進化");
+    counts_ok(&g);
+}
+
+#[test]
+fn star_evolution_rebuilds_on_destroy() {
+    // スター進化：離れる時、かわりに一番上だけ離れ、下のタマシードはタマシードとして残る
+    let mut g = blank("demonio", "bike_meta", 1);
+    let he = take(&mut g, 0, C::Helcop);
+    g.ps[0].tama.push(he);
+    let sh = take(&mut g, 0, C::Shurai);
+    enter(&mut g, 0, sh, How::Put, Some(he.uid), 0);
+    settle(&mut g);
+    assert!(g.ps[0].tama.iter().all(|t| t.uid != he.uid));
+    g.stack.push(Task::Destroy { p: 0, uid: sh.uid, by_opp: true });
+    settle(&mut g);
+    assert!(g.ps[0].grave.iter().any(|c| c.uid == sh.uid), "終来王鬼だけが墓地へ");
+    assert!(g.ps[0].tama.iter().any(|t| t.uid == he.uid), "ヘルコプ太はタマシードに戻る");
+    counts_ok(&g);
+}
+
+#[test]
+fn cry_replaces_losing_with_shield() {
+    let mut g = blank("bike_meta", "demonio", 0);
+    let cr = take(&mut g, 1, C::Cry);
+    put_battle(&mut g, 1, cr);
+    shields(&mut g, 1, 1);
+    let cad = take(&mut g, 0, C::Chakra);
+    let cu = put_battle(&mut g, 0, cad);
+    // シールドが1つ残った状態でとどめをさされる
+    g.stack.push(Task::DirectHit { winner: 0 });
+    settle(&mut g);
+    assert!(g.winner.is_none(), "CRY-S-MAX：負けるかわりにシールドを墓地へ");
+    assert!(g.ps[1].shields.is_empty());
+    let _ = cu;
+    counts_ok(&g);
+}
+
+#[test]
+fn dmc_does_not_leave_with_few_under() {
+    let mut g = blank("demonio", "bike_meta", 1);
+    let dm = take(&mut g, 0, C::Dmc);
+    let du = put_battle(&mut g, 0, dm);
+    g.stack.push(Task::Destroy { p: 0, uid: du, by_opp: true });
+    settle(&mut g);
+    assert!(g.find(0, du).is_some(), "下のカードが7枚以下なら離れない");
+    // パワーを0以下にしても、ルール処理で破壊を繰り返さない
+    let i = g.find(0, du).unwrap();
+    g.ps[0].battle[i].power_mod = -99999;
+    g.stack.push(Task::MainStep);
+    g.run();
+    assert!(g.winner.is_none() && g.steps < 1000, "破壊の繰り返しにならない");
+    assert!(g.find(0, du).is_some());
+    counts_ok(&g);
+}
+
+#[test]
+fn bakuro_shield_to_mana_and_put_demonio() {
+    let mut g = blank("demonio", "bike_meta", 0);
+    shields(&mut g, 0, 2);
+    for c in [C::Helcop, C::Helcop, C::Helcop] { mana_of(&mut g, 0, c); }
+    let gr = take(&mut g, 0, C::Greatest);
+    g.ps[0].mana.push(Mana { card: gr, tapped: false, facedown: false });
+    let ba = take(&mut g, 0, C::Bakuro);
+    g.ps[0].hand.push(ba);
+    play_from_hand(&mut g, 0, ba.uid, 0, 0);
+    g.run();
+    while let Some(k) = k_of(&g) {
+        match k {
+            K::BakuroPut => choose(&mut g, Opt::Pick(gr.uid)),
+            _ => g.step(0),
+        }
+    }
+    g.winner = None;
+    assert_eq!(g.ps[0].shields.len(), 1, "シールド1つをマナへ");
+    let i = g.find(0, gr.uid).expect("マナ5枚以下のグレイテストを出す");
+    assert_eq!(g.ps[0].battle[i].under[0].uid, ba.uid, "バクロ法師の封の上に");
+    counts_ok(&g);
+}
+
+#[test]
+fn deathlost_modes_not_repeated() {
+    // 47462：選んだモードは記録され、次のターンには選べない
+    let mut g = blank("demonio", "bike_meta", 0);
+    let dl = take(&mut g, 0, C::DeathLost);
+    g.ps[0].tama.push(dl);
+    shields(&mut g, 1, 2);
+    g.stack.push(Task::EndTriggers);
+    g.run();
+    assert_eq!(k_of(&g), Some(K::LostMode));
+    choose(&mut g, Opt::Mode(0));
+    while k_of(&g) == Some(K::LostShield) { g.step(0); }
+    g.winner = None;
+    assert_eq!(g.ps[1].shields.len(), 1);
+    g.stack.clear();
+    g.decision = None;
+    g.winner = None;
+    g.stack.push(Task::EndTriggers);
+    g.run();
+    let d = g.decision.as_ref().unwrap();
+    assert!(!d.opts.contains(&Opt::Mode(0)), "{:?}", d.opts);
+    counts_ok(&g);
+}

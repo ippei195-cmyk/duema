@@ -6,11 +6,11 @@ use crate::engine::*;
 
 const NC: usize = NCARDS;
 /// 効果の質問の種類のための枠
-pub const KN: usize = 100;
+pub const KN: usize = 128;
 /// 判断の種類の特徴の始まり
 pub const DBASE: usize = 9 * NC + 40;
-pub const S: usize = 768; // 局面の特徴の数（DBASE + 115 以上）
-pub const O: usize = 192; // 選択肢の特徴の数
+pub const S: usize = 904; // 局面の特徴の数（DBASE + 115 以上）
+pub const O: usize = 216; // 選択肢の特徴の数
 const _: () = assert!(DBASE + 8 + KN + 7 <= S);
 // 選択肢の特徴の位置
 pub const OC: usize = 10; // 札の種類 OC..OC+NC+1
@@ -150,6 +150,9 @@ pub fn option(g: &Game, p: usize, o: Opt) -> Vec<f32> {
     f[OS] = side as f32;
     f[OH + (how & 7) as usize] = 1.0;
     f[OGC] = (how & crate::effects::HOW_GC != 0) as u8 as f32;
+    if how >> 4 != 0 {
+        f[OM + 12 + ((how >> 4) & 3) as usize] = 1.0; // グレイテスト・ジャオウガで選ぶシールドの数
+    }
     if let Some(m) = mode {
         f[OM + (m as usize).min(15)] = 1.0;
     }

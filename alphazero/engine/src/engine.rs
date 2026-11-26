@@ -80,6 +80,9 @@ pub struct Player {
     pub gc_used: u8,                // グリーン・グランドクロスの軽減をこのターン使った回数
     pub first_done: bool,           // このターン、はじめてのエレメント／呪文がもう出たか（ウィリデ用）
     pub small_lock_turn: u32,       // 5000VT：このターン番号の間、パワー5000以下のクリーチャーを出せない
+    pub pend_sh: u8,                // グレイテスト・ジャオウガ：召喚の時に選んだシールドの数（出た時に手札へ）
+    pub lost_used: Vec<(u16, u8)>,  // デス・ザ・ロストの黒像：選んだモード（uid, ビット）
+    pub sealed: Vec<(Cre, Card)>,   // 封印されたクリーチャーと封印のカード（無視される＝バトルゾーンから外して持つ）
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -175,6 +178,7 @@ pub struct Game {
     pub steps: u32,
     pub revch: Vec<u16>,       // 革命チェンジで出たクリーチャー（アオフェシー）
     pub saint: Option<u16>,    // セイント・キャッスルの置換で今ブレイクしているシールド
+    pub attacks_turn: u8,      // このターンの攻撃の数（邪王来混沌三眼鬼）
 }
 
 pub const MAX_TURNS: u32 = 80;
@@ -200,6 +204,7 @@ impl Game {
             steps: 0,
             revch: vec![],
             saint: None,
+            attacks_turn: 0,
         };
         for (p, d) in [deck0, deck1].iter().enumerate() {
             for &c in d.iter() {
@@ -251,7 +256,7 @@ impl Game {
         crate::effects::recompute_emo(self);
         for p in 0..2 {
             for i in 0..self.ps[p].battle.len() {
-                if self.power(p, i) <= 0 && !self.ps[p].battle[i].stay {
+                if self.power(p, i) <= 0 && !self.ps[p].battle[i].stay && !crate::effects::cannot_leave(&self.ps[p].battle[i]) {
                     let uid = self.ps[p].battle[i].card.uid;
                     if !self.stack.iter().any(|t| matches!(t, Task::Destroy { uid: u, .. } if *u == uid)) {
                         self.stack.push(Task::Destroy { p, uid, by_opp: false });
@@ -286,6 +291,7 @@ impl Game {
         match t {
             Task::TurnStart => {
                 self.turn += 1;
+                self.attacks_turn = 0;
                 if self.turn > MAX_TURNS {
                     self.winner = Some(2);
                     return;
@@ -332,7 +338,9 @@ impl Game {
                 for c in self.ps[tp].battle.iter_mut() {
                     // ザゼ・ゼーン：自分のターンのはじめにアンタップしない
                     let zaze = c.card.c == C::Zaze && !c.ign();
-                    if !c.no_untap && !zaze {
+                    // DARK MATERIAL COMPLEX：下のカードが7枚以下ならアンタップしない
+                    let dmc = c.card.c == C::Dmc && !c.ign() && c.under.len() <= 7;
+                    if !c.no_untap && !zaze && !dmc {
                         if c.tapped {
                             untapped.push(c.card.uid);
                         }
@@ -369,6 +377,11 @@ impl Game {
             Task::AttackStep => {
                 let mut opts = vec![Opt::Pass];
                 self.attack_options(&mut opts);
+                // 邪王来混沌三眼鬼：クリーチャーは、可能なら攻撃する（近似：攻撃できるクリーチャーがいれば終われない）
+                // 同じターンに20回攻撃したら強制を外す（CRYのアンタップ＋負けない効果などで終わらない強制ループを避ける近似）
+                if opts.len() > 1 && self.attacks_turn < 20 && (0..2).any(|p| self.ps[p].battle.iter().any(|x| x.card.c == C::Sangan && !x.ign())) {
+                    opts.remove(0);
+                }
                 self.ask(tp, DK::Attack, opts, Q::None);
             }
             Task::EndTriggers => {
@@ -399,6 +412,7 @@ impl Game {
                 self.attack_gyakuten_used = false;
                 self.attack_ninja_used = false;
                 self.attack_cancel = false;
+                self.attacks_turn = self.attacks_turn.saturating_add(1);
                 if let Some(i) = self.find(tp, att) {
                     self.ps[tp].battle[i].tapped = true;
                 }
@@ -457,8 +471,10 @@ impl Game {
             }
             Task::Battle { a, b } => {
                 let (Some(ia), Some(ib)) = (self.find(a.0, a.1), self.find(b.0, b.1)) else { return };
-                let pa = self.power(a.0, ia);
-                let pb = self.power(b.0, ib);
+                // 邪王来混沌三眼鬼：バトル中 +4000
+                let sg = |g: &Game, p: usize, i: usize| if g.ps[p].battle[i].card.c == C::Sangan && !g.ps[p].battle[i].ign() { 4000 } else { 0 };
+                let pa = self.power(a.0, ia) + sg(self, a.0, ia);
+                let pb = self.power(b.0, ib) + sg(self, b.0, ib);
                 // 後で積んだものが先に処理される
                 if pa <= pb {
                     self.stack.push(Task::Destroy { p: a.0, uid: a.1, by_opp: false });
@@ -485,7 +501,7 @@ impl Game {
                 crate::effects::shields_to_hand(self, owner, uids, broken);
             }
             Task::DirectHit { winner } => {
-                if !self.ps[1 - winner].no_lose {
+                if !self.ps[1 - winner].no_lose && !crate::effects::lose_replacement(self, 1 - winner) {
                     self.winner = Some(winner);
                 }
             }
@@ -625,7 +641,9 @@ impl Game {
         let Some(i) = self.find(p, uid) else { return 1 };
         let c = &self.ps[p].battle[i];
         let k = self.kw(p, c);
-        let mut n = if k & K_TB != 0 {
+        let mut n = if k & K_WORLD != 0 {
+            99
+        } else if k & K_TB != 0 {
             3
         } else if k & K_WB != 0 {
             2
@@ -817,6 +835,7 @@ impl Game {
         q.deck.len() + q.hand.len() + q.mana.len() + q.shields.len() + q.grave.len()
             + q.battle.iter().map(|c| 1 + c.under.len()).sum::<usize>()
             + q.tama.len() + q.sh_under.len()
+            + q.sealed.iter().map(|(c, _)| 2 + c.under.len()).sum::<usize>()
             + if p == self.tp { self.limbo.len() } else { 0 }
     }
 }
