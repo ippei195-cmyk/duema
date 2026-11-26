@@ -1112,7 +1112,8 @@ function metaRules(p){
   for (const m of metaEffects(p)) if (/誰も|各プレイヤー|すべてのプレイヤー|両プレイヤー/.test(m.text)) out.push(m);
   return out;
 }
-let NOFX = true; try{ NOFX = localStorage.getItem('dmsim-nofx') !== '0'; }catch(e){}
+// カード効果：既定は「自動で処理」（2026-11-26 から。前の既定「全部手で処理」の保存値 dmsim-nofx は使わない）
+let NOFX = false; try{ NOFX = localStorage.getItem('dmsim-fx') === 'manual'; }catch(e){}
 function metaGate(p, s, how){
   if (NOFX) return {};
   const kind = s.type==='呪文' ? 'spell' : isCreature(s) ? 'creature' : 'other';
@@ -3538,7 +3539,7 @@ window.addEventListener('resize', () => { applyZoom(); positionPop(); });
 let PENDMODE = 'show'; try{ PENDMODE = localStorage.getItem('dmsim-pendmode') || 'show'; }catch(e){}
 function setPendMode(m){ PENDMODE = m; try{ localStorage.setItem('dmsim-pendmode', m); }catch(e){} document.querySelectorAll('#pendBtns [data-pm]').forEach(b => b.classList.toggle('on', b.dataset.pm===m)); if (S) render(); }
 $('#pendToggle').onclick = () => setPendMode(PENDMODE==='fold' ? 'show' : 'fold');
-function setFx(on){ NOFX = on; try{ localStorage.setItem('dmsim-nofx', on?'1':'0'); }catch(e){} document.querySelectorAll('#fxBtns [data-fx]').forEach(b => b.classList.toggle('on', b.dataset.fx===(on?'1':'0'))); if (on && S){ S.queue = []; if (S.pend){ S.pend.me = []; } } if (S) render(); }
+function setFx(on){ NOFX = on; try{ localStorage.setItem('dmsim-fx', on?'manual':'auto'); }catch(e){} document.querySelectorAll('#fxBtns [data-fx]').forEach(b => b.classList.toggle('on', b.dataset.fx===(on?'1':'0'))); if (on && S){ S.queue = []; if (S.pend){ S.pend.me = []; } } if (S) render(); }
 $('#fxBtns').addEventListener('click', e => { const b = e.target.closest('[data-fx]'); if (b) setFx(b.dataset.fx==='1'); });
 setTimeout(() => setFx(NOFX), 0);
 $('#pendBtns').addEventListener('click', e => { const b = e.target.closest('[data-pm]'); if (b) setPendMode(b.dataset.pm); });
@@ -3596,7 +3597,7 @@ async function startGameDialog(){
   S = newState(first, ch); selected = null; UNDO.length = 0; REDO.length = 0; brainBegin();
   for (const p of ['me','op']){ for (let i=0;i<5;i++) place(topOf(p),'shield'); drawN(p,5); }
   S.pend = {me:[],op:[]};
-  log(`対戦開始：${PN[first]}の先攻`);
+  log(`対戦開始：${PN[first]}の先攻${NOFX ? "（カード効果：全部手で処理。設定で「自動で処理」にできます）" : ""}`);
   setVoice('よろしくお願いします。');
   render(); save();
   if (first==='me'){ await startTurn('me'); }
