@@ -92,6 +92,23 @@ pub enum K {
     VmPick,        // 手順の choose（a=まだ選ばないといけない数 b=あと選べる数）
     VmYes,         // 手順の optional（Yes/No）
     VmMode,        // 手順の mode（a=選択肢の数）
+    // ---- 2026-11-26 追加（DMラボ環境デッキ 第1段階）----
+    OdottaBattle,  // オドッ太：バトルさせる相手（a=オドッ太）
+    JolagonMode,   // ジョラゴン：Mode(0)=手札からコスト5以下のジョーカーズ Mode(1)=Jビッグ1（list=[ジョラゴン]）
+    JolagonPut,    // ジョラゴン：出すジョーカーズ
+    DeaddamPick,   // デッドダムド：相手のクリーチャーを選ぶ
+    DeaddamDest,   // デッドダムド：Mode(0)=墓地 1=マナ 2=手札（a=対象）
+    Invade,        // SSS級侵略（Yes/No、a=デッドダムド b=攻撃中のクリーチャー）
+    SeikiDiscard,  // 世紀末の善悪：自分の手札を捨てる（a=あと捨てられる数）
+    SeikiCast,     // 世紀末の善悪：相手が捨てた呪文を唱えるか（a=カード、Mode(面) か Pass）
+    SekkeiNeo,     // 超魂設計図：NEOクリーチャー（list=見ているカード）
+    SekkeiFus,     // 超魂設計図：フュージョナー
+    KonpekiShield, // 紺碧の奇術師：手札をシールド化
+    SeihouTop,     // 西方：手札を1枚山札の上へ
+    ParadisoReturn,// パラディソ：水のクリーチャーを手札へ（a=残り）
+    ParadisoDraw,  // パラディソ：攻撃時に3枚引くか（Yes/No）
+    SixUnder,      // シックスフォール：下に置くクリーチャー（b=プレイヤー）
+    SixTop,        // シックスフォール：上になるクリーチャー（a=下に置くもの b=プレイヤー）
     ChooseRepl,    // 未使用（必ず最後）
 }
 
@@ -121,6 +138,9 @@ pub enum Fx {
     TakaLook { p: usize },             // TAKASUGI：山札の上から4枚を見る
     FirstEvent { p: usize, cost: u8 }, // p（ターン・プレイヤー）のはじめてのエレメント／呪文（ウィリデ）
     Vm(Box<crate::textfx::Vm>),        // 効果文から作った手順の続き
+    Stella { p: usize },               // ミラクルステラ（p=持ち主）：相手がカードを実行した
+    SeihouLook { p: usize },           // 西方（p=持ち主）：攻撃された時に山札の上を見る
+    SixRound { p: usize, t: usize },   // シックスフォール：プレイヤー t のクリーチャー2体を選ぶ
 }
 
 fn push(g: &mut Game, fx: Fx) {
@@ -261,6 +281,7 @@ fn hand_card(g: &Game, p: usize, uid: u16) -> Option<C> {
 fn discard(g: &mut Game, p: usize, uid: u16) -> Option<C> {
     let c = g.take_hand(p, uid)?;
     g.ps[p].grave.push(c);
+    seiki_discarded(g, p, c);
     Some(c.c)
 }
 
@@ -271,6 +292,41 @@ fn random_discard(g: &mut Game, p: usize) {
     let i = g.rng.below(g.ps[p].hand.len());
     let c = g.ps[p].hand.remove(i);
     g.ps[p].grave.push(c);
+    seiki_discarded(g, p, c);
+}
+
+/// 呪文の面があるか（ツインパクトは手札では呪文でもある）
+fn spell_sides(c: C) -> Vec<u8> {
+    let d = def(c);
+    let mut v = vec![];
+    if d.main.kind == Kind::Spell {
+        v.push(0);
+    }
+    if d.spell.is_some() {
+        v.push(1);
+    }
+    v
+}
+
+/// 世紀末の善悪：相手（p）が手札から呪文を捨てた時、その呪文を唱えてもよい
+fn seiki_discarded(g: &mut Game, p: usize, c: Card) {
+    let op = 1 - p;
+    if spell_sides(c.c).is_empty() {
+        return;
+    }
+    let n = g.ps[op].battle.iter().filter(|x| x.card.c == C::Seikimatsu && !x.ign()).count();
+    for _ in 0..n {
+        ask(g, K::SeikiCast, op, c.uid as i32, 0, vec![]);
+    }
+}
+
+/// p がカードを実行した（召喚・呪文・タマシード・G城）。相手のミラクルステラが誘発する
+fn executed(g: &mut Game, p: usize) {
+    let op = 1 - p;
+    let n = g.ps[op].battle.iter().filter(|x| x.card.c == C::Stella && !x.ign()).count();
+    for _ in 0..n {
+        push(g, Fx::Stella { p: op });
+    }
 }
 
 fn fujin_blocks(g: &Game, p: usize) -> bool {
@@ -542,10 +598,19 @@ pub fn play_cost_b(g: &Game, p: usize, c: C, side: u8, how: u8, base: Option<u16
         if c == C::Jogimera && jokers_count(g, p) >= 4 {
             cost -= 3;
         }
+        // NEO進化クリーチャーとして召喚するなら少なくする
+        if base.is_some() {
+            cost -= match c {
+                C::Jolagon => 2,
+                C::Seihou => 3,
+                _ => 0,
+            };
+        }
         if how == 1 {
             cost -= match c {
                 C::Brand => 4,
                 C::Manhattan => 2,
+                C::Odotta => 1,
                 _ => 0,
             };
         }
@@ -603,7 +668,7 @@ pub fn main_options(g: &Game, opts: &mut Vec<Opt>) {
         for side in 0..(if d.spell.is_some() { 2 } else { 1 }) {
             let s = side_of(c, side);
             let mut hows: Vec<u8> = match (c, side) {
-                (C::Brand, 0) | (C::Manhattan, 0) => vec![0, 1],
+                (C::Brand, 0) | (C::Manhattan, 0) | (C::Odotta, 0) => vec![0, 1],
                 (C::Kesshin, 0) => vec![0, 2],
                 _ => vec![0],
             };
@@ -700,10 +765,12 @@ pub fn play_from_hand(g: &mut Game, p: usize, uid: u16, side: u8, how: u8) {
         }
         Kind::GCastle => {
             let card = g.take_hand(p, uid).unwrap();
+            executed(g, p);
             put_gcastle(g, p, card);
         }
         Kind::Tama => {
             let card = g.take_hand(p, uid).unwrap();
+            executed(g, p);
             put_tama(g, p, card);
         }
         Kind::Creature => {
@@ -732,6 +799,10 @@ fn evo_ok(c: C, base: C) -> bool {
         C::Madan => civ & (W | D | F) != 0,
         C::Takasugi => civ & (L | F | N) != 0,
         C::Ichion | C::Canzone | C::Akane | C::Heracles | C::Gindan | C::Gorgi => civ & (L | W | N) != 0,
+        C::Jolagon => is_jokers(base),
+        C::Deaddam => civ & (W | D | N) != 0,
+        C::Seikimatsu | C::Konpeki | C::Seihou => civ & (L | W | D) != 0,
+        C::Paradiso => civ & W != 0,
         _ => false,
     }
 }
@@ -829,6 +900,9 @@ fn enter_replacement(g: &Game, p: usize, c: C, how: How) -> Option<bool> {
 
 /// p のクリーチャー card をバトルゾーンへ。base=進化元の uid。joe: 2=J・O・E
 pub fn enter(g: &mut Game, p: usize, card: Card, how: How, base: Option<u16>, joe: u8) -> bool {
+    if how != How::Put {
+        executed(g, p); // 召喚は実行（49665）。ステラの能力は出た時の能力の後で解決する
+    }
     if creature_blocked(g, p) || small_locked(g, p, card.c) {
         // 近似：出せないカードは墓地へ
         g.ps[p].grave.push(card);
@@ -850,8 +924,10 @@ pub fn enter(g: &mut Game, p: usize, card: Card, how: How, base: Option<u16>, jo
     }
     let mut cre = g.new_cre(card);
     let mut taka_base = false;
+    let mut on_cre = false;
     if let Some(b) = base {
         if let Some(i) = g.find(p, b) {
+            on_cre = true;
             let old = g.ps[p].battle.remove(i);
             // TAKASUGI：進化元になる時
             taka_base = old.card.c == C::Takasugi && !old.ign();
@@ -894,6 +970,13 @@ pub fn enter(g: &mut Game, p: usize, card: Card, how: How, base: Option<u16>, jo
         push(g, Fx::DragonEntered { p });
     }
     push(g, Fx::Enter { p, uid });
+    // デッドダムド：別のクリーチャーの上に重ねた時（タマシードの上は除く 45789）
+    if card.c == C::Deaddam && on_cre {
+        let l = targetable(g, 1 - p);
+        if !l.is_empty() {
+            ask(g, K::DeaddamPick, p, 0, 0, l);
+        }
+    }
     // コットン：相手のクリーチャーが出た時、そのターン攻撃できない
     let op = 1 - p;
     let cotton = g.ps[op].battle.iter().filter(|x| x.card.c == C::Cotton && !x.ign()).count();
@@ -1114,6 +1197,41 @@ fn enter_ability(g: &mut Game, p: usize, src: u16, c: C) {
             if g.ps[p].battle.iter().any(|x| x.card.uid != src && is_giant(x.card.c)) {
                 g.draw1(p);
             }
+        }
+        // ---- 2026-11-26 DMラボ環境デッキ ----
+        C::Odotta => {
+            let l = targetable(g, op);
+            if !l.is_empty() {
+                ask(g, K::OdottaBattle, p, src as i32, 0, l);
+            }
+        }
+        C::Jolagon => jolagon(g, p, src),
+        C::Seikimatsu => {
+            g.stack.push(Task::Fx(Fx::Ask(EQ { k: K::SeikiDiscard, p, a: 2, b: 0, list: vec![] })));
+            g.stack.push(Task::Draw { p, n: 3 });
+        }
+        C::Konpeki => {
+            let evolved = g.find(p, src).map(|i| !g.ps[p].battle[i].under.is_empty()).unwrap_or(false);
+            if evolved {
+                // 2枚引いて、手札を1枚シールド化し、シールドを1つ手札へ（S・トリガーは使えない）
+                g.stack.push(Task::Fx(Fx::Ask(EQ { k: K::ReturnShield, p, a: 0, b: 0, list: vec![] })));
+                g.stack.push(Task::Fx(Fx::Ask(EQ { k: K::KonpekiShield, p, a: 0, b: 0, list: vec![] })));
+                g.stack.push(Task::Draw { p, n: 2 });
+            } else {
+                g.stack.push(Task::Draw { p, n: 1 });
+            }
+        }
+        C::Seihou => {
+            g.stack.push(Task::Fx(Fx::Ask(EQ { k: K::SeihouTop, p, a: 0, b: 0, list: vec![] })));
+            g.stack.push(Task::Draw { p, n: 3 });
+        }
+        C::Paradiso => {
+            g.stack.push(Task::Fx(Fx::Ask(EQ { k: K::ParadisoReturn, p, a: 2, b: 0, list: vec![] })));
+        }
+        C::SixFall => {
+            // 各プレイヤー1人につき（近似：相手→自分の順に選ぶ）
+            push(g, Fx::SixRound { p, t: p });
+            push(g, Fx::SixRound { p, t: op });
         }
         C::Vt5000 => {
             let l: Vec<u16> = (0..g.ps[op].battle.len()).filter(|&i| g.power(op, i) <= 5000).map(|i| g.ps[op].battle[i].card.uid).collect();
@@ -1384,6 +1502,7 @@ pub fn use_trigger(g: &mut Game, owner: usize, uid: u16, what: u8) {
 // ---------- 呪文 ----------
 
 fn cast(g: &mut Game, p: usize, card: Card, side: u8, free: bool) {
+    executed(g, p);
     g.ps[p].spells_this_turn += 1;
     first_event(g, p, side_of(card.c, side).cost);
     if free {
@@ -1469,8 +1588,30 @@ fn spell_effect(g: &mut Game, p: usize, c: C, side: u8) {
             ask(g, K::Slot7Pick, p, 0, 0, l);
         }
         (C::Kesshin, _) => ask(g, K::Kesshin, p, 2, 0, vec![]),
+        (C::Sekkei, _) => {
+            let top = top_n(g, p, 6);
+            g.check_state();
+            if top.is_empty() {
+                return;
+            }
+            let l = stash(g, p, &top);
+            ask(g, K::SekkeiNeo, p, 0, 0, l);
+        }
         _ => {}
     }
+}
+
+/// ジョラゴン：出た時または攻撃する時、次の中から1回選ぶ
+fn jolagon(g: &mut Game, p: usize, src: u16) {
+    let a = g.ps[p].hand.iter().any(|c| jolagon_put_ok(c.c));
+    let b = !jbig_cands(g, p, src).is_empty();
+    if a || b {
+        ask(g, K::JolagonMode, p, 0, 0, vec![src]);
+    }
+}
+
+fn jolagon_put_ok(c: C) -> bool {
+    is_jokers(c) && is_creature_card(c) && def(c).evo == Evo::None && cost_of(c) <= 5
 }
 
 // ---------- 攻撃 ----------
@@ -1496,6 +1637,11 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
     }
     // ウラ・ニンジャ・ストライク6
     ninja_check(g, op);
+    // 西方より来る激流の竜騎公：各ターンに一度、クリーチャーが自分を攻撃する時
+    if tgt == Tgt::Player && has(g, op, C::Seihou) && g.ps[op].once & 256 == 0 {
+        g.ps[op].once |= 256;
+        push(g, Fx::SeihouLook { p: op });
+    }
     // ターン・プレイヤーの誘発
     if !c.ign() {
         match c.card.c {
@@ -1511,6 +1657,8 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
             }
             C::Sakki => ask(g, K::SakkiPick, p, 0, 0, vec![att]),
             C::Everlast => ask(g, K::EverShield, p, 0, 0, vec![]),
+            C::Jolagon => jolagon(g, p, att),
+            C::Paradiso => ask(g, K::ParadisoDraw, p, 0, 0, vec![]),
             C::Gorgi => {
                 // 含まれるカードが10枚以上なら勝つ
                 if 1 + c.under.len() >= 10 && !g.ps[op].no_lose {
@@ -1537,6 +1685,14 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
     }
     if !rev.is_empty() {
         ask(g, K::RevChange, p, 0, att as i32, rev);
+    }
+    // SSS級侵略 [天災]：自分の水・闇・自然のコマンドが攻撃する時（手札・墓地・マナから。バトルゾーンからの移動は近似で無し）
+    if race(c.card.c) & R_COMMAND != 0 && def(c.card.c).main.civ & (W | D | N) != 0 && c.card.c != C::Deaddam {
+        let pl = &g.ps[p];
+        let src = pl.hand.iter().find(|x| x.c == C::Deaddam).or_else(|| pl.grave.iter().find(|x| x.c == C::Deaddam)).or_else(|| pl.mana.iter().map(|m| &m.card).find(|x| x.c == C::Deaddam));
+        if let Some(d) = src {
+            ask(g, K::Invade, p, d.uid as i32, att as i32, vec![]);
+        }
     }
     if !creature_blocked(g, p) {
         if let Some(h) = g.ps[p].hand.iter().find(|h| h.c == C::RedZone) {
@@ -1713,7 +1869,8 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
             enter_ability(g, p, src, c);
         }
         Fx::Cast { p, uid, side, free: _ } => {
-            let c = g.ps[p].grave.iter().find(|c| c.uid == uid).map(|c| c.c).or_else(|| g.ps[p].mana.iter().find(|m| m.card.uid == uid).map(|m| m.card.c));
+            let c = g.ps[p].grave.iter().find(|c| c.uid == uid).map(|c| c.c).or_else(|| g.ps[p].mana.iter().find(|m| m.card.uid == uid).map(|m| m.card.c))
+                .or_else(|| g.ps[1 - p].grave.iter().find(|c| c.uid == uid).map(|c| c.c)); // 世紀末の善悪で相手の呪文を唱えた
             if let Some(c) = c {
                 spell_effect(g, p, c, side);
             }
@@ -1810,6 +1967,42 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
                 ask(g, K::WillideDraw, op, 0, cost as i32, vec![]);
             }
         }
+        Fx::Stella { p } => {
+            // カードを1枚引いてもよい（近似：山札が5枚より多ければ引く）。このターン、相手のクリーチャーは攻撃できない
+            if g.ps[p].deck.len() > 5 {
+                g.draw1(p);
+            }
+            for c in g.ps[1 - p].battle.iter_mut() {
+                c.cant_attack = true;
+            }
+        }
+        Fx::SeihouLook { p } => {
+            // 山札の上を見て、手札の枚数以下のコストなら実行（近似：必ず実行）、しないなら手札へ
+            let Some(card) = g.ps[p].deck.pop() else { return };
+            g.check_state();
+            let c = card.c;
+            let n = g.ps[p].hand.len();
+            let d = def(c);
+            let s = d.main;
+            let ok = (s.cost as usize) <= n;
+            if ok && s.kind == Kind::Spell && can_cast_spell(g, p, s.cost) {
+                cast(g, p, card, 0, true);
+            } else if ok && s.kind == Kind::Creature && d.evo != Evo::Evo && !creature_blocked(g, p) && !small_locked(g, p, c) {
+                mark_summoned(g, card.uid);
+                enter(g, p, card, How::FreeSummon, None, 0);
+            } else if ok && s.kind == Kind::Tama {
+                executed(g, p);
+                put_tama(g, p, card);
+            } else if ok && s.kind == Kind::GCastle {
+                executed(g, p);
+                put_gcastle(g, p, card);
+            } else {
+                g.ps[p].hand.push(card);
+            }
+        }
+        Fx::SixRound { p, t } => {
+            ask(g, K::SixUnder, p, 0, t as i32, vec![]);
+        }
         Fx::MoujaEnd { p, uid } => {
             g.draw1(p);
             if !g.ps[p].hand.is_empty() {
@@ -1820,7 +2013,7 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
 }
 
 fn has_enter_ability(c: C) -> bool {
-    matches!(c, C::Fujisan | C::Slotton | C::Brand | C::Jogimera | C::Melaventure | C::Jogiragon | C::Moujakinga | C::Niyani | C::Sakki | C::Manhattan)
+    matches!(c, C::Fujisan | C::Slotton | C::Brand | C::Jogimera | C::Melaventure | C::Jogiragon | C::Moujakinga | C::Niyani | C::Sakki | C::Manhattan | C::Odotta | C::Jolagon)
 }
 
 /// 召喚したことを記録（VAN・クサビラガミの「召喚して出した時」）
@@ -1997,6 +2190,76 @@ fn options_for(g: &Game, q: &EQ) -> Vec<Opt> {
             with_pass(picks(&l))
         }
         K::SakkiAtk | K::LaffChange | K::ChooseRepl | K::FujiPick | K::EvoBase => vec![Opt::Pass],
+        // ---- 2026-11-26 DMラボ環境デッキ ----
+        K::OdottaBattle | K::DeaddamPick => {
+            let l: Vec<u16> = q.list.iter().copied().filter(|&u| g.find(op, u).map(|i| !g.ps[op].battle[i].jd).unwrap_or(false)).collect();
+            if l.is_empty() {
+                return vec![Opt::Pass];
+            }
+            if q.k == K::OdottaBattle { with_pass(picks(&l)) } else { picks(&l) }
+        }
+        K::JolagonMode => {
+            let mut v = vec![];
+            if g.ps[p].hand.iter().any(|c| jolagon_put_ok(c.c)) {
+                v.push(Opt::Mode(0));
+            }
+            if !jbig_cands(g, p, q.list[0]).is_empty() {
+                v.push(Opt::Mode(1));
+            }
+            if v.is_empty() { vec![Opt::Pass] } else { v }
+        }
+        K::JolagonPut => {
+            let l: Vec<u16> = g.ps[p].hand.iter().filter(|c| jolagon_put_ok(c.c)).map(|c| c.uid).collect();
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::DeaddamDest => vec![Opt::Mode(0), Opt::Mode(1), Opt::Mode(2)],
+        K::Invade | K::ParadisoDraw => yn,
+        K::SeikiDiscard => {
+            if q.a <= 0 || g.ps[p].hand.is_empty() {
+                return vec![Opt::Pass];
+            }
+            with_pass(picks(&g.ps[p].hand.iter().map(|c| c.uid).collect::<Vec<_>>()))
+        }
+        K::SeikiCast => {
+            let mut v = vec![Opt::Pass];
+            if let Some(c) = g.ps[op].grave.iter().find(|c| c.uid == q.a as u16) {
+                for sd in spell_sides(c.c) {
+                    if can_cast_spell(g, p, side_of(c.c, sd).cost) {
+                        v.push(Opt::Mode(sd));
+                    }
+                }
+            }
+            v
+        }
+        K::SekkeiNeo | K::SekkeiFus => {
+            let l: Vec<u16> = q.list.iter().copied().filter(|&u| {
+                deck_card(g, p, u).map(|c| if q.k == K::SekkeiNeo { is_neo(c) && is_creature_card(c) } else { race(c) & R_FUSION != 0 }).unwrap_or(false)
+            }).collect();
+            with_pass(picks(&l))
+        }
+        K::KonpekiShield | K::SeihouTop => {
+            let l: Vec<u16> = g.ps[p].hand.iter().map(|c| c.uid).collect();
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::ParadisoReturn => {
+            if q.a <= 0 {
+                return vec![Opt::Pass];
+            }
+            let l: Vec<u16> = g.ps[p].battle.iter().filter(|x| def(x.card.c).main.civ & W != 0).map(|x| x.card.uid).collect();
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::SixUnder | K::SixTop => {
+            let t = q.b as usize;
+            let mut l: Vec<u16> = if t == p { uids(g, t) } else { targetable(g, t) };
+            if q.k == K::SixTop {
+                l.retain(|&u| u != q.a as u16);
+                if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+            } else if l.len() < 2 {
+                vec![Opt::Pass]
+            } else {
+                with_pass(picks(&l))
+            }
+        }
         // ---- 2026-11-26 追加 ----
         K::SaintRepl | K::WillideDraw => yn,
         K::ZazeMode => {
@@ -2611,6 +2874,157 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
             }
         }
         K::SakkiAtk | K::LaffChange | K::ChooseRepl | K::FujiPick => {}
+        // ---- 2026-11-26 DMラボ環境デッキ ----
+        K::OdottaBattle => {
+            if let Some(u) = pick {
+                let me = q.a as u16;
+                if g.find(p, me).is_some() {
+                    g.stack.push(Task::Battle { a: (p, me), b: (op, u) });
+                }
+            }
+        }
+        K::JolagonMode => match o {
+            Opt::Mode(0) => ask(g, K::JolagonPut, p, 0, 0, vec![]),
+            Opt::Mode(1) => {
+                let l = jbig_cands(g, p, q.list[0]);
+                ask(g, K::JBig, p, 0, q.list[0] as i32, l);
+            }
+            _ => {}
+        },
+        K::JolagonPut => {
+            if let Some(u) = pick {
+                let card = g.take_hand(p, u).unwrap();
+                enter(g, p, card, How::Put, None, 0);
+            }
+        }
+        K::DeaddamPick => {
+            if let Some(u) = pick {
+                ask(g, K::DeaddamDest, p, u as i32, 0, vec![]);
+            }
+        }
+        K::DeaddamDest => {
+            let dest = match o {
+                Opt::Mode(0) => Dest::Grave,
+                Opt::Mode(1) => Dest::Mana,
+                _ => Dest::Hand,
+            };
+            if g.find(op, q.a as u16).is_some() {
+                leave(g, op, q.a as u16, dest, true);
+            }
+        }
+        K::Invade => {
+            if o == Opt::Yes {
+                let du = q.a as u16;
+                let att = q.b as u16;
+                if g.find(p, att).is_none() {
+                    return;
+                }
+                let card = if let Some(c) = g.take_hand(p, du) {
+                    Some(c)
+                } else if let Some(i) = g.ps[p].grave.iter().position(|c| c.uid == du) {
+                    Some(g.ps[p].grave.remove(i))
+                } else {
+                    g.take_mana(p, du)
+                };
+                if let Some(card) = card {
+                    if enter(g, p, card, How::Put, Some(att), 0) {
+                        retarget_attacker(g, att, du);
+                    }
+                }
+            }
+        }
+        K::SeikiDiscard => {
+            if let Some(u) = pick {
+                if q.a > 1 {
+                    push(g, Fx::Ask(EQ { k: K::SeikiDiscard, p, a: q.a - 1, b: 0, list: vec![] }));
+                }
+                discard(g, p, u);
+                random_discard(g, op);
+            }
+        }
+        K::SeikiCast => {
+            if let Opt::Mode(sd) = o {
+                // 相手の墓地の呪文を自分が唱える。カードは相手の墓地に残す（持ち主のカードの枚数は変わらない）
+                let u = q.a as u16;
+                if let Some(i) = g.ps[op].grave.iter().position(|c| c.uid == u) {
+                    let card = g.ps[op].grave.remove(i);
+                    executed(g, p);
+                    g.ps[p].spells_this_turn += 1;
+                    first_event(g, p, side_of(card.c, sd).cost);
+                    g.ps[p].no_free_this_turn = true;
+                    g.stack.push(Task::Fx(Fx::Cast { p, uid: card.uid, side: sd, free: true }));
+                    g.ps[op].grave.push(card);
+                }
+            }
+        }
+        K::SekkeiNeo | K::SekkeiFus => {
+            let mut l = q.list.clone();
+            if let Some(u) = pick {
+                let card = take_deck(g, p, u).unwrap();
+                g.ps[p].hand.push(card);
+                l.retain(|&x| x != u);
+            }
+            if q.k == K::SekkeiNeo {
+                ask(g, K::SekkeiFus, p, 0, 0, l);
+            } else {
+                send_looked_to_bottom(g, p, &l);
+            }
+        }
+        K::KonpekiShield => {
+            if let Some(u) = pick {
+                if fujin_blocks(g, p) {
+                    return;
+                }
+                let card = g.take_hand(p, u).unwrap();
+                shield_stack(g, p, vec![card], false);
+            }
+        }
+        K::SeihouTop => {
+            if let Some(u) = pick {
+                let card = g.take_hand(p, u).unwrap();
+                g.ps[p].deck.push(card);
+            }
+        }
+        K::ParadisoReturn => {
+            if let Some(u) = pick {
+                if q.a > 1 {
+                    push(g, Fx::Ask(EQ { k: K::ParadisoReturn, p, a: q.a - 1, b: 0, list: vec![] }));
+                }
+                leave(g, p, u, Dest::Hand, false);
+            }
+        }
+        K::ParadisoDraw => {
+            if o == Opt::Yes {
+                g.stack.push(Task::Fx(Fx::Ask(EQ { k: K::Discard, p, a: 1, b: 0, list: vec![] })));
+                g.stack.push(Task::Draw { p, n: 3 });
+            }
+        }
+        K::SixUnder => {
+            if let Some(u) = pick {
+                ask(g, K::SixTop, p, u as i32, q.b, vec![]);
+            }
+        }
+        K::SixTop => {
+            if let Some(top) = pick {
+                let t = q.b as usize;
+                let (Some(iu), Some(_)) = (g.find(t, q.a as u16), g.find(t, top)) else { return };
+                // 下に置くのは離れたことにならない（45128）。受けていた効果は引き継がない（47069）
+                let x = g.ps[t].battle.remove(iu);
+                for c in g.ps[t].battle.iter_mut() {
+                    if c.exlife.is_some() && c.exlife == x.exlife {
+                        c.exlife = None;
+                    }
+                }
+                let j = g.find(t, top).unwrap();
+                let y = &mut g.ps[t].battle[j];
+                y.under.push(x.card);
+                y.under.extend(x.under);
+                if is_neo(y.card.c) {
+                    y.sick = false; // 下にカードがあれば NEO進化クリーチャー（46524）
+                }
+                g.summoned.retain(|&s| s != x.card.uid);
+            }
+        }
         // ---- 2026-11-26 追加 ----
         K::SaintRepl => {
             if o == Opt::Yes {
