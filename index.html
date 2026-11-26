@@ -6368,6 +6368,37 @@ JSONだけで答える：{"rows":[{"no":1,"name":"カード名"}]}`;
 })();
 
 
+/* ---------- 学習AIに足した2デッキ（2026-11-26 一平のデッキシート）を一度だけ追加 ---------- */
+// 白緑ウィリデ・ゴルギーオージャー。デッキシートの40枚を正式名称に照合済み。
+// 自分で削除したもの（localStorage の dmai-sheet-decks-deleted）以外は、見当たらなければ開くたびに入れ直す。普通のデッキと同じに編集・削除できる。
+(() => {
+  const wrap = (name, f) => { const orig = window[name]; if (typeof orig !== 'function') { console.warn('dmai patch: missing ' + name); return; } window[name] = f(orig); };
+  const DEL = 'dmai-sheet-decks-deleted';
+  const deleted = () => { try { return JSON.parse(localStorage.getItem(DEL) || '[]'); } catch (e) { return []; } };
+  const ADD = [{"id": "deck-sheet-willide-1126", "name": "白緑ウィリデ（学習用）", "cards": [["dm26rp1-057", 1], ["dm24rp3-S02", 4], ["dm26rp1-S002", 4], ["dm26rp1-047", 4], ["dm25rp2-012", 1], ["dm26rp2-S002", 2], ["dm26rp2-DM001", 4], ["dm23ex3-012", 3], ["dm26ex3-033", 4], ["dm22rp1-049", 4], ["dm26rp1-024", 4], ["dm24rp1-S02", 4], ["dmex12-s04", 1]]}, {"id": "deck-sheet-gorgi-1126", "name": "ゴルギーオージャー（学習用）", "cards": [["dm25rp2-S07", 4], ["dm25rp2-S01", 3], ["dm25rp4-050", 4], ["dm25rp2-024", 4], ["dm25rp2-012", 4], ["dm25rp3-049", 3], ["dmsd20-015", 4], ["dm25rp2-013", 4], ["dm25rp4-030", 1], ["dm23rp4-014", 4], ["dm23rp4-030", 3], ["dm23ex1-003", 1], ["dmrp03-s03", 1]]}];
+  let busy = false;
+  wrap('loadDecks', o => async function () {
+    const r = await o.apply(this, arguments);
+    if (busy) return r;
+    if (typeof FULL === 'undefined' || !FULL) return r;
+    const del = deleted(); const miss = ADD.filter(d => !del.includes(d.id) && !DECKS.some(x => x.id === d.id));
+    if (!miss.length) return r;
+    busy = true;
+    try {
+      for (const d of miss) {
+        if (!d.cards.every(([c]) => FULL[c])) continue;
+        await saveDeck({ id: d.id, name: d.name, cards: d.cards.map(x => x.slice()) });
+      }
+    } catch (e) { console.warn('dmai newdecks', e); }
+    finally { busy = false; }
+    return r;
+  });
+  wrap('deleteDeck', o => async function (d) {
+    if (d && ADD.some(x => x.id === d.id)) { try { const v = deleted(); if (!v.includes(d.id)) v.push(d.id); localStorage.setItem(DEL, JSON.stringify(v)); } catch (e) {} }
+    return o.apply(this, arguments);
+  });
+})();
+
 /* ---------- デッキを消さない：版ごとのURLからの引っ越し・書き出し／読み込み ---------- */
 // デッキはブラウザの中に「開いたアドレスごと」に保存される。Netlify の Deploys から開く版ごとのアドレス
 // （xxxx--サイト名.netlify.app）は更新のたびに変わるので、前のデッキが見えなくなっていた（2026-11-03 一平）。
