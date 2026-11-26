@@ -620,3 +620,47 @@ fn kurin_limits_opponent_to_two_creatures() {
     g.ps[0].entered_this_turn = 1;
     assert!(!creature_blocked(&g, 0));
 }
+
+// ---- 第3段階：4Cドギラゴン王道刈 ----
+
+#[test]
+fn felzark_destroyed_gives_extra_turn_once() {
+    let mut g = blank("oudou4c", "bike_meta", 0);
+    let fz = take(&mut g, 0, C::Felzark);
+    let fu = put_battle(&mut g, 0, fz);
+    g.stack.push(Task::Destroy { p: 0, uid: fu, by_opp: true });
+    settle(&mut g);
+    assert_eq!(g.extra_for, Some(0), "破壊されたらこのターンの後に追加ターン");
+    g.stack.clear();
+    g.stack.push(Task::TurnEnd);
+    g.run();
+    assert_eq!(g.tp, 0, "追加ターンも自分");
+    assert!(g.in_extra);
+}
+
+#[test]
+fn gnext_escape_and_creature_limit() {
+    let mut g = blank("oudou4c", "bike_meta", 1);
+    let gn = take(&mut g, 0, C::GNext);
+    let gu = put_battle(&mut g, 0, gn);
+    shields(&mut g, 0, 2);
+    let hand = g.ps[0].hand.len();
+    g.stack.push(Task::Destroy { p: 0, uid: gu, by_opp: true });
+    settle(&mut g);
+    assert!(g.find(0, gu).is_some(), "エスケープ：かわりにシールドを手札へ");
+    assert_eq!(g.ps[0].hand.len(), hand + 1);
+    g.ps[1].entered_this_turn = 2;
+    assert!(creature_blocked(&g, 1), "相手は各ターン2体まで");
+    counts_ok(&g);
+}
+
+#[test]
+fn dogidante_locks_cost7_creatures() {
+    let mut g = blank("oudou4c", "bike_meta", 0);
+    let dd = take(&mut g, 0, C::Dogidante);
+    enter(&mut g, 0, dd, How::Put, None, 0);
+    settle(&mut g);
+    assert!(small_locked(&g, 1, C::Caddy), "このターン、相手はコスト7以下のクリーチャーを出せない");
+    let i = g.find(0, dd.uid).unwrap();
+    assert!(g.has_kw(0, &g.ps[0].battle[i].clone(), K_SA), "自分の多色クリーチャーに SA");
+}

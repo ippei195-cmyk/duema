@@ -166,6 +166,19 @@ pub enum K {
     LovePlayer,    // LOVE＆ABYSS：プレイヤー（Mode）
     DolmaPut,      // ドルマゲドン：墓地から出すコマンド
     DokinCast,     // ドキンダンテ：手札からタダで唱える呪文
+    // ---- 第3段階：4Cドギラゴン王道刈 ----
+    TensaiDiscard, // テンサイ・ハート：捨てるカード
+    KatsuPick,     // カツキング：手札に加えるカード（list=見ているカード）
+    KatsuBounce,   // カツキング：手札に戻すクリーチャー
+    DogiRevReturn, // 王道の革命 ドギラゴン：マナから手札に戻すクリーチャー
+    NibaiBattle,   // ニバイケン：バトルさせる相手のクリーチャー（a=自分）
+    OudouPut,      // ドギラゴン王道：手札かマナから出すコスト7以下の多色クリーチャー
+    DanteExec,     // ドギラダンテ刈のファイナル革命：手札かマナからタダで実行するコスト6以下の多色カード
+    FelzKill,      // デス・フェルザーク：破壊する自分のクリーチャー（a=残り）
+    KoutenMode,    // 皇天闘と炎天華：モード（a=残りの回数）
+    KoutenDiscard, // 皇天闘：捨てるカード
+    KoutenKill,    // 皇天闘：破壊する相手のクリーチャー（a=コスト上限）
+    KoutenShield,  // 皇天闘：シールド化する手札
     ChooseRepl,    // 未使用（必ず最後）
 }
 
@@ -206,6 +219,7 @@ pub enum Fx {
     Sinka { p: usize, c: C, uid: u16 }, // シンカパワー：タマシード c の上に uid が進化した
     GraveToBottom { p: usize, uid: u16 }, // 唱えた後、墓地のかわりに山札の下（p=持ち主）
     DokinDraw { p: usize },             // ドキンダンテ：相手がコスト9以下を実行した時
+    GNextDDD { p: usize },              // ゴルギーネクスト：D・D・D で出た時
 }
 
 fn push(g: &mut Game, fx: Fx) {
@@ -353,6 +367,11 @@ fn hand_card(g: &Game, p: usize, uid: u16) -> Option<C> {
 
 fn discard(g: &mut Game, p: usize, uid: u16) -> Option<C> {
     let c = g.take_hand(p, uid)?;
+    // ニバイケン：相手のターンに手札から捨てられる時、墓地に置くかわりに出してもよい（近似：必ず出す）
+    if c.c == C::Nibai && g.tp != p {
+        enter(g, p, c, How::Put, None, 0);
+        return Some(c.c);
+    }
     g.ps[p].grave.push(c);
     seiki_discarded(g, p, c);
     Some(c.c)
@@ -364,6 +383,10 @@ fn random_discard(g: &mut Game, p: usize) {
     }
     let i = g.rng.below(g.ps[p].hand.len());
     let c = g.ps[p].hand.remove(i);
+    if c.c == C::Nibai && g.tp != p {
+        enter(g, p, c, How::Put, None, 0);
+        return;
+    }
     g.ps[p].grave.push(c);
     seiki_discarded(g, p, c);
 }
@@ -453,6 +476,27 @@ fn is_demonio(c: C) -> bool {
 /// シンカライズ（この上に進化クリーチャーを置ける）タマシード
 fn sinkalize(c: C) -> bool {
     def(c).main.kind == Kind::Tama && c != C::Akashic
+}
+
+/// エスケープ：ゴルギーネクスト、ドギラゴン王道が与える他の多色クリーチャー
+fn escape(g: &Game, p: usize, c: &Cre) -> bool {
+    if c.ign() {
+        return false;
+    }
+    c.card.c == C::GNext || (is_multi(c.card.c) && g.ps[p].battle.iter().any(|x| x.card.c == C::Oudou && !x.ign() && x.card.uid != c.card.uid))
+}
+
+/// 手札かマナのカードをタダで実行（マナからはいったん手札に移して使い、使えなければ戻す）
+fn use_free_any(g: &mut Game, p: usize, u: u16) {
+    if hand_card(g, p, u).is_some() {
+        use_free(g, p, u);
+    } else if let Some(card) = g.take_mana(p, u) {
+        g.ps[p].hand.push(card);
+        use_free(g, p, u);
+        if let Some(card) = g.take_hand(p, u) {
+            g.put_mana(p, card, false);
+        }
+    }
 }
 
 /// 完全水中要塞アカシック3：自分は呪文をコストを支払わずに唱えてもよい
@@ -797,12 +841,13 @@ pub fn gc_left_pub(g: &Game, p: usize) -> usize {
 pub fn creature_blocked(g: &Game, p: usize) -> bool {
     let ichion = g.ps[1 - p].battle.iter().any(|x| x.card.c == C::Ichion && !x.ign() && !x.under.is_empty());
     (g.ps[p].creature_limit_next_turn || ichion) && g.ps[p].entered_this_turn >= 1
-        || (g.ps[1 - p].battle.iter().any(|x| x.card.c == C::Kurin && !x.ign()) && g.ps[p].entered_this_turn >= 2)
+        || (g.ps[1 - p].battle.iter().any(|x| (x.card.c == C::Kurin || x.card.c == C::GNext) && !x.ign()) && g.ps[p].entered_this_turn >= 2)
 }
 
 /// 5000VT：このターン、パワー5000以下のクリーチャーを出せないか
 pub fn small_locked(g: &Game, p: usize, c: C) -> bool {
     g.ps[p].small_lock_turn == g.turn && def(c).main.kind == Kind::Creature && def(c).main.power <= 5000
+        || g.ps[p].lock7_turn == g.turn && def(c).main.kind == Kind::Creature && cost_of(c) <= 7
 }
 
 fn ddd_taka_cost(g: &Game, p: usize) -> usize {
@@ -895,6 +940,20 @@ pub fn extra_kw(g: &Game, p: usize, c: &Cre) -> u32 {
     if c.card.c == C::Fujin && g.ps[1 - p].shields.is_empty() {
         k |= K_SA;
     }
+    // カツキングの革命0：シールドが1つもなければ SA と T・ブレイカー
+    if c.card.c == C::Katsu && g.ps[p].shields.is_empty() {
+        k |= K_SA | K_TB;
+    }
+    if is_multi(c.card.c) {
+        // ドギラゴン王道：自分の他の多色クリーチャーに SA・マッハファイター（エスケープは leave2）
+        if g.ps[p].battle.iter().any(|x| x.card.c == C::Oudou && !x.ign() && x.card.uid != c.card.uid) {
+            k |= K_SA | K_MACH;
+        }
+        // ドギラダンテ刈：自分の多色クリーチャーすべてに SA
+        if g.ps[p].battle.iter().any(|x| x.card.c == C::Dogidante && !x.ign()) {
+            k |= K_SA;
+        }
+    }
     // 熊田すず：自分の生徒会組にスレイヤー（after_battle で処理）
     let _ = g;
     k
@@ -907,6 +966,9 @@ fn slayer(g: &Game, p: usize, c: &Cre) -> bool {
 pub fn power_bonus(g: &Game, p: usize, i: usize) -> i32 {
     let c = &g.ps[p].battle[i];
     let mut b = 0;
+    if c.card.c == C::Katsu && !c.ign() && g.ps[p].shields.is_empty() {
+        b += 10000;
+    }
     // ブランド G・G・G：手札1枚以下なら他のクリーチャーすべて+4000
     if g.ps[p].hand.len() <= 1 {
         b += 4000 * g.ps[p].battle.iter().filter(|x| x.card.c == C::Brand && !x.ign() && x.card.uid != c.card.uid).count() as i32;
@@ -1751,6 +1813,46 @@ fn enter_ability(g: &mut Game, p: usize, src: u16, c: C) {
                 ask(g, K::ElboShield, p, 0, 0, vec![]);
             }
         }
+        // ---- 第3段階：4Cドギラゴン王道刈 ----
+        C::Tensai => {
+            ask(g, K::TensaiDiscard, p, 0, 0, vec![]);
+            g.stack.push(Task::Draw { p, n: 2 });
+        }
+        C::Katsu => {
+            let top = top_n(g, p, 5);
+            g.check_state();
+            if !top.is_empty() {
+                let l = stash(g, p, &top);
+                ask(g, K::KatsuPick, p, 0, 0, l);
+            }
+        }
+        C::DogiRev => {
+            g.mill_to_mana(p, 2, false);
+            if g.ps[p].mana.iter().any(|m| is_creature_card(m.card.c)) {
+                ask(g, K::DogiRevReturn, p, 0, 0, vec![]);
+            }
+        }
+        C::Nibai => {
+            if !targetable(g, op).is_empty() {
+                ask(g, K::NibaiBattle, p, src as i32, 0, vec![]);
+            }
+        }
+        C::Oudou => ask(g, K::OudouPut, p, 0, 0, vec![]),
+        C::Dogidante => {
+            g.ps[op].lock7_turn = g.turn;
+            // ファイナル革命：革命チェンジで出た時、このターン他のファイナル革命を使っていなければ
+            if g.revch.contains(&src) && g.ps[p].once & (1 << 17) == 0 {
+                g.ps[p].once |= 1 << 17;
+                ask(g, K::DanteExec, p, 0, 0, vec![]);
+                g.stack.push(Task::Draw { p, n: 1 });
+            }
+        }
+        C::Felzark => {
+            if !g.ps[op].hand.is_empty() {
+                ask(g, K::Discard, op, 2, 0, vec![]);
+            }
+            ask(g, K::FelzKill, p, 2, 0, vec![]);
+        }
         C::Azafaust => ask(g, K::AzaPlayer, p, 0, 0, vec![]),
         C::Giri => {
             // xB：コスト9以下の呪文を手札からタダで（「出た時」の能力の後に解決するよう先に積む）
@@ -1964,6 +2066,11 @@ fn leave2(g: &mut Game, p: usize, uid: u16, dest: Dest, by_opp: bool, repl: bool
     }
     // 自分の効果で動かす時以外（相手の効果・バトル・破壊）の置換
     if repl && (by_opp || dest == Dest::Grave) {
+        // エスケープ：破壊される時、墓地に置くかわりにシールドを1つ手札へ（S・トリガーは使えない。近似：必ず使う）
+        if dest == Dest::Grave && escape(g, p, &c) && !g.ps[p].shields.is_empty() {
+            shields_to_hand_no_trigger(g, p, 1);
+            return false;
+        }
         // エバーラストのマナ武装5：かわりにシールドを2つ手札に加える（近似：シールドが3つ以上で、コスト5以上のクリーチャーの時に自動で使う）
         if has(g, p, C::Everlast) && light_mana(g, p) >= 5 && g.ps[p].shields.len() >= 3 && cost_of(c.card.c) >= 5 {
             for _ in 0..2 {
@@ -1991,6 +2098,10 @@ fn leave2(g: &mut Game, p: usize, uid: u16, dest: Dest, by_opp: bool, repl: bool
         dest = Dest::Mana;
     }
     let c = g.ps[p].battle.remove(i);
+    // デス・フェルザーク：破壊された時、追加ターン中でなければこのターンの後に追加ターン（相手のヴァルハラがあれば追加できない）
+    if c.card.c == C::Felzark && dest == Dest::Grave && !c.ign() && !g.in_extra && !valhalla(g, 1 - p) {
+        g.extra_for = Some(p);
+    }
     if dest == Dest::Shield {
         // 進化エレメントは1つのシールドにまとめる（近似：316.3・113.2）
         let mut all = vec![c.card];
@@ -2099,7 +2210,11 @@ fn trigger_kind(g: &Game, owner: usize, c: C) -> Option<u8> {
         return Some(0);
     }
     // 理想と平和の決断の革命2：自分のシールドが2つ以下なら S・トリガー
-    if c == C::Risou && g.ps[owner].shields.len() <= 2 {
+    if matches!(c, C::Risou | C::Katsu | C::DogiRev) && g.ps[owner].shields.len() <= 2 {
+        return Some(0);
+    }
+    // 皇天闘と炎天華：バトルゾーンとマナゾーンに自分のクリーチャーが合計5体以上
+    if c == C::Kouten && g.ps[owner].battle.len() + g.ps[owner].mana.iter().filter(|m| is_creature_card(m.card.c)).count() >= 5 {
         return Some(0);
     }
     let d = def(c);
@@ -2304,6 +2419,7 @@ fn spell_effect(g: &mut Game, p: usize, c: C, side: u8) {
             }
             g.check_state();
         }
+        (C::Kouten, _) => ask(g, K::KoutenMode, p, 2, 0, vec![]),
         (C::Kamigami, _) => {
             for q in 0..2 {
                 let m: Vec<Card> = g.ps[q].mana.drain(..).map(|m| m.card).collect();
@@ -2430,6 +2546,12 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
                     ask(g, K::ElboShield, p, 0, 0, vec![]);
                 }
             }
+            C::Oudou => ask(g, K::OudouPut, p, 0, 0, vec![]),
+            C::Nibai => {
+                // タップした時（近似：攻撃する時だけ）：2枚引いて1枚捨てる
+                ask(g, K::Discard, p, 1, 0, vec![]);
+                g.stack.push(Task::Draw { p, n: 2 });
+            }
             C::Greatest => {
                 if !g.ps[p].hand.is_empty() {
                     ask(g, K::GreatestAtk, p, 0, 0, vec![]);
@@ -2455,6 +2577,7 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
     for h in g.ps[p].hand.iter() {
         let ok = match h.c {
             C::DogiGyaku => def(c.card.c).main.civ & (L | N) != 0 && g.power(p, i) >= 8000,
+            C::Dogidante => is_multi(c.card.c) && cost_of(c.card.c) >= 5 && is_dragon(c.card.c),
             C::Laffrull => def(c.card.c).main.civ & (L | W) != 0 && is_dragon(c.card.c),
             C::Jogiragon => is_jokers(c.card.c) && cost_of(c.card.c) >= 5,
             C::Aofesy => cost_of(c.card.c) >= 3 && race(c.card.c) & (R_GIANT | R_MAGIC) != 0,
@@ -2505,6 +2628,21 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
                 ask(g, K::DDD, p, h.uid as i32, att as i32, vec![]);
             }
         }
+        // ゴルギーネクストの D・D・D [光/水/自然(4)]
+        if let Some(h) = g.ps[p].hand.iter().find(|h| h.c == C::GNext) {
+            if !small_locked(g, p, C::GNext) && g.pay_plan(p, L | W | N, 4).is_some() {
+                ask(g, K::DDD, p, h.uid as i32, att as i32, vec![2]);
+            }
+        }
+        // ドギラゴン王道：マナに光・火・自然があれば D・D・D [無色(8)]、攻撃中のクリーチャーのコストの数少なく
+        if [L, F, N].iter().all(|&cv| g.ps[p].mana.iter().any(|m| mcv(m) & cv != 0)) {
+            if let Some(h) = g.ps[p].hand.iter().find(|h| h.c == C::Oudou) {
+                let cost = (8 - cost_of(c.card.c) as i32).max(1) as usize;
+                if !small_locked(g, p, C::Oudou) && g.pay_plan(p, 0, cost).is_some() {
+                    ask(g, K::DDD, p, h.uid as i32, att as i32, vec![3]);
+                }
+            }
+        }
         // TAKASUGI の D・D・D [自然(2)]（シネラリアで軽減）
         if let Some(h) = g.ps[p].hand.iter().find(|h| h.c == C::Takasugi) {
             if !small_locked(g, p, C::Takasugi) && g.pay_plan(p, N, ddd_taka_cost(g, p)).is_some() {
@@ -2517,6 +2655,12 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
 fn ninja_check(g: &mut Game, op: usize) {
     if g.attack_ninja_used {
         return;
+    }
+    // テンサイ・ハートのウラ・ニンジャ・ストライク3（水）
+    if g.ps[op].mana.len() >= 3 && g.ps[op].mana.iter().any(|m| mcv(m) & W != 0) && !creature_blocked(g, op) {
+        if let Some(h) = g.ps[op].hand.iter().find(|h| h.c == C::Tensai) {
+            ask(g, K::Ninja, op, h.uid as i32, 0, vec![]);
+        }
     }
     let mana_ok = g.ps[op].mana.len() >= 6
         && g.ps[op].mana.iter().any(|m| mcv(m) & L != 0)
@@ -2923,6 +3067,18 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
             g.ps[p].battle[i].under.push(c);
             if g.ps[p].battle[i].under.len() == 8 {
                 g.ps[p].battle[i].tapped = false;
+            }
+        }
+        Fx::GNextDDD { p } => {
+            // 山札をシャッフルし、上から1枚を表向き。タダで実行してもよい。しなければ手札（近似：実行できれば実行）
+            let mut d = std::mem::take(&mut g.ps[p].deck);
+            g.rng.shuffle(&mut d);
+            g.ps[p].deck = d;
+            if let Some(c) = g.ps[p].deck.pop() {
+                g.check_state();
+                let u = c.uid;
+                g.ps[p].hand.push(c);
+                use_free(g, p, u);
             }
         }
         Fx::GraveToBottom { p, uid } => {
@@ -3341,6 +3497,47 @@ fn options_for(g: &Game, q: &EQ) -> Vec<Opt> {
         K::GiriCast | K::DokinCast => {
             let l: Vec<u16> = g.ps[p].hand.iter().filter(|c| is_spell_card(c.c) && cost_of(c.c) <= 9 && can_cast_spell(g, p, cost_of(c.c))).map(|c| c.uid).collect();
             with_pass(picks(&l))
+        }
+        // ---- 第3段階：4Cドギラゴン王道刈 ----
+        K::TensaiDiscard | K::KoutenDiscard | K::KoutenShield => {
+            let l: Vec<u16> = g.ps[p].hand.iter().map(|c| c.uid).collect();
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::KatsuPick => {
+            let l: Vec<u16> = q.list.iter().copied().filter(|&u| deck_card(g, p, u).is_some()).collect();
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::KatsuBounce => {
+            let mut l: Vec<u16> = g.ps[p].battle.iter().map(|x| x.card.uid).collect();
+            l.extend(targetable(g, op));
+            with_pass(picks(&l))
+        }
+        K::DogiRevReturn => {
+            let l: Vec<u16> = g.ps[p].mana.iter().filter(|m| is_creature_card(m.card.c)).map(|m| m.card.uid).collect();
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::NibaiBattle => with_pass(picks(&targetable(g, op))),
+        K::OudouPut => {
+            let ok = |c: C| is_creature_card(c) && is_multi(c) && cost_of(c) <= 7 && def(c).evo != Evo::Evo;
+            let mut l: Vec<u16> = g.ps[p].hand.iter().filter(|c| ok(c.c)).map(|c| c.uid).collect();
+            l.extend(g.ps[p].mana.iter().filter(|m| ok(m.card.c)).map(|m| m.card.uid));
+            if creature_blocked(g, p) { l.clear(); }
+            with_pass(picks(&l))
+        }
+        K::DanteExec => {
+            let ok = |c: C| is_multi(c) && cost_of(c) <= 6 && !(is_creature_card(c) && def(c).evo == Evo::Evo);
+            let mut l: Vec<u16> = g.ps[p].hand.iter().filter(|c| ok(c.c)).map(|c| c.uid).collect();
+            l.extend(g.ps[p].mana.iter().filter(|m| ok(m.card.c)).map(|m| m.card.uid));
+            with_pass(picks(&l))
+        }
+        K::FelzKill => {
+            let l: Vec<u16> = g.ps[p].battle.iter().map(|x| x.card.uid).collect();
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
+        }
+        K::KoutenMode => (0..3u8).map(Opt::Mode).collect(),
+        K::KoutenKill => {
+            let l: Vec<u16> = targetable(g, op).into_iter().filter(|&u| g.find(op, u).map(|i| cost_of(g.ps[op].battle[i].card.c) as i32 <= q.a).unwrap_or(false)).collect();
+            if l.is_empty() { vec![Opt::Pass] } else { picks(&l) }
         }
         K::DolmaPut => {
             let l: Vec<u16> = g.ps[p].grave.iter().filter(|c| is_creature_card(c.c) && def(c.c).evo == Evo::None && race(c.c) & R_COMMAND != 0 && def(c.c).main.civ & (D | F) != 0).map(|c| c.uid).collect();
@@ -3995,6 +4192,23 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
         }
         K::DDD => {
             if o == Opt::Yes {
+                if matches!(q.list.first(), Some(&2) | Some(&3)) {
+                    let gnext = q.list[0] == 2;
+                    let (civ, cost) = if gnext {
+                        (L | W | N, 4)
+                    } else {
+                        let ac = g.find(p, q.b as u16).map(|i| cost_of(g.ps[p].battle[i].card.c) as i32).unwrap_or(0);
+                        (0, (8 - ac).max(1) as usize)
+                    };
+                    let Some(plan) = g.pay_plan(p, civ, cost) else { return };
+                    let Some(card) = g.take_hand(p, q.a as u16) else { return };
+                    g.pay(p, &plan);
+                    mark_summoned(g, card.uid);
+                    if enter(g, p, card, How::Summon, None, 0) && gnext {
+                        push(g, Fx::GNextDDD { p });
+                    }
+                    return;
+                }
                 if q.list.first() == Some(&1) {
                     // TAKASUGI：支払ってから進化元を選ぶ
                     let Some(plan) = g.pay_plan(p, N, ddd_taka_cost(g, p)) else { return };
@@ -4592,6 +4806,128 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
                 let mut d = std::mem::take(&mut g.ps[t].deck);
                 g.rng.shuffle(&mut d);
                 g.ps[t].deck = d;
+            }
+        }
+        // ---- 第3段階：4Cドギラゴン王道刈 ----
+        K::TensaiDiscard => {
+            if let Some(u) = pick {
+                if let Some(c) = discard(g, p, u) {
+                    let k = cost_of(c);
+                    for x in g.ps[op].battle.iter_mut() {
+                        if cost_of(x.card.c) == k {
+                            x.lock = true;
+                        }
+                    }
+                }
+            }
+        }
+        K::KatsuPick => {
+            if let Some(u) = pick {
+                let mut l = q.list.clone();
+                l.retain(|&x| x != u);
+                let c = take_deck(g, p, u);
+                send_looked_to_bottom(g, p, &l);
+                if let Some(c) = c {
+                    g.ps[p].hand.push(c);
+                    if def(c.c).main.civ & (F | N) != 0 {
+                        ask(g, K::KatsuBounce, p, 0, 0, vec![]);
+                    }
+                }
+            }
+        }
+        K::KatsuBounce => {
+            if let Some(u) = pick {
+                elem_to(g, p, u, Dest::Hand);
+            }
+        }
+        K::DogiRevReturn => {
+            if let Some(u) = pick {
+                if let Some(c) = g.take_mana(p, u) {
+                    g.ps[p].hand.push(c);
+                }
+            }
+        }
+        K::NibaiBattle => {
+            if let Some(u) = pick {
+                let me = q.a as u16;
+                if g.find(p, me).is_some() {
+                    g.stack.push(Task::Battle { a: (p, me), b: (op, u) });
+                }
+            }
+        }
+        K::OudouPut => {
+            if let Some(u) = pick {
+                let card = g.take_hand(p, u).or_else(|| g.take_mana(p, u));
+                if let Some(card) = card {
+                    enter(g, p, card, How::Put, None, 0);
+                }
+            }
+        }
+        K::DanteExec => {
+            if let Some(u) = pick {
+                use_free_any(g, p, u);
+            }
+        }
+        K::FelzKill => {
+            if let Some(u) = pick {
+                if q.a > 1 {
+                    ask(g, K::FelzKill, p, q.a - 1, 0, vec![]);
+                }
+                g.stack.push(Task::Destroy { p, uid: u, by_opp: false });
+            }
+        }
+        K::KoutenMode => {
+            if let Opt::Mode(k) = o {
+                if q.a > 1 {
+                    ask(g, K::KoutenMode, p, q.a - 1, 0, vec![]);
+                }
+                match k {
+                    0 => {
+                        let top = top_n(g, p, 2);
+                        g.check_state();
+                        let mut rest = vec![];
+                        for c in top {
+                            if is_creature_card(c.c) {
+                                g.ps[p].hand.push(c);
+                            } else {
+                                rest.push(c);
+                            }
+                        }
+                        bottom_random(g, p, rest);
+                    }
+                    1 => {
+                        if !g.ps[p].hand.is_empty() {
+                            ask(g, K::KoutenDiscard, p, 0, 0, vec![]);
+                        }
+                    }
+                    _ => {
+                        if !g.ps[p].hand.is_empty() {
+                            ask(g, K::KoutenShield, p, 0, 0, vec![]);
+                        }
+                    }
+                }
+            }
+        }
+        K::KoutenDiscard => {
+            if let Some(u) = pick {
+                if let Some(c) = discard(g, p, u) {
+                    ask(g, K::KoutenKill, p, cost_of(c) as i32, 0, vec![]);
+                }
+            }
+        }
+        K::KoutenKill => {
+            if let Some(u) = pick {
+                g.stack.push(Task::Destroy { p: op, uid: u, by_opp: true });
+            }
+        }
+        K::KoutenShield => {
+            if let Some(u) = pick {
+                if !fujin_blocks(g, p) {
+                    if let Some(c) = g.take_hand(p, u) {
+                        g.ps[p].shields.push(Shield { card: c, faceup: false });
+                        push(g, Fx::ShieldPlaced { p, n: 1 });
+                    }
+                }
             }
         }
         K::DolmaPut => {

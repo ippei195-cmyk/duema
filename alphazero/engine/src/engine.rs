@@ -89,6 +89,7 @@ pub struct Player {
     pub xb: Vec<u16>,               // スーパー・S・トリガーで xB 能力を得たカード
     pub dokin_ign: bool,            // ドキンダンテXXII：このプレイヤーのクリーチャーの能力を無視（相手の次のターンのはじめまで）
     pub mana_frozen: bool,          // エンドレス・フローズン・カーニバル：次の自分のターンのはじめにマナがアンタップしない
+    pub lock7_turn: u32,            // ドギラダンテ刈：このターン番号の間、コスト7以下のクリーチャーを出せない
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -187,6 +188,8 @@ pub struct Game {
     pub saint: Option<u16>,    // セイント・キャッスルの置換で今ブレイクしているシールド
     pub attacks_turn: u8,      // このターンの攻撃の数（邪王来混沌三眼鬼）
     pub cur_spell: u16,        // いま効果を解決している呪文の uid
+    pub extra_for: Option<usize>, // このターンの後に追加ターンを得るプレイヤー（デス・フェルザーク）
+    pub in_extra: bool,        // いまが追加ターンか
 }
 
 pub const MAX_TURNS: u32 = 80;
@@ -215,6 +218,8 @@ impl Game {
             saint: None,
             attacks_turn: 0,
             cur_spell: u16::MAX,
+            extra_for: None,
+            in_extra: false,
         };
         for (p, d) in [deck0, deck1].iter().enumerate() {
             for &c in d.iter() {
@@ -417,7 +422,14 @@ impl Game {
                 crate::effects::alspa_apply(self);
                 // ラフルル：相手のターンの終わりまで
                         self.ps[tp].creature_limit_next_turn = false;
-                self.tp = 1 - tp;
+                // デス・フェルザーク：このターンの後に追加ターン
+                if self.extra_for == Some(tp) {
+                    self.extra_for = None;
+                    self.in_extra = true;
+                } else {
+                    self.in_extra = false;
+                    self.tp = 1 - tp;
+                }
                 self.stack.push(Task::TurnStart);
             }
             Task::Ask(d) => {
@@ -489,7 +501,18 @@ impl Game {
             Task::Battle { a, b } => {
                 let (Some(ia), Some(ib)) = (self.find(a.0, a.1), self.find(b.0, b.1)) else { return };
                 // 邪王来混沌三眼鬼：バトル中 +4000
-                let sg = |g: &Game, p: usize, i: usize| if g.ps[p].battle[i].card.c == C::Sangan && !g.ps[p].battle[i].ign() { 4000 } else { 0 };
+                let sg = |g: &Game, p: usize, i: usize| {
+                    let c = &g.ps[p].battle[i];
+                    if c.ign() {
+                        0
+                    } else if c.card.c == C::Sangan {
+                        4000
+                    } else if c.card.c == C::DogiRev && g.ps[p].shields.is_empty() {
+                        10000 // 王道の革命 ドギラゴンの革命0：バトル中 +10000
+                    } else {
+                        0
+                    }
+                };
                 let pa = self.power(a.0, ia) + sg(self, a.0, ia);
                 let pb = self.power(b.0, ib) + sg(self, b.0, ib);
                 // 後で積んだものが先に処理される
