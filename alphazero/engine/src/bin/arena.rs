@@ -40,10 +40,10 @@ fn main() {
                 if i >= games {
                     break;
                 }
-                // デッキの組み合わせ9通り × 席の入れ替え
-                let da = (i % 3) as usize;
-                let db = ((i / 3) % 3) as usize;
-                let swap = (i / 9) % 2 == 1;
+                // デッキの組み合わせ25通り × 席の入れ替え
+                let da = (i % 5) as usize;
+                let db = ((i / 5) % 5) as usize;
+                let swap = (i / 25) % 2 == 1;
                 let (d0, d1) = (deck(DECKS[da]), deck(DECKS[db]));
                 let agents = if swap { [ag[1], ag[0]] } else { [ag[0], ag[1]] };
                 let w = play_game(&d0, &d1, agents, seed0 * 1_000_003 + i);
@@ -61,7 +61,7 @@ fn main() {
     let n = all.len() as f64;
     let wa: f64 = all.iter().map(|r| r.3).sum();
     println!("{} vs {}: games {} A win rate {:.1}%  ({:.1}s)", a[1], a[2], all.len(), 100.0 * wa / n, t.elapsed().as_secs_f64());
-    for d in 0..3 {
+    for d in 0..DECKS.len() {
         let v: Vec<f64> = all.iter().filter(|r| (if r.2 { r.1 } else { r.0 }) == d).map(|r| r.3).collect();
         if !v.is_empty() {
             println!("  A using {:<10} {:.1}% ({} games)", DECKS[d], 100.0 * v.iter().sum::<f64>() / v.len() as f64, v.len());

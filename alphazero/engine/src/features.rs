@@ -4,10 +4,26 @@ use crate::cards::*;
 use crate::effects::K;
 use crate::engine::*;
 
-pub const S: usize = 512; // 局面の特徴の数
-pub const O: usize = 136; // 選択肢の特徴の数
-
 const NC: usize = NCARDS;
+/// 効果の質問の種類のための枠
+pub const KN: usize = 100;
+/// 判断の種類の特徴の始まり
+pub const DBASE: usize = 9 * NC + 40;
+pub const S: usize = 680; // 局面の特徴の数（DBASE + 115 以上）
+pub const O: usize = 176; // 選択肢の特徴の数
+const _: () = assert!(DBASE + 8 + KN + 7 <= S);
+// 選択肢の特徴の位置
+pub const OC: usize = 10; // 札の種類 OC..OC+NC+1
+pub const OZ: usize = OC + NC + 1; // ゾーン 12
+pub const OP: usize = OZ + 12; // タップ・パワー
+pub const OPL: usize = OP + 2; // プレイヤーを攻撃
+pub const OT: usize = OPL + 1; // 攻撃先の札 NC+1
+pub const OTP: usize = OT + NC + 1;
+pub const OS: usize = OTP + 2; // 面
+pub const OH: usize = OS + 1; // 出し方 8
+pub const OGC: usize = OH + 8; // グランドクロスの軽減
+pub const OM: usize = OGC + 1; // モード 16
+const _: () = assert!(OM + 16 <= O);
 
 pub fn state(g: &Game, p: usize) -> Vec<f32> {
     let mut f = vec![0f32; S];
@@ -18,13 +34,15 @@ pub fn state(g: &Game, p: usize) -> Vec<f32> {
     for c in &me.hand { add(0, c.c, 0.25); }
     for m in &me.mana { add(1, m.card.c, 0.25); }
     for c in &me.battle { add(2, c.card.c, 0.5); for u in &c.under { add(2, u.c, 0.25); } }
+    for c in &me.tama { add(2, c.c, 0.5); }
     for c in &me.grave { add(3, c.c, 0.25); }
     for s in &me.shields { if s.faceup { add(4, s.card.c, 0.5); } }
     for m in &en.mana { add(5, m.card.c, 0.25); }
     for c in &en.battle { add(6, c.card.c, 0.5); for u in &c.under { add(6, u.c, 0.25); } }
+    for c in &en.tama { add(6, c.c, 0.5); }
     for c in &en.grave { add(7, c.c, 0.25); }
     for s in &en.shields { if s.faceup { add(8, s.card.c, 0.5); } }
-    let mut i = 9 * NC; // 360
+    let mut i = 9 * NC;
     let mut put = |v: f32| { f[i] = v; i += 1; };
     let untap = |q: &Player| q.mana.iter().filter(|m| !m.tapped).count() as f32;
     put(me.deck.len() as f32 / 40.0);
@@ -57,17 +75,19 @@ pub fn state(g: &Game, p: usize) -> Vec<f32> {
     put(pw(p));
     put(pw(op));
     put(g.attack_broke as u8 as f32);
+    put((me.small_lock_turn == g.turn) as u8 as f32);
+    put(crate::effects::gc_left_pub(g, p) as f32 / 2.0);
     // 判断の種類
-    let base = 9 * NC + 40;
+    let base = DBASE;
     if let Some(d) = &g.decision {
         f[base + d.kind as usize] = 1.0;
         match &d.q {
-            Q::Custom(e) => f[base + 8 + (e.k as usize).min(79)] = 1.0,
+            Q::Custom(e) => f[base + 8 + (e.k as usize).min(KN - 1)] = 1.0,
             Q::Shield { left, picked, .. } => {
-                f[base + 90] = 1.0;
-                f[base + 91] = (*left as f32 - picked.len() as f32) / 3.0;
+                f[base + 8 + KN] = 1.0;
+                f[base + 9 + KN] = (*left as f32 - picked.len() as f32) / 3.0;
             }
-            Q::UseTrigger { what, .. } => f[base + 92 + (*what as usize).min(4)] = 1.0,
+            Q::UseTrigger { what, .. } => f[base + 10 + KN + (*what as usize).min(4)] = 1.0,
             Q::None => {}
         }
     }
@@ -80,6 +100,7 @@ fn locate(g: &Game, p: usize, uid: u16) -> (usize, usize, Option<(usize, usize)>
         let q = &g.ps[pp];
         if let Some(c) = q.hand.iter().find(|c| c.uid == uid) { return (c.c as usize, k * 6, None); }
         if let Some(i) = q.battle.iter().position(|c| c.card.uid == uid) { return (q.battle[i].card.c as usize, k * 6 + 1, Some((pp, i))); }
+        if let Some(c) = q.tama.iter().find(|c| c.uid == uid) { return (c.c as usize, k * 6 + 1, None); }
         if let Some(m) = q.mana.iter().find(|m| m.card.uid == uid) { return (m.card.c as usize, k * 6 + 2, None); }
         if let Some(s) = q.shields.iter().find(|s| s.card.uid == uid) {
             let c = if s.faceup || pp == p && false { s.card.c as usize } else { NC };
@@ -105,7 +126,7 @@ pub fn option(g: &Game, p: usize, o: Opt) -> Vec<f32> {
         Opt::Mode(m) => (8, None, None, 0, 0, Some(m)),
     };
     f[t] = 1.0;
-    let mut pow = |pi: Option<(usize, usize)>, at: usize, f: &mut Vec<f32>| {
+    let pow = |pi: Option<(usize, usize)>, at: usize, f: &mut Vec<f32>| {
         if let Some((pp, i)) = pi {
             f[at] = g.ps[pp].battle[i].tapped as u8 as f32;
             f[at + 1] = g.power(pp, i).max(0) as f32 / 20000.0;
@@ -113,23 +134,24 @@ pub fn option(g: &Game, p: usize, o: Opt) -> Vec<f32> {
     };
     if let Some(u) = main {
         let (c, z, pi) = locate(g, p, u);
-        f[10 + c] = 1.0; // 10..51
-        f[51 + z] = 1.0; // 51..63
-        pow(pi, 63, &mut f);
+        f[OC + c] = 1.0;
+        f[OZ + z] = 1.0;
+        pow(pi, OP, &mut f);
     }
     match tgt {
-        Some(Tgt::Player) => f[65] = 1.0,
+        Some(Tgt::Player) => f[OPL] = 1.0,
         Some(Tgt::Cre(u)) => {
             let (c, _, pi) = locate(g, p, u);
-            f[66 + c] = 1.0; // 66..107
-            pow(pi, 107, &mut f);
+            f[OT + c] = 1.0;
+            pow(pi, OTP, &mut f);
         }
         None => {}
     }
-    f[109] = side as f32;
-    f[110 + (how as usize).min(3)] = 1.0;
+    f[OS] = side as f32;
+    f[OH + (how & 7) as usize] = 1.0;
+    f[OGC] = (how & crate::effects::HOW_GC != 0) as u8 as f32;
     if let Some(m) = mode {
-        f[114 + (m as usize).min(15)] = 1.0; // ..130
+        f[OM + (m as usize).min(15)] = 1.0;
     }
     f
 }

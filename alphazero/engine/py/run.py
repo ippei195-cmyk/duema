@@ -2,7 +2,7 @@
   python run.py            … 開始・再開
   STOP というファイルを置く … 今の世代が終わったら止まる
 世代ごと：①自己対戦（いま一番強いネット）→ ②学習 → ③一番強いネットと対戦して 55% 以上なら交代
-         ④3世代ごとにフェーズ2版（ismcts:300）と先読み1200回で対戦し、80% 以上（540局で確認）で合格。自己対戦の半分はリースバイクを入れる（focus）
+         ④3世代ごとにフェーズ2版（ismcts:300）と先読み1200回で対戦し、80% 以上（540局で確認）で合格。自己対戦の半分はリースバイク・白緑ウィリデ・ゴルギーオージャーのどれかを入れる（focus）
 記録：log.csv（世代ごと）、elo.csv（各ネットのレート）
 古い学習データ（直近10世代より前）と、交代しなかったネットは自動で消す
 """
@@ -14,7 +14,7 @@ SELFPLAY = os.path.join(D, 'selfplay' + EXE)
 ARENA = os.path.join(D, 'arena' + EXE)
 TH = str(max(2, (os.cpu_count() or 4) - 2))
 CFG = dict(games=2000, sims_full=200, sims_fast=40, p_full=0.25, window=6, epochs=2,
-           eval_games=180, eval_sims=200, promote=0.55, phase2_every=3, phase2_games=180, phase2_sims=1200, focus=0.5,
+           eval_games=180, eval_sims=200, promote=0.55, phase2_every=3, phase2_games=180, phase2_sims=1200, focus=0.5, focus_decks='0,3,4',
            keep_samples=10)  # 学習データは直近この世代数だけ残す（学習に使うのは window 世代）
 for d in ['samples', 'nets']:
     os.makedirs(os.path.join(D, d), exist_ok=True)
@@ -24,7 +24,10 @@ SP = os.path.join(D, 'state.json')
 def load_state():
     if os.path.exists(SP):
         return json.load(open(SP, encoding='utf-8'))
-    return {'gen': 0, 'best': 'none', 'best_elo': 0.0, 'latest_pt': None, 'passed': False}
+    # 最初の重み（3デッキの合格版を transplant で5デッキ用に広げたもの）があれば、そこから始める
+    seed = os.path.join(D, 'nets', 'net0000.bin')
+    best = seed if os.path.exists(seed) else 'none'
+    return {'gen': 0, 'best': best, 'best_elo': 0.0, 'latest_pt': None, 'passed': False}
 
 
 def save_state(s):
@@ -93,7 +96,7 @@ def main():
         t0 = time.time()
         smp = os.path.join(D, 'samples', f'gen{g:04d}.bin')
         out = run([SELFPLAY, s['best'], str(CFG['games']), TH, str(1000 + g), smp,
-                   str(CFG['sims_full']), str(CFG['sims_fast']), str(CFG['p_full']), str(CFG['focus'])], f'selfplay gen{g}')
+                   str(CFG['sims_full']), str(CFG['sims_fast']), str(CFG['p_full']), str(CFG['focus']), CFG['focus_decks']], f'selfplay gen{g}')
         nsamp = int(re.search(r'samples=(\d+)', out).group(1))
         t1 = time.time()
         data = [os.path.join(D, 'samples', f'gen{k:04d}.bin') for k in range(max(0, g - CFG['window'] + 1), g + 1)]
@@ -101,6 +104,8 @@ def main():
         cmd = [sys.executable, os.path.join(D, 'train.py'), '--data', *data, '--out', newp, '--epochs', str(CFG['epochs'])]
         if s['latest_pt']:
             cmd += ['--init', s['latest_pt']]
+        elif s['best'] != 'none':
+            cmd += ['--init-bin', s['best']]  # 3デッキの重みを広げたもの（transplant）から始める
         tout = run(cmd, f'train gen{g}')
         lv = re.search(r'value_loss=([\d.]+) policy_loss=([\d.]+)', tout)
         s['latest_pt'] = newp + '.pt'

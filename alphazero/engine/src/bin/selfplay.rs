@@ -1,5 +1,5 @@
 //! 自己対戦で学習データを作る。
-//! selfplay <重み|none> <局数> <スレッド> <seed> <出力.bin> [深い読み回数=200] [浅い読み回数=40] [深い読みの割合=0.25]
+//! selfplay <重み|none> <局数> <スレッド> <seed> <出力.bin> [深い読み回数=200] [浅い読み回数=40] [深い読みの割合=0.25] [focus=0] [重点デッキ=0（例 0,3,4）]
 //! 深く読んだ判断だけを記録する（KataGo の読み回数ランダム化）。
 use dmengine::az::*;
 use dmengine::cards::*;
@@ -31,26 +31,29 @@ fn main() {
     let full: u32 = a.get(6).and_then(|s| s.parse().ok()).unwrap_or(200);
     let fast: u32 = a.get(7).and_then(|s| s.parse().ok()).unwrap_or(40);
     let pfull: f64 = a.get(8).and_then(|s| s.parse().ok()).unwrap_or(0.25);
-    // focus: この確率で片方（どちらかはランダム）のデッキをリースバイク（DECKS[0]）に固定して、苦手を重点的に学ぶ
+    // focus: この確率で片方（どちらかはランダム）のデッキを重点デッキ（focus_decks、既定はリースバイク）のどれかにして、苦手や新しいデッキを重点的に学ぶ
     let focus: f64 = a.get(9).and_then(|s| s.parse().ok()).unwrap_or(0.0);
+    let focus_decks: Vec<usize> = a.get(10).map(|s| s.split(',').filter_map(|x| x.parse().ok()).filter(|&x: &usize| x < DECKS.len()).collect()).unwrap_or_else(|| vec![0]);
+    let focus_decks = Arc::new(if focus_decks.is_empty() { vec![0] } else { focus_decks });
     let net: Arc<Option<Net>> = Arc::new(if wpath == "none" { None } else { Some(Net::load(&wpath).expect("weights")) });
     let file = Arc::new(Mutex::new(std::io::BufWriter::new(std::fs::File::create(&out).unwrap())));
     file.lock().unwrap().write_all(b"DMS1").unwrap();
     let next = Arc::new(AtomicU64::new(0));
-    let stats = Arc::new(Mutex::new((0u64, 0u64, 0u64, [[0f64; 2]; 3]))); // 局, 記録数, 判断数, デッキ別[勝ち,局]
+    let stats = Arc::new(Mutex::new((0u64, 0u64, 0u64, [[0f64; 2]; DECKS.len()]))); // 局, 記録数, 判断数, デッキ別[勝ち,局]
     let t = Instant::now();
     let mut hs = vec![];
     for _ in 0..threads {
-        let (net, file, next, stats) = (net.clone(), file.clone(), next.clone(), stats.clone());
+        let (net, file, next, stats, fd) = (net.clone(), file.clone(), next.clone(), stats.clone(), focus_decks.clone());
         hs.push(std::thread::spawn(move || loop {
             let i = next.fetch_add(1, Ordering::SeqCst);
             if i >= games { break; }
             let seed = seed0 * 1_000_003 + i;
             let mut rng = Rng::new(seed ^ 0xA2A2);
-            let mut da = rng.below(3);
-            let mut db = rng.below(3);
+            let mut da = rng.below(DECKS.len());
+            let mut db = rng.below(DECKS.len());
             if (rng.below(1_000_000) as f64) < focus * 1e6 {
-                if rng.below(2) == 0 { da = 0 } else { db = 0 }
+                let f = fd[rng.below(fd.len())];
+                if rng.below(2) == 0 { da = f } else { db = f }
             }
             let mut g = Game::new(&deck(DECKS[da]), &deck(DECKS[db]), seed);
             let mut recs: Vec<(usize, Vec<u8>)> = vec![]; // (判断した人, 記録)
@@ -103,6 +106,6 @@ fn main() {
     for h in hs { h.join().unwrap(); }
     file.lock().unwrap().flush().unwrap();
     let s = stats.lock().unwrap();
-    let wr: Vec<String> = (0..3).map(|k| format!("{} {:.1}%", DECKS[k], 100.0 * s.3[k][0] / s.3[k][1].max(1.0))).collect();
+    let wr: Vec<String> = (0..DECKS.len()).map(|k| format!("{} {:.1}%", DECKS[k], 100.0 * s.3[k][0] / s.3[k][1].max(1.0))).collect();
     println!("games={} samples={} decisions={} secs={:.1} | {}", s.0, s.1, s.2, t.elapsed().as_secs_f64(), wr.join(" "));
 }

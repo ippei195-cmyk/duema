@@ -75,7 +75,20 @@ pub enum K {
     SmashBurst,    // Yes/No
     SakkiAtk,
     ReturnShield,  // サイレント・ジェラシー：シールドを1つ手札へ
-    ChooseRepl,    // 未使用
+    // ---- 2026-11-26 追加（白緑ウィリデ・ゴルギーオージャー）----
+    SaintRepl,     // セイント・キャッスルでかわりにブレイクさせるか（Yes/No）
+    ZazeMode,      // ザゼ・ゼーン：アンタップの後のモード（list=[ザゼ]）
+    EverShield,    // エバーラスト：シールド化するエレメント（Pick）か山札の上（Mode(0)）か Pass
+    WillideDraw,   // ウィリデ：1枚引くか（b=コスト上限）
+    WillidePut,    // ウィリデ：手札から出すクリーチャー（b=コスト上限）
+    EmoName,       // ハードコア：名前を選ぶ（Mode(カード番号)）（list=[ハードコア]）
+    GorgiReturn,   // ゴルギーオージャー：マナから手札へ（a=残り）
+    CanzoneRaid,   // 超魂レイド：下に置くカード（list=表向きの3枚, b=カンツォーネ）
+    CanzoneShield, // カンツォーネ：相手のエレメントをシールド化
+    CanzoneDeath,  // カンツォーネが破壊された：下にあったカードを置くクリーチャー（Pick）か、シールド（Pass）
+    AkanePick,     // 2枚から：Pick=手札 Mode(k)=list[k]をマナ
+    TakaLook,      // TAKASUGI：見た4枚からクリーチャーを手札へ
+    ChooseRepl,    // 未使用（必ず最後）
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -101,6 +114,8 @@ pub enum Fx {
     DragonEntered { p: usize },
     TriggerDecl { owner: usize, uids: Vec<u16> },
     MoujaEnd { p: usize, uid: u16 },
+    TakaLook { p: usize },             // TAKASUGI：山札の上から4枚を見る
+    FirstEvent { p: usize, cost: u8 }, // p（ターン・プレイヤー）のはじめてのエレメント／呪文（ウィリデ）
 }
 
 fn push(g: &mut Game, fx: Fx) {
@@ -145,7 +160,7 @@ fn is_multi(c: C) -> bool {
 
 /// 能力が生きているクリーチャーがいるか
 pub fn has(g: &Game, p: usize, c: C) -> bool {
-    g.ps[p].battle.iter().any(|x| x.card.c == c && !x.ignored)
+    g.ps[p].battle.iter().any(|x| x.card.c == c && !x.ign())
 }
 
 fn uids(g: &Game, p: usize) -> Vec<u16> {
@@ -253,6 +268,146 @@ fn shieldify_top(g: &mut Game, p: usize) -> Option<u16> {
     Some(c.uid)
 }
 
+// ---------- 2026-11-26 追加の小道具 ----------
+
+/// how に足すビット：グリーン・グランドクロスの軽減を使う
+pub const HOW_GC: u8 = 8;
+
+pub fn is_neo(c: C) -> bool {
+    matches!(def(c).evo, Evo::Neo | Evo::GNeo)
+}
+
+pub fn is_giant(c: C) -> bool {
+    race(c) & R_GIANT != 0
+}
+
+/// マナゾーンの光のカードの枚数（マナ武装）
+fn light_mana(g: &Game, p: usize) -> usize {
+    g.ps[p].mana.iter().filter(|m| mcv(m) & L != 0).count()
+}
+
+/// 進化元にするエレメントに含まれるカードの枚数
+fn base_cards(g: &Game, p: usize, b: u16) -> Option<usize> {
+    if let Some(i) = g.find(p, b) {
+        return Some(1 + g.ps[p].battle[i].under.len());
+    }
+    g.ps[p].tama.iter().any(|t| t.uid == b).then_some(1)
+}
+
+/// このクリーチャーに含まれるカードの枚数（109.2c）
+fn contained(g: &Game, p: usize, uid: u16) -> usize {
+    g.find(p, uid).map(|i| 1 + g.ps[p].battle[i].under.len()).unwrap_or(0)
+}
+
+/// コハクの超魂X の数（バトルゾーンのコハクと、クリーチャーの下のコハク）
+fn kohaku_count(g: &Game, p: usize) -> usize {
+    g.ps[p].battle.iter().filter(|x| !x.ign()).map(|x| (x.card.c == C::Kohaku) as usize + x.under.iter().filter(|u| u.c == C::Kohaku).count()).sum()
+}
+
+/// グリーン・グランドクロスの軽減がこのターンあと何回使えるか
+fn gc_left(g: &Game, p: usize) -> usize {
+    let n = g.ps[p].shields.iter().filter(|s| s.faceup && s.card.c == C::GrandCross).count();
+    n.saturating_sub(g.ps[p].gc_used as usize)
+}
+
+pub fn gc_left_pub(g: &Game, p: usize) -> usize {
+    gc_left(g, p)
+}
+
+/// これ以上クリーチャーを出せないか（マンハッタン・進化した一音の妖精）
+pub fn creature_blocked(g: &Game, p: usize) -> bool {
+    let ichion = g.ps[1 - p].battle.iter().any(|x| x.card.c == C::Ichion && !x.ign() && !x.under.is_empty());
+    (g.ps[p].creature_limit_next_turn || ichion) && g.ps[p].entered_this_turn >= 1
+}
+
+/// 5000VT：このターン、パワー5000以下のクリーチャーを出せないか
+pub fn small_locked(g: &Game, p: usize, c: C) -> bool {
+    g.ps[p].small_lock_turn == g.turn && def(c).main.kind == Kind::Creature && def(c).main.power <= 5000
+}
+
+fn ddd_taka_cost(g: &Game, p: usize) -> usize {
+    let n = g.ps[p].battle.iter().filter(|x| x.card.c == C::Cineraria && !x.ign()).count();
+    2usize.saturating_sub(n).max(1)
+}
+
+/// マナを n 枚アンタップ（多色のカードから）
+fn untap_mana(g: &mut Game, p: usize, n: usize) {
+    let mut idx: Vec<usize> = (0..g.ps[p].mana.len()).filter(|&i| g.ps[p].mana[i].tapped).collect();
+    idx.sort_by_key(|&i| std::cmp::Reverse(mcv(&g.ps[p].mana[i]).count_ones()));
+    for &i in idx.iter().take(n) {
+        g.ps[p].mana[i].tapped = false;
+    }
+}
+
+/// シールドを取り出す（重なっている下のカードも）。EXライフの紐づけも外す
+fn take_shield(g: &mut Game, p: usize, uid: u16) -> Option<(Shield, Vec<Card>)> {
+    let si = g.ps[p].shields.iter().position(|s| s.card.uid == uid)?;
+    let s = g.ps[p].shields.remove(si);
+    let mut under = vec![];
+    g.ps[p].sh_under.retain(|&(t, c)| {
+        if t == uid {
+            under.push(c);
+            false
+        } else {
+            true
+        }
+    });
+    for c in g.ps[p].battle.iter_mut() {
+        if c.exlife == Some(uid) {
+            c.exlife = None;
+        }
+    }
+    Some((s, under))
+}
+
+/// 何枚かのカードを1つのシールドとしてシールド化（先頭が上）
+fn shield_stack(g: &mut Game, p: usize, cards: Vec<Card>, faceup: bool) {
+    let Some(&top) = cards.first() else { return };
+    g.ps[p].shields.push(Shield { card: top, faceup });
+    for &c in cards[1..].iter() {
+        g.ps[p].sh_under.push((top.uid, c));
+    }
+    push(g, Fx::ShieldPlaced { p, n: cards.len() as u8 });
+}
+
+/// ターン・プレイヤー p のエレメントが出た／呪文を唱えた（ウィリデ：相手のターン中に、はじめて）
+fn first_event(g: &mut Game, p: usize, cost: u8) {
+    if g.tp != p || g.ps[p].first_done {
+        return;
+    }
+    g.ps[p].first_done = true;
+    if has(g, 1 - p, C::Willide) {
+        push(g, Fx::FirstEvent { p, cost });
+    }
+}
+
+/// エモーショナル・ハードコアの「選んだ名前の能力を無視」を計算し直す
+pub fn recompute_emo(g: &mut Game) {
+    let mut names: Vec<(C, u16)> = vec![];
+    for p in 0..2 {
+        for x in g.ps[p].battle.iter() {
+            if x.card.c == C::Emotional && !x.ignored {
+                if let Some(n) = x.emo {
+                    names.push((n, x.card.uid));
+                }
+            }
+        }
+    }
+    for p in 0..2 {
+        for x in g.ps[p].battle.iter_mut() {
+            x.emo_ign = names.iter().any(|&(n, u)| n == x.card.c && u != x.card.uid);
+        }
+    }
+}
+
+/// セイント・キャッスル：相手のクリーチャーがシールドをブレイクする時、かわりにこのシールドをブレイクさせてもよい
+pub fn saint_check(g: &mut Game, owner: usize) {
+    if let Some(s) = g.ps[owner].shields.iter().find(|s| s.faceup && s.card.c == C::SaintCastle) {
+        let u = s.card.uid;
+        g.ask(owner, DK::Effect, vec![Opt::No, Opt::Yes], Q::Custom(EQ { k: K::SaintRepl, p: owner, a: u as i32, b: 0, list: vec![] }));
+    }
+}
+
 // ---------- 状態を参照する能力 ----------
 
 pub fn extra_kw(g: &Game, p: usize, c: &Cre) -> u32 {
@@ -274,16 +429,20 @@ pub fn power_bonus(g: &Game, p: usize, i: usize) -> i32 {
     let mut b = 0;
     // ブランド G・G・G：手札1枚以下なら他のクリーチャーすべて+4000
     if g.ps[p].hand.len() <= 1 {
-        b += 4000 * g.ps[p].battle.iter().filter(|x| x.card.c == C::Brand && !x.ignored && x.card.uid != c.card.uid).count() as i32;
+        b += 4000 * g.ps[p].battle.iter().filter(|x| x.card.c == C::Brand && !x.ign() && x.card.uid != c.card.uid).count() as i32;
     }
     b
 }
 
 pub fn powered_breaker(g: &Game, p: usize, c: &Cre) -> bool {
-    g.ps[p].hand.len() <= 1 && g.ps[p].battle.iter().any(|x| x.card.c == C::Brand && !x.ignored && x.card.uid != c.card.uid)
+    g.ps[p].hand.len() <= 1 && g.ps[p].battle.iter().any(|x| x.card.c == C::Brand && !x.ign() && x.card.uid != c.card.uid)
 }
 
 pub fn can_attack_extra(g: &Game, p: usize, c: &Cre) -> bool {
+    // アオフェシー：相手のクリーチャーは、出たターン、攻撃できない
+    if c.entered == g.turn && has(g, 1 - p, C::Aofesy) && !has(g, p, C::RedZone) {
+        return false;
+    }
     // 流星アーシュ：ドラゴンではないクリーチャーは出たターンに攻撃できない
     if c.entered == g.turn && !is_dragon(c.card.c) && (has(g, 0, C::Ash) || has(g, 1, C::Ash)) {
         // レッドゾーン：自分のクリーチャーは相手のカードによる攻撃できない効果を無視
@@ -307,7 +466,7 @@ pub fn unblockable(g: &Game, att: u16) -> bool {
     // ジョギメラゴン：攻撃先は変更されない
     g.find(g.tp, att).map(|i| {
         let c = &g.ps[g.tp].battle[i];
-        c.card.c == C::Jogimera && !c.ignored
+        c.card.c == C::Jogimera && !c.ign()
     }).unwrap_or(false)
 }
 
@@ -315,12 +474,48 @@ pub fn unblockable(g: &Game, att: u16) -> bool {
 
 /// 実行コスト（軽減後）と文明の条件
 pub fn play_cost(g: &Game, p: usize, c: C, side: u8, how: u8) -> (usize, u8) {
+    play_cost_b(g, p, c, side, how, None)
+}
+
+/// how の下位3ビット：0=通常 1=J・O・E 2=G・ゼロ 3=アビスラッシュ 5=ウィリデの[光(2)] 6=アカネの[無色(2)]。
+/// HOW_GC のビット：グリーン・グランドクロスの軽減を使う。base：進化元（ゴルギーオージャーの軽減）
+pub fn play_cost_b(g: &Game, p: usize, c: C, side: u8, how: u8, base: Option<u16>) -> (usize, u8) {
     let s = side_of(c, side);
     let mut cost = s.cost as i32;
     let mut civ = s.civ;
+    let alt = how & 7;
+    if side == 0 && alt == 5 && c == C::Willide {
+        cost = 2;
+        civ = L;
+    }
+    if side == 0 && alt == 6 && c == C::Akane {
+        cost = 2;
+        civ = ZERO;
+    }
     if side == 0 && s.kind == Kind::Creature {
+        // マナ武装3（エバーラスト）
+        if c == C::Everlast && light_mana(g, p) >= 3 {
+            cost -= 2;
+        }
+        // ゴルギーオージャー：進化元に含まれるカード1枚につき2少なく（2以下にはならない）
+        if c == C::Gorgi {
+            if let Some(n) = base.and_then(|b| base_cards(g, p, b)) {
+                cost = (cost - 2 * n as i32).max(3);
+            }
+        }
+        // 5000VT：バトルゾーンのクリーチャー1体につき1少なく
+        if c == C::Vt5000 {
+            cost -= (g.ps[0].battle.len() + g.ps[1].battle.len()) as i32;
+        }
+        // コハクの超魂X：NEOクリーチャーの召喚コスト-1
+        if is_neo(c) {
+            cost -= kohaku_count(g, p) as i32;
+        }
+        if how & HOW_GC != 0 {
+            cost -= 1;
+        }
         if cost >= 10 && has(g, p, C::Gaiash) {
-            cost -= 4 * g.ps[p].battle.iter().filter(|x| x.card.c == C::Gaiash && !x.ignored).count() as i32;
+            cost -= 4 * g.ps[p].battle.iter().filter(|x| x.card.c == C::Gaiash && !x.ign()).count() as i32;
         }
         if c == C::Jogimera && jokers_count(g, p) >= 4 {
             cost -= 3;
@@ -333,9 +528,13 @@ pub fn play_cost(g: &Game, p: usize, c: C, side: u8, how: u8) -> (usize, u8) {
             };
         }
     }
+    // シネラリア：自分のジャイアントを使うコスト-1
+    if side == 0 && is_giant(c) {
+        cost -= g.ps[p].battle.iter().filter(|x| x.card.c == C::Cineraria && !x.ign()).count() as i32;
+    }
     if race(c) & R_SEITOKAI != 0 {
         // シンパシー：自分のドラゴン1つにつき1少なく（アーシュ1体ごとに付与）
-        let ash = g.ps[p].battle.iter().filter(|x| x.card.c == C::Ash && !x.ignored).count() as i32;
+        let ash = g.ps[p].battle.iter().filter(|x| x.card.c == C::Ash && !x.ign()).count() as i32;
         let dragons = g.ps[p].battle.iter().filter(|x| is_dragon(x.card.c)).count() as i32;
         cost -= ash * dragons;
         // ギャイ：生徒会組はマナをすべての文明として使える
@@ -354,8 +553,12 @@ fn can_cast_spell(g: &Game, p: usize, cost: u8) -> bool {
     if g.tp == p && has(g, op, C::Jogiragon) && g.ps[p].spells_this_turn >= 1 {
         return false;
     }
+    // 一音の妖精：相手は各ターン1回しか呪文を唱えられない
+    if g.ps[p].spells_this_turn >= 1 && has(g, op, C::Ichion) {
+        return false;
+    }
     // チャクラ（ハイパー）：相手はコスト5以下の呪文を唱えられない
-    if cost <= 5 && g.ps[op].battle.iter().any(|x| x.card.c == C::Chakra && x.hyper && !x.ignored) {
+    if cost <= 5 && g.ps[op].battle.iter().any(|x| x.card.c == C::Chakra && x.hyper && !x.ign()) {
         return false;
     }
     true
@@ -366,7 +569,7 @@ pub fn main_options(g: &Game, opts: &mut Vec<Opt>) {
     let mut seen: Vec<(C, u8, u8)> = vec![];
     // アビスラッシュ：ジャヴェールを墓地から召喚（そのターンはプレイヤーを攻撃でき、ターンの終わりに山札の下）
     if let Some(h) = g.ps[p].grave.iter().find(|c| c.c == C::Javert) {
-        let ok = !(g.ps[p].creature_limit_next_turn && g.ps[p].entered_this_turn >= 1);
+        let ok = !creature_blocked(g, p) && !small_locked(g, p, C::Javert);
         let (cost, civ) = play_cost(g, p, C::Javert, 0, 0);
         if ok && g.pay_plan(p, civ, cost).is_some() {
             opts.push(Opt::Play { uid: h.uid, side: 0, how: 3 });
@@ -377,12 +580,25 @@ pub fn main_options(g: &Game, opts: &mut Vec<Opt>) {
         let d = def(c);
         for side in 0..(if d.spell.is_some() { 2 } else { 1 }) {
             let s = side_of(c, side);
-            let hows: &[u8] = match (c, side) {
-                (C::Brand, 0) | (C::Manhattan, 0) => &[0, 1],
-                (C::Kesshin, 0) => &[0, 2],
-                _ => &[0],
+            let mut hows: Vec<u8> = match (c, side) {
+                (C::Brand, 0) | (C::Manhattan, 0) => vec![0, 1],
+                (C::Kesshin, 0) => vec![0, 2],
+                _ => vec![0],
             };
-            for &how in hows {
+            if side == 0 && c == C::Willide && g.ps[p].shields.len() > g.ps[1 - p].shields.len() {
+                hows.push(5);
+            }
+            if side == 0 && c == C::Akane && [L, W, N].iter().all(|&cv| g.ps[p].mana.iter().any(|m| mcv(m) & cv != 0)) {
+                hows.push(6);
+            }
+            // グリーン・グランドクロス：各ターンに1度、召喚コストを1少なくしてもよい
+            if side == 0 && s.kind == Kind::Creature && gc_left(g, p) > 0 {
+                let base: Vec<u8> = hows.iter().copied().filter(|&h| h != 2 && play_cost(g, p, c, 0, h).0 > 1).collect();
+                for h in base {
+                    hows.push(h | HOW_GC);
+                }
+            }
+            for &how in hows.iter() {
                 if seen.contains(&(c, side, how)) {
                     continue; // 同じカードは1つだけ候補に
                 }
@@ -392,11 +608,13 @@ pub fn main_options(g: &Game, opts: &mut Vec<Opt>) {
                 if c == C::Melaventure && !g.ps[p].battle.iter().any(|x| is_jokers(x.card.c)) {
                     continue;
                 }
-                if s.kind == Kind::Creature && g.ps[p].creature_limit_next_turn && g.ps[p].entered_this_turn >= 1 {
+                if s.kind == Kind::Creature && (creature_blocked(g, p) || small_locked(g, p, c)) {
                     continue;
                 }
                 let ok = if how == 2 {
                     jokers_count(g, p) >= 7
+                } else if s.kind == Kind::Creature && d.evo != Evo::None {
+                    !evo_choices(g, p, c, side, how, true).is_empty()
                 } else {
                     let (cost, civ) = play_cost(g, p, c, side, how);
                     g.pay_plan(p, civ, cost).is_some()
@@ -428,6 +646,24 @@ pub fn play_from_hand(g: &mut Game, p: usize, uid: u16, side: u8, how: u8) {
     }
     let Some(c) = hand_card(g, p, uid) else { return };
     let s = side_of(c, side);
+    if s.kind == Kind::Creature && def(c).evo != Evo::None {
+        // 進化：進化元を選んでから支払う（ゴルギーオージャーは進化元でコストが変わる）
+        let o = evo_choices(g, p, c, side, how, true);
+        if o.is_empty() {
+            return;
+        }
+        if how & HOW_GC != 0 {
+            g.ps[p].gc_used += 1;
+        }
+        let card = g.take_hand(p, uid).unwrap();
+        g.ps[p].grave.push(card); // 一時置き場（answer で取り出す）
+        let code = if how & 7 == 1 { 1 } else { 0 };
+        g.ask(p, DK::Effect, o, Q::Custom(EQ { k: K::EvoBase, p, a: uid as i32, b: code, list: vec![1, side as u16, how as u16, 0] }));
+        return;
+    }
+    if how & HOW_GC != 0 {
+        g.ps[p].gc_used += 1;
+    }
     if how != 2 {
         let (cost, civ) = play_cost(g, p, c, side, how);
         let Some(plan) = g.pay_plan(p, civ, cost) else { return };
@@ -444,22 +680,14 @@ pub fn play_from_hand(g: &mut Game, p: usize, uid: u16, side: u8, how: u8) {
             let card = g.take_hand(p, uid).unwrap();
             put_gcastle(g, p, card);
         }
+        Kind::Tama => {
+            let card = g.take_hand(p, uid).unwrap();
+            put_tama(g, p, card);
+        }
         Kind::Creature => {
             let d = def(c);
             match d.evo {
-                Evo::Evo | Evo::Neo | Evo::GNeo => {
-                    let bases: Vec<u16> = g.ps[p].battle.iter().filter(|x| evo_ok(c, x.card.c)).map(|x| x.card.uid).collect();
-                    let mut o = picks(&bases);
-                    if d.evo != Evo::Evo {
-                        o.insert(0, Opt::Pass);
-                    }
-                    if o.is_empty() {
-                        return;
-                    }
-                    let card = g.take_hand(p, uid).unwrap();
-                    g.ps[p].grave.push(card); // 一時置き場（answer で取り出す）
-                    g.ask(p, DK::Effect, o, Q::Custom(EQ { k: K::EvoBase, p, a: uid as i32, b: how as i32, list: vec![] }));
-                }
+                Evo::Evo | Evo::Neo | Evo::GNeo => {}
                 Evo::None => {
                     let card = g.take_hand(p, uid).unwrap();
                     mark_summoned(g, uid);
@@ -480,7 +708,48 @@ fn evo_ok(c: C, base: C) -> bool {
         C::Melaventure => is_jokers(base),
         C::RedZone => civ & (D | F | N) != 0,
         C::Madan => civ & (W | D | F) != 0,
+        C::Takasugi => civ & (L | F | N) != 0,
+        C::Ichion | C::Canzone | C::Akane | C::Heracles | C::Gindan | C::Gorgi => civ & (L | W | N) != 0,
         _ => false,
+    }
+}
+
+/// 進化元の候補（バトルゾーンのクリーチャーと、シンカライズのタマシード）
+fn evo_bases(g: &Game, p: usize, c: C) -> Vec<u16> {
+    let mut v: Vec<u16> = g.ps[p].battle.iter().filter(|x| evo_ok(c, x.card.c)).map(|x| x.card.uid).collect();
+    if is_neo(c) || def(c).evo == Evo::Evo {
+        v.extend(g.ps[p].tama.iter().filter(|t| t.c == C::Jasmine && evo_ok(c, t.c)).map(|t| t.uid));
+    }
+    v
+}
+
+/// 進化クリーチャーを出す時の選択肢（Pass=進化しないで出す）。pay なら支払えるものだけ
+fn evo_choices(g: &Game, p: usize, c: C, side: u8, how: u8, pay: bool) -> Vec<Opt> {
+    let ok = |b: Option<u16>| {
+        if !pay {
+            return true;
+        }
+        let (cost, civ) = play_cost_b(g, p, c, side, how, b);
+        g.pay_plan(p, civ, cost).is_some()
+    };
+    let mut o = vec![];
+    if def(c).evo != Evo::Evo && ok(None) {
+        o.push(Opt::Pass);
+    }
+    for b in evo_bases(g, p, c) {
+        if ok(Some(b)) {
+            o.push(Opt::Pick(b));
+        }
+    }
+    o
+}
+
+/// タマシードを出す（ジャスミンの地版）
+fn put_tama(g: &mut Game, p: usize, card: Card) {
+    g.ps[p].tama.push(card);
+    first_event(g, p, cost_of(card.c));
+    if card.c == C::Jasmine {
+        g.mill_to_mana(p, 1, true);
     }
 }
 
@@ -491,8 +760,10 @@ fn put_gcastle(g: &mut Game, p: usize, card: Card) {
     }
     g.ps[p].shields.push(Shield { card, faceup: true });
     push(g, Fx::ShieldPlaced { p, n: 1 });
-    // このG城が表向きで置かれた時：山札の上から1枚をタップしてマナへ
-    g.mill_to_mana(p, 1, true);
+    // ハッスル・キャッスル：このG城が表向きで置かれた時、山札の上から1枚をタップしてマナへ
+    if card.c == C::Hustle {
+        g.mill_to_mana(p, 1, true);
+    }
 }
 
 // ---------- クリーチャーが出る ----------
@@ -536,7 +807,7 @@ fn enter_replacement(g: &Game, p: usize, c: C, how: How) -> Option<bool> {
 
 /// p のクリーチャー card をバトルゾーンへ。base=進化元の uid。joe: 2=J・O・E
 pub fn enter(g: &mut Game, p: usize, card: Card, how: How, base: Option<u16>, joe: u8) -> bool {
-    if g.ps[p].creature_limit_next_turn && g.ps[p].entered_this_turn >= 1 {
+    if creature_blocked(g, p) || small_locked(g, p, card.c) {
         // 近似：出せないカードは墓地へ
         g.ps[p].grave.push(card);
         return false;
@@ -556,22 +827,34 @@ pub fn enter(g: &mut Game, p: usize, card: Card, how: How, base: Option<u16>, jo
         g.ps[p].no_free_this_turn = true;
     }
     let mut cre = g.new_cre(card);
+    let mut taka_base = false;
     if let Some(b) = base {
         if let Some(i) = g.find(p, b) {
             let old = g.ps[p].battle.remove(i);
+            // TAKASUGI：進化元になる時
+            taka_base = old.card.c == C::Takasugi && !old.ign();
             cre.under.push(old.card);
             cre.under.extend(old.under);
-            // 進化：元の状態を引き継ぐ
+            // 進化：元の状態を引き継ぐ。進化クリーチャーは召喚酔いしない（801.3）
             cre.tapped = old.tapped;
-            cre.sick = old.sick;
+            cre.sick = false;
             cre.entered = old.entered;
+        } else if let Some(ti) = g.ps[p].tama.iter().position(|t| t.uid == b) {
+            // シンカライズのタマシードの上（41077：召喚酔いしない）
+            let t = g.ps[p].tama.remove(ti);
+            cre.under.push(t);
+            cre.sick = false;
         }
     }
     if joe == 2 {
         cre.bottom = 2;
     }
-    if card.c == C::Fujisan || card.c == C::Ash {
+    if def(card.c).main.kw & K_JUSTDIVER != 0 {
         cre.jd = true;
+    }
+    // ザゼ・ゼーン：タップして出る
+    if card.c == C::Zaze {
+        cre.tapped = true;
     }
     // EXライフ：出す時、山札の上から1枚をシールド化
     if def(card.c).main.kw & K_EXLIFE != 0 {
@@ -580,14 +863,18 @@ pub fn enter(g: &mut Game, p: usize, card: Card, how: How, base: Option<u16>, jo
     g.ps[p].battle.push(cre);
     g.ps[p].entered_this_turn += 1;
     let uid = card.uid;
-    // 出た時の誘発（後に積んだものが先）
+    // 出た時の誘発（後に積んだものが先）。非ターン・プレイヤーのウィリデを先に積む
+    first_event(g, p, cost_of(card.c));
+    if taka_base {
+        push(g, Fx::TakaLook { p });
+    }
     if is_dragon(card.c) {
         push(g, Fx::DragonEntered { p });
     }
     push(g, Fx::Enter { p, uid });
     // コットン：相手のクリーチャーが出た時、そのターン攻撃できない
     let op = 1 - p;
-    let cotton = g.ps[op].battle.iter().filter(|x| x.card.c == C::Cotton && !x.ignored).count();
+    let cotton = g.ps[op].battle.iter().filter(|x| x.card.c == C::Cotton && !x.ign()).count();
     if cotton > 0 {
         if let Some(i) = g.find(p, uid) {
             g.ps[p].battle[i].cant_attack = true;
@@ -736,6 +1023,79 @@ fn enter_ability(g: &mut Game, p: usize, src: u16, c: C) {
             }
         }
         C::Magny | C::Javert => {} // スマッシュ・バーストは攻撃時
+        // ---- 2026-11-26 追加 ----
+        C::Everlast => ask(g, K::EverShield, p, 0, 0, vec![]),
+        C::Emotional => ask(g, K::EmoName, p, 0, 0, vec![src]),
+        C::Gorgi => {
+            let n = contained(g, p, src);
+            g.mill_to_mana(p, n, false);
+            ask(g, K::GorgiReturn, p, 3, 0, vec![]);
+        }
+        C::Canzone => {
+            // 近似：超魂レイド → シールド化 の順に解決
+            let l = targetable(g, op);
+            if !l.is_empty() {
+                ask(g, K::CanzoneShield, p, 0, 0, l);
+            }
+            let top = top_n(g, p, 3);
+            g.check_state();
+            if !top.is_empty() {
+                let l = stash(g, p, &top);
+                ask(g, K::CanzoneRaid, p, 0, src as i32, l);
+            }
+        }
+        C::Akane => {
+            let top = top_n(g, p, 2);
+            g.check_state();
+            if !top.is_empty() {
+                let l = stash(g, p, &top);
+                ask(g, K::AkanePick, p, 0, 0, l);
+            }
+        }
+        C::Heracles => {
+            let n = contained(g, p, src).max(1);
+            g.draw1(p);
+            g.draw1(p);
+            untap_mana(g, p, n);
+        }
+        C::Takasugi => {
+            let evolved = g.find(p, src).map(|i| !g.ps[p].battle[i].under.is_empty()).unwrap_or(false);
+            if evolved {
+                push(g, Fx::TakaLook { p });
+            }
+        }
+        C::Kohaku => {
+            if let Some(i) = g.find(p, src) {
+                g.ps[p].battle[i].stay = true;
+            }
+        }
+        C::Gindan => {
+            let n = contained(g, p, src).max(1);
+            for _ in 0..n {
+                let l = targetable(g, op);
+                if !l.is_empty() {
+                    ask(g, K::ChakraTap, p, 0, 0, l);
+                }
+            }
+        }
+        C::Aofesy => {
+            if let Some(k) = g.revch.iter().position(|&u| u == src) {
+                g.revch.remove(k);
+                g.stack.push(Task::Draw { p, n: 2 });
+            }
+        }
+        C::Cineraria => {
+            if g.ps[p].battle.iter().any(|x| x.card.uid != src && is_giant(x.card.c)) {
+                g.draw1(p);
+            }
+        }
+        C::Vt5000 => {
+            let l: Vec<u16> = (0..g.ps[op].battle.len()).filter(|&i| g.power(op, i) <= 5000).map(|i| g.ps[op].battle[i].card.uid).collect();
+            for u in l {
+                leave(g, op, u, Dest::Hand, true);
+            }
+            g.ps[op].small_lock_turn = if g.tp == p { g.turn + 1 } else { g.turn + 2 };
+        }
         _ => {}
     }
 }
@@ -779,42 +1139,91 @@ pub enum Dest {
     Hand,
     Mana,
     DeckBottom,
+    Shield, // シールド化（裏向き）
 }
 
 /// by_opp: 相手のカードの効果によるか
 pub fn leave(g: &mut Game, p: usize, uid: u16, dest: Dest, by_opp: bool) -> bool {
+    leave2(g, p, uid, dest, by_opp, true)
+}
+
+fn leave2(g: &mut Game, p: usize, uid: u16, dest: Dest, by_opp: bool, repl: bool) -> bool {
     let Some(i) = g.find(p, uid) else { return false };
     if by_opp && g.ps[p].battle[i].no_leave {
+        return false;
+    }
+    // ザゼ・ゼーン／コハク：離れない
+    if g.ps[p].battle[i].stay {
+        return false;
+    }
+    if dest == Dest::Shield && fujin_blocks(g, p) {
         return false;
     }
     let c = g.ps[p].battle[i].clone();
     // 置換効果（持ち主が選ぶ。近似：EXライフ > G-NEO > エターナル・Ω > キャディ の順に使う）
     if let Some(su) = c.exlife {
-        if let Some(si) = g.ps[p].shields.iter().position(|s| s.card.uid == su) {
-            let s = g.ps[p].shields.remove(si);
+        if let Some((s, under)) = take_shield(g, p, su) {
             g.ps[p].grave.push(s.card);
-            g.ps[p].battle[i].exlife = None;
+            g.ps[p].grave.extend(under);
             push(g, Fx::Zrush { p });
             return false;
         }
     }
-    if def(c.card.c).evo == Evo::GNeo && !c.under.is_empty() && !c.ignored {
+    if def(c.card.c).evo == Evo::GNeo && !c.under.is_empty() && !c.ign() {
         let under = std::mem::take(&mut g.ps[p].battle[i].under);
-        for u in under {
-            move_card(g, p, u, dest);
+        if dest == Dest::Shield {
+            shield_stack(g, p, under, false);
+        } else {
+            for u in under {
+                move_card(g, p, u, dest);
+            }
         }
         return false;
     }
+    // 自分の効果で動かす時以外（相手の効果・バトル・破壊）の置換
+    if repl && (by_opp || dest == Dest::Grave) {
+        // エバーラストのマナ武装5：かわりにシールドを2つ手札に加える（近似：シールドが3つ以上で、コスト5以上のクリーチャーの時に自動で使う）
+        if has(g, p, C::Everlast) && light_mana(g, p) >= 5 && g.ps[p].shields.len() >= 3 && cost_of(c.card.c) >= 5 {
+            for _ in 0..2 {
+                let su = g.ps[p].shields.last().unwrap().card.uid;
+                if let Some((s, under)) = take_shield(g, p, su) {
+                    g.ps[p].hand.push(s.card);
+                    g.ps[p].hand.extend(under);
+                }
+            }
+            push(g, Fx::Zrush { p });
+            return false;
+        }
+        // シネラリアのウルトラ・セイバー：自分のジャイアントが離れる時、かわりにシネラリアを破壊（近似：コスト4以上のジャイアントの時に自動で使う）
+        if is_giant(c.card.c) && cost_of(c.card.c) >= 4 {
+            if let Some(su) = g.ps[p].battle.iter().find(|x| x.card.c == C::Cineraria && !x.ign() && !x.stay && x.card.uid != uid).map(|x| x.card.uid) {
+                leave2(g, p, su, Dest::Grave, false, false);
+                return false;
+            }
+        }
+    }
     let mut dest = dest;
-    if c.card.c == C::Van && !c.ignored {
+    if c.card.c == C::Van && !c.ign() {
         dest = Dest::Hand;
-    } else if dest == Dest::Grave && c.card.c == C::Caddy && !c.ignored {
+    } else if dest == Dest::Grave && c.card.c == C::Caddy && !c.ign() {
         dest = Dest::Mana;
     }
     let c = g.ps[p].battle.remove(i);
-    move_card(g, p, c.card, dest);
-    for u in c.under {
-        move_card(g, p, u, dest);
+    if dest == Dest::Shield {
+        // 進化エレメントは1つのシールドにまとめる（近似：316.3・113.2）
+        let mut all = vec![c.card];
+        all.extend(c.under.iter().copied());
+        shield_stack(g, p, all, false);
+    } else {
+        move_card(g, p, c.card, dest);
+        for &u in c.under.iter() {
+            move_card(g, p, u, dest);
+        }
+    }
+    // カンツォーネが破壊された時：下にあったカードを、自分のNEO・進化クリーチャーの下か、表向きの1つのシールドへ
+    if dest == Dest::Grave && c.card.c == C::Canzone && !c.ign() && !c.under.is_empty() {
+        let l: Vec<u16> = c.under.iter().map(|u| u.uid).collect();
+        ask(g, K::CanzoneDeath, p, 0, 0, l);
     }
     // 離れた時の誘発
     if race(c.card.c) & R_ABYSS != 0 {
@@ -832,6 +1241,7 @@ fn move_card(g: &mut Game, p: usize, c: Card, dest: Dest) {
         Dest::Hand => g.ps[p].hand.push(c),
         Dest::Mana => g.put_mana(p, c, false),
         Dest::DeckBottom => g.ps[p].deck.insert(0, c),
+        Dest::Shield => shield_stack(g, p, vec![c], false),
     }
 }
 
@@ -859,17 +1269,15 @@ pub fn shields_to_hand(g: &mut Game, owner: usize, list: Vec<u16>, broken: bool)
     let mut to_hand = vec![];
     let mut left = false;
     for u in list {
-        let Some(si) = g.ps[owner].shields.iter().position(|s| s.card.uid == u) else { continue };
-        let s = g.ps[owner].shields.remove(si);
+        let Some((s, under)) = take_shield(g, owner, u) else { continue };
         left = true;
-        // EXライフのシールドだったら紐づけを外す
-        for c in g.ps[owner].battle.iter_mut() {
-            if c.exlife == Some(u) {
-                c.exlife = None;
-            }
+        let saint = g.saint == Some(u);
+        if saint {
+            g.saint = None;
         }
-        if s.faceup && def(s.card.c).main.kind == Kind::GCastle {
+        if s.faceup && def(s.card.c).main.kind == Kind::GCastle && !saint {
             g.ps[owner].grave.push(s.card); // G城：かわりに墓地。ブレイクしたことにならない
+            g.ps[owner].grave.extend(under);
             continue;
         }
         if broken {
@@ -877,6 +1285,10 @@ pub fn shields_to_hand(g: &mut Game, owner: usize, list: Vec<u16>, broken: bool)
         }
         g.ps[owner].hand.push(s.card);
         to_hand.push(s.card.uid);
+        for c in under {
+            g.ps[owner].hand.push(c);
+            to_hand.push(c.uid);
+        }
     }
     if left {
         push(g, Fx::Zrush { p: owner });
@@ -886,7 +1298,11 @@ pub fn shields_to_hand(g: &mut Game, owner: usize, list: Vec<u16>, broken: bool)
     }
 }
 
-fn trigger_kind(c: C) -> Option<u8> {
+fn trigger_kind(g: &Game, owner: usize, c: C) -> Option<u8> {
+    // ウィリデ：相手のクリーチャーが3体以上あれば、シールドゾーンにあるこれに S・トリガー（113.6b）
+    if c == C::Willide && g.ps[1 - owner].battle.len() >= 3 {
+        return Some(0);
+    }
     let d = def(c);
     if d.main.kw & K_STRIG != 0 || d.spell.map(|s| s.kw & K_STRIG != 0).unwrap_or(false) {
         return Some(0);
@@ -903,16 +1319,27 @@ pub fn use_trigger(g: &mut Game, owner: usize, uid: u16, what: u8) {
         0 => {
             // S・トリガー：コストを支払わずに召喚／唱える
             let d = def(c);
-            let spell_side = if d.main.kw & K_STRIG != 0 { 0 } else { 1 };
+            let spell_side = if d.main.kw & K_STRIG == 0 && d.spell.map(|s| s.kw & K_STRIG != 0).unwrap_or(false) { 1 } else { 0 };
             let s = side_of(c, spell_side);
-            let card = g.take_hand(owner, uid).unwrap();
             if s.kind == Kind::Spell {
+                let card = g.take_hand(owner, uid).unwrap();
                 if can_cast_spell(g, owner, s.cost) {
                     cast(g, owner, card, spell_side, true);
                 } else {
                     g.ps[owner].hand.push(card);
                 }
+            } else if creature_blocked(g, owner) || small_locked(g, owner, c) {
+                // 出せない：手札に残る（46851）
+            } else if d.evo != Evo::None {
+                let o = evo_choices(g, owner, c, 0, 0, false);
+                if o.is_empty() {
+                    return;
+                }
+                let card = g.take_hand(owner, uid).unwrap();
+                g.ps[owner].grave.push(card);
+                g.ask(owner, DK::Effect, o, Q::Custom(EQ { k: K::EvoBase, p: owner, a: uid as i32, b: 2, list: vec![0, 0, 0, 0] }));
             } else {
+                let card = g.take_hand(owner, uid).unwrap();
                 mark_summoned(g, card.uid);
                 enter(g, owner, card, How::FreeSummon, None, 0);
             }
@@ -932,6 +1359,7 @@ pub fn use_trigger(g: &mut Game, owner: usize, uid: u16, what: u8) {
 
 fn cast(g: &mut Game, p: usize, card: Card, side: u8, free: bool) {
     g.ps[p].spells_this_turn += 1;
+    first_event(g, p, side_of(card.c, side).cost);
     if free {
         g.ps[p].no_free_this_turn = true;
     }
@@ -1039,7 +1467,7 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
     // ウラ・ニンジャ・ストライク6
     ninja_check(g, op);
     // ターン・プレイヤーの誘発
-    if !c.ignored {
+    if !c.ign() {
         match c.card.c {
             C::RedZone => kill_weakest(g, op),
             C::Magny | C::Javert => ask(g, K::SmashBurst, p, 0, 0, vec![att]),
@@ -1052,6 +1480,14 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
                 }
             }
             C::Sakki => ask(g, K::SakkiPick, p, 0, 0, vec![att]),
+            C::Everlast => ask(g, K::EverShield, p, 0, 0, vec![]),
+            C::Gorgi => {
+                // 含まれるカードが10枚以上なら勝つ
+                if 1 + c.under.len() >= 10 && !g.ps[op].no_lose {
+                    g.winner = Some(p);
+                    return;
+                }
+            }
             _ => {}
         }
     }
@@ -1062,6 +1498,7 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
             C::DogiGyaku => def(c.card.c).main.civ & (L | N) != 0 && g.power(p, i) >= 8000,
             C::Laffrull => def(c.card.c).main.civ & (L | W) != 0 && is_dragon(c.card.c),
             C::Jogiragon => is_jokers(c.card.c) && cost_of(c.card.c) >= 5,
+            C::Aofesy => cost_of(c.card.c) >= 3 && race(c.card.c) & (R_GIANT | R_MAGIC) != 0,
             _ => false,
         };
         if ok && !rev.iter().any(|&u| hand_card(g, p, u) == Some(h.c)) {
@@ -1071,9 +1508,17 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
     if !rev.is_empty() {
         ask(g, K::RevChange, p, 0, att as i32, rev);
     }
-    if let Some(h) = g.ps[p].hand.iter().find(|h| h.c == C::RedZone) {
-        if g.pay_plan(p, F, 4).is_some() {
-            ask(g, K::DDD, p, h.uid as i32, att as i32, vec![]);
+    if !creature_blocked(g, p) {
+        if let Some(h) = g.ps[p].hand.iter().find(|h| h.c == C::RedZone) {
+            if g.pay_plan(p, F, 4).is_some() {
+                ask(g, K::DDD, p, h.uid as i32, att as i32, vec![]);
+            }
+        }
+        // TAKASUGI の D・D・D [自然(2)]（シネラリアで軽減）
+        if let Some(h) = g.ps[p].hand.iter().find(|h| h.c == C::Takasugi) {
+            if !small_locked(g, p, C::Takasugi) && g.pay_plan(p, N, ddd_taka_cost(g, p)).is_some() {
+                ask(g, K::DDD, p, h.uid as i32, att as i32, vec![1]);
+            }
         }
     }
 }
@@ -1113,7 +1558,7 @@ pub fn attack_end(g: &mut Game, att: u16) {
     }
     let Some(i) = g.find(p, att) else { return };
     let c = g.ps[p].battle[i].clone();
-    if c.ignored {
+    if c.ign() {
         return;
     }
     if c.card.c == C::Dagura && c.hyper {
@@ -1129,7 +1574,7 @@ pub fn attack_end(g: &mut Game, att: u16) {
 pub fn untapped(g: &mut Game, p: usize, list: Vec<u16>) {
     for u in list {
         if let Some(i) = g.find(p, u) {
-            if g.ps[p].battle[i].card.c == C::Kusabira && !g.ps[p].battle[i].ignored {
+            if g.ps[p].battle[i].card.c == C::Kusabira && !g.ps[p].battle[i].ign() {
                 kusabira(g, p, u);
             }
         }
@@ -1154,7 +1599,7 @@ pub fn turn_start(g: &mut Game) {
         }
     }
     // シャコガイル（相手のターンのはじめ）
-    let n = g.ps[op].battle.iter().filter(|x| x.card.c == C::Shacogail && !x.ignored).count();
+    let n = g.ps[op].battle.iter().filter(|x| x.card.c == C::Shacogail && !x.ign()).count();
     for _ in 0..n {
         ask(g, K::Discard, op, 3, 0, vec![]);
         g.stack.push(Task::Draw { p: op, n: 5 });
@@ -1167,7 +1612,7 @@ pub fn turn_end(g: &mut Game) {
     // 非ターン・プレイヤー側（後で解決）
     // PP-「P」と超魂X：相手のターンの終わりに、相手のタップしているクリーチャーがなければ
     if !g.ps[p].battle.iter().any(|x| x.tapped) {
-        let n = g.ps[op].battle.iter().filter(|x| !x.ignored && (x.card.c == C::PPP || x.under.iter().any(|u| u.c == C::PPP))).count();
+        let n = g.ps[op].battle.iter().filter(|x| !x.ign() && (x.card.c == C::PPP || x.under.iter().any(|u| u.c == C::PPP))).count();
         for _ in 0..n {
             ask(g, K::PPPEnd, op, 0, 0, vec![]);
         }
@@ -1187,9 +1632,18 @@ pub fn turn_end(g: &mut Game) {
         }
     }
     // ドギラゴン逆
-    let dogi = g.ps[p].battle.iter().filter(|x| x.card.c == C::DogiGyaku && !x.ignored).count();
+    let dogi = g.ps[p].battle.iter().filter(|x| x.card.c == C::DogiGyaku && !x.ign()).count();
     for _ in 0..dogi {
         ask(g, K::DogiEnd, p, 0, 0, vec![]);
+    }
+    // グリーン・グランドクロス：自分のクリーチャーが相手より多ければ1枚引いてもよい（近似：山札が5枚より多ければ引く）
+    if g.ps[p].battle.len() > g.ps[op].battle.len() {
+        let n = g.ps[p].shields.iter().filter(|s| s.faceup && s.card.c == C::GrandCross).count();
+        for _ in 0..n {
+            if g.ps[p].deck.len() > 5 {
+                g.stack.push(Task::Draw { p, n: 1 });
+            }
+        }
     }
     // ターンの終わりに山札の下へ
     let list: Vec<(u16, u8)> = g.ps[p].battle.iter().filter(|x| x.bottom > 0).map(|x| (x.card.uid, x.bottom)).collect();
@@ -1212,7 +1666,7 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
         Fx::Enter { p, uid } => {
             let Some(i) = g.find(p, uid) else { return };
             let c = g.ps[p].battle[i].card.c;
-            if g.ps[p].battle[i].ignored {
+            if g.ps[p].battle[i].ign() {
                 return;
             }
             if let Some(k) = g.summoned.iter().position(|&u| u == uid) {
@@ -1243,13 +1697,20 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
         }
         Fx::Zrush { p } => {
             for c in g.ps[p].battle.iter_mut() {
-                if (c.card.c == C::Chakra || c.card.c == C::Dagura) && !c.ignored {
+                if (c.card.c == C::Chakra || c.card.c == C::Dagura) && !c.ign() {
                     c.hyper = true;
                 }
             }
         }
         Fx::ShieldPlaced { p, n } => {
-            let k = g.ps[p].battle.iter().filter(|x| x.card.c == C::Chakra && !x.ignored).count() * n as usize;
+            // ザゼ・ゼーン：自分のシールドゾーンにカードが置かれた時（1枚ごと。45467）
+            let zz: Vec<u16> = g.ps[p].battle.iter().filter(|x| x.card.c == C::Zaze && !x.ign()).map(|x| x.card.uid).collect();
+            for _ in 0..n {
+                for &z in zz.iter() {
+                    ask(g, K::ZazeMode, p, 0, 0, vec![z]);
+                }
+            }
+            let k = g.ps[p].battle.iter().filter(|x| x.card.c == C::Chakra && !x.ign()).count() * n as usize;
             for _ in 0..k {
                 let l = targetable(g, 1 - p);
                 if !l.is_empty() {
@@ -1292,7 +1753,7 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
         Fx::TriggerDecl { owner, uids } => {
             for u in uids.into_iter().rev() {
                 if let Some(c) = hand_card(g, owner, u) {
-                    if let Some(w) = trigger_kind(c) {
+                    if let Some(w) = trigger_kind(g, owner, c) {
                         g.stack.push(Task::Ask(Decision {
                             player: owner,
                             kind: DK::Trigger,
@@ -1301,6 +1762,21 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
                         }));
                     }
                 }
+            }
+        }
+        Fx::TakaLook { p } => {
+            let top = top_n(g, p, 4);
+            g.check_state();
+            if !top.is_empty() {
+                let l = stash(g, p, &top);
+                ask(g, K::TakaLook, p, 0, 0, l);
+            }
+        }
+        Fx::FirstEvent { p, cost } => {
+            let op = 1 - p;
+            let n = g.ps[op].battle.iter().filter(|x| x.card.c == C::Willide && !x.ign()).count();
+            for _ in 0..n {
+                ask(g, K::WillideDraw, op, 0, cost as i32, vec![]);
             }
         }
         Fx::MoujaEnd { p, uid } => {
@@ -1489,6 +1965,75 @@ fn options_for(g: &Game, q: &EQ) -> Vec<Opt> {
             with_pass(picks(&l))
         }
         K::SakkiAtk | K::LaffChange | K::ChooseRepl | K::FujiPick | K::EvoBase => vec![Opt::Pass],
+        // ---- 2026-11-26 追加 ----
+        K::SaintRepl | K::WillideDraw => yn,
+        K::ZazeMode => {
+            let mut v = vec![Opt::Mode(0)];
+            if !targetable(g, op).is_empty() {
+                v.push(Opt::Mode(1));
+            }
+            v.push(Opt::Mode(2));
+            v
+        }
+        K::EverShield => {
+            // 相手のクリーチャー（選べるもの）と自分のクリーチャー、または山札の上
+            let mut l = targetable(g, op);
+            l.extend(uids(g, p));
+            let mut v = with_pass(picks(&l));
+            if !g.ps[p].deck.is_empty() {
+                v.push(Opt::Mode(0));
+            }
+            v
+        }
+        K::WillidePut => {
+            let l: Vec<u16> = g.ps[p].hand.iter().filter(|c| is_creature_card(c.c) && def(c.c).evo != Evo::Evo && cost_of(c.c) as i32 <= q.b).map(|c| c.uid).collect();
+            with_pass(picks(&l))
+        }
+        K::EmoName => {
+            let me = q.list[0];
+            let mut v: Vec<Opt> = vec![];
+            for pp in [op, p] {
+                for x in g.ps[pp].battle.iter() {
+                    let o = Opt::Mode(x.card.c as u8);
+                    if x.card.uid != me && x.card.c != C::Emotional && !v.contains(&o) {
+                        v.push(o);
+                    }
+                }
+            }
+            with_pass(v)
+        }
+        K::GorgiReturn => {
+            if q.a <= 0 {
+                return vec![Opt::Pass];
+            }
+            with_pass(picks(&g.ps[p].mana.iter().map(|m| m.card.uid).collect::<Vec<_>>()))
+        }
+        K::CanzoneRaid => {
+            let l: Vec<u16> = q.list.iter().copied().filter(|&u| deck_card(g, p, u).map(|c| (is_creature_card(c) && def(c).main.civ & (L | W | N) != 0) || c == C::Jasmine).unwrap_or(false)).collect();
+            with_pass(picks(&l))
+        }
+        K::CanzoneShield => {
+            let l: Vec<u16> = q.list.iter().copied().filter(|&u| g.find(op, u).is_some()).collect();
+            with_pass(picks(&l))
+        }
+        K::CanzoneDeath => {
+            let l: Vec<u16> = g.ps[p].battle.iter().filter(|x| def(x.card.c).evo != Evo::None).map(|x| x.card.uid).collect();
+            with_pass(picks(&l))
+        }
+        K::AkanePick => {
+            let mut v = vec![];
+            for (k, &u) in q.list.iter().enumerate() {
+                if deck_card(g, p, u).is_some() {
+                    v.push(Opt::Pick(u));
+                    v.push(Opt::Mode(k as u8));
+                }
+            }
+            v
+        }
+        K::TakaLook => {
+            let l: Vec<u16> = q.list.iter().copied().filter(|&u| deck_card(g, p, u).map(is_creature_card).unwrap_or(false)).collect();
+            with_pass(picks(&l))
+        }
     }
 }
 
@@ -1508,12 +2053,28 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
     let pick = if let Opt::Pick(u) = o { Some(u) } else { None };
     match q.k {
         K::EvoBase => {
+            // list = [支払うか, 面, how, 攻撃中のクリーチャー(D・D・D)]。b: 0=召喚 1=J・O・E 2=コストなしの召喚
             let uid = q.a as u16;
-            let how = q.b as u8;
             let Some(gi) = g.ps[p].grave.iter().position(|c| c.uid == uid) else { return };
+            let c = g.ps[p].grave[gi].c;
+            if q.list.first() == Some(&1) {
+                let (cost, civ) = play_cost_b(g, p, c, q.list[1] as u8, q.list[2] as u8, pick);
+                let Some(plan) = g.pay_plan(p, civ, cost) else {
+                    let card = g.ps[p].grave.remove(gi);
+                    g.ps[p].hand.push(card);
+                    return;
+                };
+                g.pay(p, &plan);
+            }
             let card = g.ps[p].grave.remove(gi);
             mark_summoned(g, uid);
-            enter(g, p, card, How::Summon, pick, if how == 1 { 2 } else { 0 });
+            let how = if q.b == 2 { How::FreeSummon } else { How::Summon };
+            enter(g, p, card, how, pick, if q.b == 1 { 2 } else { 0 });
+            // D・D・D で攻撃中のクリーチャーに重ねた場合は攻撃を続ける
+            let att = q.list.get(3).copied().unwrap_or(0);
+            if att != 0 && pick == Some(att) && g.find(p, uid).is_some() {
+                retarget_attacker(g, att, uid);
+            }
         }
         K::Kiyuri => {
             // 選んだカードは一時置き場へ。残りを山札の下に置いてから、まとめて出す
@@ -1564,12 +2125,14 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
         }
         K::DaguraShield => {
             if let Some(u) = pick {
-                if let Some(si) = g.ps[p].shields.iter().position(|s| s.card.uid == u) {
-                    let s = g.ps[p].shields.remove(si);
+                if let Some((s, under)) = take_shield(g, p, u) {
                     if s.faceup && def(s.card.c).main.kind == Kind::GCastle {
                         g.ps[p].grave.push(s.card);
                     } else {
                         g.put_mana(p, s.card, false);
+                    }
+                    for c in under {
+                        g.put_mana(p, c, false);
                     }
                     push(g, Fx::Zrush { p });
                 }
@@ -1690,13 +2253,13 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
         }
         K::ReturnShield => {
             if let Some(u) = pick {
-                if let Some(si) = g.ps[p].shields.iter().position(|s| s.card.uid == u) {
-                    let s = g.ps[p].shields.remove(si);
+                if let Some((s, under)) = take_shield(g, p, u) {
                     if s.faceup && def(s.card.c).main.kind == Kind::GCastle {
                         g.ps[p].grave.push(s.card);
                     } else {
                         g.ps[p].hand.push(s.card);
                     }
+                    g.ps[p].hand.extend(under);
                     push(g, Fx::Zrush { p });
                 }
             }
@@ -1814,14 +2377,9 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
         K::MoujaCre => {
             // シールド1つ・クリーチャー1体・手札1枚（見ないで）を墓地へ
             let su = q.list.first().copied().unwrap_or(0);
-            if let Some(si) = g.ps[op].shields.iter().position(|s| s.card.uid == su) {
-                let s = g.ps[op].shields.remove(si);
+            if let Some((s, under)) = take_shield(g, op, su) {
                 g.ps[op].grave.push(s.card);
-                for c in g.ps[op].battle.iter_mut() {
-                    if c.exlife == Some(su) {
-                        c.exlife = None;
-                    }
-                }
+                g.ps[op].grave.extend(under);
                 push(g, Fx::Zrush { p: op });
             }
             if let Some(u) = pick {
@@ -1981,6 +2539,7 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
                     if can_cast_spell(g, p, s.cost) {
                         g.ps[p].spells_this_turn += 1;
                         g.ps[p].no_free_this_turn = true;
+                        first_event(g, p, s.cost);
                         spell_effect(g, p, c, 1);
                     }
                 }
@@ -1994,7 +2553,17 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
         }
         K::DDD => {
             if o == Opt::Yes {
-                ask(g, K::DDDBase, p, q.a, q.b, vec![]);
+                if q.list.first() == Some(&1) {
+                    // TAKASUGI：支払ってから進化元を選ぶ
+                    let Some(plan) = g.pay_plan(p, N, ddd_taka_cost(g, p)) else { return };
+                    let Some(card) = g.take_hand(p, q.a as u16) else { return };
+                    g.pay(p, &plan);
+                    let o = evo_choices(g, p, C::Takasugi, 0, 0, false);
+                    g.ps[p].grave.push(card);
+                    g.ask(p, DK::Effect, o, Q::Custom(EQ { k: K::EvoBase, p, a: q.a, b: 0, list: vec![0, 0, 0, q.b as u16] }));
+                } else {
+                    ask(g, K::DDDBase, p, q.a, q.b, vec![]);
+                }
             }
         }
         K::DDDBase => {
@@ -2009,6 +2578,150 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
             }
         }
         K::SakkiAtk | K::LaffChange | K::ChooseRepl | K::FujiPick => {}
+        // ---- 2026-11-26 追加 ----
+        K::SaintRepl => {
+            if o == Opt::Yes {
+                // 積んであるブレイク（または全部ブレイク）を、セイント・キャッスル1つのブレイクに置き換える
+                let su = q.a as u16;
+                if g.ps[p].shields.iter().any(|s| s.card.uid == su) {
+                    if matches!(g.stack.last(), Some(Task::Break { .. }) | Some(Task::ShieldsToHand { .. })) {
+                        g.stack.pop();
+                    }
+                    g.saint = Some(su);
+                    g.stack.push(Task::ShieldsToHand { owner: p, uids: vec![su], broken: true });
+                }
+            }
+        }
+        K::ZazeMode => {
+            let z = q.list[0];
+            if let Some(i) = g.find(p, z) {
+                g.ps[p].battle[i].tapped = false;
+            }
+            match o {
+                Opt::Mode(0) => {
+                    g.draw1(p);
+                }
+                Opt::Mode(1) => {
+                    let l = targetable(g, op);
+                    if !l.is_empty() {
+                        ask(g, K::ChakraTap, p, 0, 0, l);
+                    }
+                }
+                _ => {
+                    if let Some(i) = g.find(p, z) {
+                        g.ps[p].battle[i].stay = true;
+                    }
+                }
+            }
+        }
+        K::EverShield => match o {
+            Opt::Pick(u) => {
+                if let Some((pp, _)) = g.find_any(u) {
+                    leave(g, pp, u, Dest::Shield, pp != p);
+                }
+            }
+            Opt::Mode(0) => {
+                shieldify_top(g, p);
+            }
+            _ => {}
+        },
+        K::WillideDraw => {
+            if o == Opt::Yes {
+                g.draw1(p);
+            }
+            ask(g, K::WillidePut, p, 0, q.b, vec![]);
+        }
+        K::WillidePut => {
+            if let Some(u) = pick {
+                if let Some(card) = g.take_hand(p, u) {
+                    enter(g, p, card, How::Put, None, 0);
+                }
+            }
+        }
+        K::EmoName => {
+            if let Opt::Mode(ci) = o {
+                if let Some(i) = g.find(p, q.list[0]) {
+                    g.ps[p].battle[i].emo = Some(all()[ci as usize]);
+                }
+                recompute_emo(g);
+            }
+        }
+        K::GorgiReturn => {
+            if let Some(u) = pick {
+                if let Some(c) = g.take_mana(p, u) {
+                    g.ps[p].hand.push(c);
+                }
+                if q.a > 1 {
+                    ask(g, K::GorgiReturn, p, q.a - 1, 0, vec![]);
+                }
+            }
+        }
+        K::CanzoneRaid => {
+            if let Some(u) = pick {
+                let card = take_deck(g, p, u).unwrap();
+                if let Some(i) = g.find(p, q.b as u16) {
+                    g.ps[p].battle[i].under.push(card);
+                } else {
+                    g.ps[p].deck.insert(0, card);
+                }
+            }
+            let rest: Vec<u16> = q.list.iter().copied().filter(|&x| Some(x) != pick).collect();
+            send_looked_to_bottom(g, p, &rest);
+        }
+        K::CanzoneShield => {
+            if let Some(u) = pick {
+                leave(g, op, u, Dest::Shield, true);
+            }
+        }
+        K::CanzoneDeath => {
+            let mut cards = vec![];
+            for &u in q.list.iter() {
+                if let Some(gi) = g.ps[p].grave.iter().position(|c| c.uid == u) {
+                    cards.push(g.ps[p].grave.remove(gi));
+                }
+            }
+            if cards.is_empty() {
+                return;
+            }
+            match pick.and_then(|u| g.find(p, u)) {
+                Some(i) => g.ps[p].battle[i].under.extend(cards),
+                None => {
+                    if fujin_blocks(g, p) {
+                        g.ps[p].grave.extend(cards);
+                    } else {
+                        shield_stack(g, p, cards, true);
+                    }
+                }
+            }
+        }
+        K::AkanePick => {
+            let chosen = match o {
+                Opt::Pick(u) => Some((u, false)),
+                Opt::Mode(k) => q.list.get(k as usize).map(|&u| (u, true)),
+                _ => None,
+            };
+            if let Some((u, to_mana)) = chosen {
+                if let Some(card) = take_deck(g, p, u) {
+                    if to_mana {
+                        g.put_mana(p, card, false);
+                    } else {
+                        g.ps[p].hand.push(card);
+                    }
+                }
+                let rest: Vec<u16> = q.list.iter().copied().filter(|&x| x != u).collect();
+                send_looked_to_bottom(g, p, &rest);
+            } else {
+                send_looked_to_bottom(g, p, &q.list);
+            }
+        }
+        K::TakaLook => {
+            if let Some(u) = pick {
+                let c = take_deck(g, p, u).unwrap();
+                g.ps[p].hand.push(c);
+            }
+            let rest: Vec<u16> = q.list.iter().copied().filter(|&x| Some(x) != pick).collect();
+            send_looked_to_bottom(g, p, &rest);
+        }
     }
 }
 
@@ -2020,7 +2733,7 @@ fn rev_change(g: &mut Game, p: usize, att: u16, hand_uid: u16) {
     if enter_replacement(g, p, c, How::Put).is_some() {
         return;
     }
-    if g.ps[p].creature_limit_next_turn && g.ps[p].entered_this_turn >= 1 {
+    if creature_blocked(g, p) {
         return;
     }
     let old = g.ps[p].battle.remove(i);
@@ -2029,7 +2742,9 @@ fn rev_change(g: &mut Game, p: usize, att: u16, hand_uid: u16) {
         g.ps[p].hand.push(u);
     }
     let card = g.take_hand(p, hand_uid).unwrap();
+    g.revch.push(hand_uid);
     enter(g, p, card, How::Put, None, 0);
+    g.revch.retain(|&u| u != hand_uid || g.stack.iter().any(|t| matches!(t, Task::Fx(Fx::Enter { uid, .. }) if *uid == hand_uid)));
     if let Some(j) = g.find(p, hand_uid) {
         g.ps[p].battle[j].tapped = true; // 攻撃状態を引き継ぐ
     }

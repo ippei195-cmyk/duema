@@ -32,6 +32,16 @@ pub struct Cre {
     pub bottom: u8,          // ターンの終わりに山札の下へ（1=引かない 2=1枚引く：J・O・E 3=メラベンチャー）
     pub keep: Vec<u16>,      // アイアン・マンハッタン：ブレイクしないシールド
     pub entered: u32,
+    pub stay: bool,          // ザゼ・ゼーン／コハク：次の自分のターンのはじめまで離れない（どの効果でもバトルでも）
+    pub emo_ign: bool,       // エモーショナル・ハードコアで能力を無視されている（毎回計算し直す）
+    pub emo: Option<C>,      // エモーショナル・ハードコアが選んだ名前
+}
+
+impl Cre {
+    /// 能力が無視されているか
+    pub fn ign(&self) -> bool {
+        self.ignored || self.emo_ign
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -65,6 +75,11 @@ pub struct Player {
     pub spell_lock_until: u32, // ラフルル：このターン番号の終わりまで呪文を唱えられない
     pub creature_limit_next_turn: bool, // マンハッタン：次のターン、2体以上出せない
     pub entered_this_turn: u8,
+    pub tama: Vec<Card>,            // バトルゾーンのタマシード（ジャスミンの地版）
+    pub sh_under: Vec<(u16, Card)>, // 重なったシールドの下のカード（上のシールドの uid, カード）
+    pub gc_used: u8,                // グリーン・グランドクロスの軽減をこのターン使った回数
+    pub first_done: bool,           // このターン、はじめてのエレメント／呪文がもう出たか（ウィリデ用）
+    pub small_lock_turn: u32,       // 5000VT：このターン番号の間、パワー5000以下のクリーチャーを出せない
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -158,6 +173,8 @@ pub struct Game {
     pub summoned: Vec<u16>,
     pub limbo: Vec<Card>, // 効果の途中で一時的に置いているカード（キユリ）
     pub steps: u32,
+    pub revch: Vec<u16>,       // 革命チェンジで出たクリーチャー（アオフェシー）
+    pub saint: Option<u16>,    // セイント・キャッスルの置換で今ブレイクしているシールド
 }
 
 pub const MAX_TURNS: u32 = 80;
@@ -181,6 +198,8 @@ impl Game {
             summoned: vec![],
             limbo: vec![],
             steps: 0,
+            revch: vec![],
+            saint: None,
         };
         for (p, d) in [deck0, deck1].iter().enumerate() {
             for &c in d.iter() {
@@ -229,9 +248,10 @@ impl Game {
         if self.winner.is_some() {
             return;
         }
+        crate::effects::recompute_emo(self);
         for p in 0..2 {
             for i in 0..self.ps[p].battle.len() {
-                if self.power(p, i) <= 0 {
+                if self.power(p, i) <= 0 && !self.ps[p].battle[i].stay {
                     let uid = self.ps[p].battle[i].card.uid;
                     if !self.stack.iter().any(|t| matches!(t, Task::Destroy { uid: u, .. } if *u == uid)) {
                         self.stack.push(Task::Destroy { p, uid, by_opp: false });
@@ -272,7 +292,6 @@ impl Game {
                 }
                 let p = &mut self.ps[tp];
                 p.charged = false;
-                p.spells_this_turn = 0;
                 p.once = 0;
                 p.no_lose = false;
                 p.entered_this_turn = 0;
@@ -280,6 +299,12 @@ impl Game {
                 self.ps[1 - tp].no_free_this_turn = false;
                 self.ps[1 - tp].entered_this_turn = 0;
                 self.ps[1 - tp].once = 0;
+                // 「各ターン」の数（一音の妖精・グランドクロス・ウィリデ）は両方のプレイヤーで数え直す
+                for q in self.ps.iter_mut() {
+                    q.spells_this_turn = 0;
+                    q.gc_used = 0;
+                    q.first_done = false;
+                }
                 // 「次の自分のターンのはじめまで」の効果が切れる
                 for c in self.ps[tp].battle.iter_mut() {
                     c.hyper = false;
@@ -291,6 +316,7 @@ impl Game {
                 for c in self.ps[tp].battle.iter_mut() {
                     c.no_leave = false;
                     c.jd = false;
+                    c.stay = false;
                 }
                 self.stack.push(Task::TurnEnd);
                 self.stack.push(Task::EndTriggers);
@@ -304,7 +330,9 @@ impl Game {
             Task::Untap => {
                 let mut untapped = vec![];
                 for c in self.ps[tp].battle.iter_mut() {
-                    if !c.no_untap {
+                    // ザゼ・ゼーン：自分のターンのはじめにアンタップしない
+                    let zaze = c.card.c == C::Zaze && !c.ign();
+                    if !c.no_untap && !zaze {
                         if c.tapped {
                             untapped.push(c.card.uid);
                         }
@@ -418,6 +446,8 @@ impl Game {
                                 let n = self.breaker(tp, att);
                                 self.stack.push(Task::Break { owner: op, n, by: Some(att) });
                             }
+                            // セイント・キャッスル：かわりにこのシールドをブレイクさせてもよい
+                            crate::effects::saint_check(self, op);
                         }
                     }
                 }
@@ -566,7 +596,7 @@ impl Game {
         if c.sa {
             k |= K_SA;
         }
-        if c.ignored {
+        if c.ign() {
             return 0;
         }
         k | crate::effects::extra_kw(self, p, c)
@@ -652,7 +682,7 @@ impl Game {
         self.ps[p].hand.push(c);
         if self.ps[p].deck.is_empty() {
             // 山札の最後の1枚を引いた：シャコガイルがいれば勝ち、いなければ山札0で負け
-            if self.ps[p].battle.iter().any(|c| c.card.c == C::Shacogail && !c.ignored) {
+            if self.ps[p].battle.iter().any(|c| c.card.c == C::Shacogail && !c.ign()) {
                 self.winner = Some(p);
                 return false;
             }
@@ -776,6 +806,9 @@ impl Game {
             bottom: 0,
             keep: vec![],
             entered: self.turn,
+            stay: false,
+            emo_ign: false,
+            emo: None,
         }
     }
 
@@ -783,6 +816,7 @@ impl Game {
         let q = &self.ps[p];
         q.deck.len() + q.hand.len() + q.mana.len() + q.shields.len() + q.grave.len()
             + q.battle.iter().map(|c| 1 + c.under.len()).sum::<usize>()
+            + q.tama.len() + q.sh_under.len()
             + if p == self.tp { self.limbo.len() } else { 0 }
     }
 }

@@ -1,4 +1,4 @@
-//! 学習用3デッキ（2026-11-24 一平のデッキシート）に入っている40種類のカード定義。
+//! 学習用5デッキ（2026-11-24・11-26 一平のデッキシート）に入っている58種類のカード定義。
 //! 効果文は /mnt/project-files/alphazero/card-texts.md、裁定は 裁定メモ.md。
 
 pub const L: u8 = 1; // 光
@@ -14,6 +14,9 @@ pub const R_JOKERS: u16 = 2;
 pub const R_SEITOKAI: u16 = 4; // 生徒会組
 pub const R_ABYSS: u16 = 8;
 pub const R_COMMAND: u16 = 16;
+pub const R_GIANT: u16 = 32;
+pub const R_MAGIC: u16 = 64;
+pub const R_ORACLE: u16 = 128;
 
 // キーワード
 pub const K_BLOCKER: u32 = 1;
@@ -31,6 +34,7 @@ pub enum Kind {
     Creature,
     Spell,
     GCastle,
+    Tama, // タマシード
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -76,14 +80,20 @@ pub enum C {
     Hustle, Gyakuten, Javert, Gyai, Gaiash, DogiGyaku, Ash, Suzu, Van, DarkMasters, Kernel, Sozanmaru, Laffrull, Kusabira, Shacogail, Madan,
     // ジョーカーズ
     JoJoJo, Magny, Fujisan, Slotton, Brand, Jogimera, Melaventure, Jogiragon, Moujakinga, Niyani, Kesshin, Sakki, Manhattan,
+    // 白緑ウィリデ（2026-11-26 追加）
+    SaintCastle, Zaze, Ichion, Everlast, GrandCross, Willide, Emotional,
+    // ゴルギーオージャー（2026-11-26 追加）
+    Gorgi, Canzone, Akane, Heracles, Takasugi, Jasmine, Kohaku, Gindan, Aofesy, Cineraria, Vt5000,
 }
-pub const NCARDS: usize = 40;
+pub const NCARDS: usize = 58;
 
 pub fn all() -> [C; NCARDS] {
     use C::*;
     [Kiyuri, Humpty, Caddy, Magnum, Chakra, Dagura, RedZone, PPP, Fujin, Antiham, Cotton,
      Hustle, Gyakuten, Javert, Gyai, Gaiash, DogiGyaku, Ash, Suzu, Van, DarkMasters, Kernel, Sozanmaru, Laffrull, Kusabira, Shacogail, Madan,
-     JoJoJo, Magny, Fujisan, Slotton, Brand, Jogimera, Melaventure, Jogiragon, Moujakinga, Niyani, Kesshin, Sakki, Manhattan]
+     JoJoJo, Magny, Fujisan, Slotton, Brand, Jogimera, Melaventure, Jogiragon, Moujakinga, Niyani, Kesshin, Sakki, Manhattan,
+     SaintCastle, Zaze, Ichion, Everlast, GrandCross, Willide, Emotional,
+     Gorgi, Canzone, Akane, Heracles, Takasugi, Jasmine, Kohaku, Gindan, Aofesy, Cineraria, Vt5000]
 }
 
 pub fn def(c: C) -> &'static CardDef {
@@ -135,6 +145,26 @@ pub static DEFS: [CardDef; NCARDS] = [
     CardDef { id: "dmex19-003", main: side!("勝熱と弾丸と自由の決断", Spell, ZERO, 4, 0, R_JOKERS, 0), spell: None, hyper: None, evo: Evo::None },
     CardDef { id: "dmrp04s-s01", main: side!("最終兵ッキー", Creature, ZERO, 5, 5000, R_JOKERS, 0), spell: None, hyper: None, evo: Evo::None },
     CardDef { id: "dmrp05-s08", main: side!("アイアン・マンハッタン", Creature, F, 9, 8000, R_JOKERS, K_SA | K_WB), spell: None, hyper: None, evo: Evo::None },
+
+    CardDef { id: "dm26rp1-057", main: side!("我竜塔第一層 セイント・キャッスル", GCastle, L, 1, 0, NONE, 0), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm24rp3-S02", main: side!("楯教の求道者 ザゼ・ゼーン", Creature, L, 2, 8000, NONE, K_BLOCKER | K_WB), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm25rp2-012", main: side!("一音の妖精", Creature, L, 2, 2500, R_GIANT, K_GSTRIKE), spell: None, hyper: None, evo: Evo::Neo },
+    CardDef { id: "dm26rp2-S002", main: side!("天V王 エバーラスト", Creature, L, 7, 12000, R_DRAGON | R_COMMAND, K_BLOCKER | K_TB), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm26rp1-024", main: side!("魂が休む庭園 グリーン・グランドクロス", GCastle, L | N, 2, 0, NONE, 0), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm24rp1-S02", main: side!("ウィリデ・ゴル・ゲルス", Creature, L, 6, 8000, R_COMMAND, K_BLOCKER | K_WB), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dmex12-s04", main: side!("神聖龍 エモーショナル・ハードコア", Creature, L, 7, 9500, R_DRAGON | R_ORACLE, K_BLOCKER | K_WB), spell: None, hyper: None, evo: Evo::None },
+
+    CardDef { id: "dm25rp2-S07", main: side!("轟䡛合体 ゴルギーオージャー", Creature, L | W | N, 9, 14500, R_DRAGON, K_BLOCKER | K_MACH | K_TB), spell: None, hyper: None, evo: Evo::GNeo },
+    CardDef { id: "dm25rp2-S01", main: side!("華謡の精霊カンツォーネ", Creature, L, 4, 5500, R_MAGIC | R_COMMAND, K_BLOCKER), spell: None, hyper: None, evo: Evo::Neo },
+    CardDef { id: "dm25rp4-050", main: side!("大集合！アカネ&アサギ&コハク", Creature, L | W | N, 3, 3000, R_GIANT, 0), spell: None, hyper: None, evo: Evo::Neo },
+    CardDef { id: "dm25rp2-024", main: side!("観覧！ホールインランド・ヘラクレス", Creature, L | W | N, 4, 6000, R_GIANT, K_BLOCKER | K_WB), spell: None, hyper: None, evo: Evo::Neo },
+    CardDef { id: "dm25rp3-049", main: side!("TAKASUGI-死合乱闘3000", Creature, N, 3, 4000, R_GIANT, 0), spell: None, hyper: None, evo: Evo::Neo },
+    CardDef { id: "dmsd20-015", main: side!("ジャスミンの地版", Tama, N, 2, 0, NONE, 0), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm25rp2-013", main: side!("ソウルサンライト コハク", Creature, L, 2, 2000, R_GIANT, 0), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm25rp4-030", main: side!("吟弾の妖精", Creature, L, 3, 3500, R_GIANT, K_STRIG), spell: None, hyper: None, evo: Evo::Neo },
+    CardDef { id: "dm23rp4-014", main: side!("巨魔天 アオフェシー", Creature, W, 4, 6000, R_GIANT | R_MAGIC, K_WB), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm23rp4-030", main: side!("アシステスト・シネラリア", Creature, W, 3, 2000, R_GIANT, 0), spell: None, hyper: None, evo: Evo::None },
+    CardDef { id: "dm23ex1-003", main: side!("飛翔龍 5000VT", Creature, W, 8, 12000, R_MAGIC, K_JUSTDIVER | K_TB), spell: None, hyper: None, evo: Evo::None },
 ];
 
 pub fn by_id(id: &str) -> Option<C> {
@@ -148,6 +178,8 @@ pub fn deck(name: &str) -> Vec<C> {
         "leasebike" => &[(4, Kiyuri), (4, Humpty), (4, Caddy), (1, Magnum), (4, Chakra), (4, Dagura), (4, RedZone), (4, PPP), (3, Fujin), (4, Antiham), (4, Cotton)],
         "hustle" => &[(4, Hustle), (4, Gyakuten), (4, Javert), (4, Gyai), (3, Gaiash), (3, DogiGyaku), (4, Ash), (2, Suzu), (1, Van), (1, DarkMasters), (4, Kernel), (2, Sozanmaru), (1, Laffrull), (1, Kusabira), (1, Shacogail), (1, Madan)],
         "jokers" => &[(4, JoJoJo), (4, Magny), (4, Fujisan), (4, Slotton), (4, Brand), (4, Jogimera), (4, Melaventure), (4, Jogiragon), (2, Moujakinga), (3, Niyani), (1, Kesshin), (1, Sakki), (1, Manhattan)],
+        "willide" => &[(1, SaintCastle), (4, Zaze), (4, Chakra), (4, Hustle), (1, Ichion), (2, Everlast), (4, DogiGyaku), (3, Cotton), (4, Gyai), (4, Caddy), (4, GrandCross), (4, Willide), (1, Emotional)],
+        "gorgi" => &[(4, Gorgi), (3, Canzone), (4, Akane), (4, Heracles), (4, Ichion), (3, Takasugi), (4, Jasmine), (4, Kohaku), (1, Gindan), (4, Aofesy), (3, Cineraria), (1, Vt5000), (1, Shacogail)],
         _ => panic!("unknown deck {name}"),
     };
     let mut v = Vec::new();
@@ -160,4 +192,4 @@ pub fn deck(name: &str) -> Vec<C> {
     v
 }
 
-pub const DECKS: [&str; 3] = ["leasebike", "hustle", "jokers"];
+pub const DECKS: [&str; 5] = ["leasebike", "hustle", "jokers", "willide", "gorgi"];

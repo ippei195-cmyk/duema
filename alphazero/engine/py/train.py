@@ -6,7 +6,7 @@ import argparse, struct, time
 import numpy as np
 import torch, torch.nn as nn, torch.nn.functional as F
 
-S, O, H, P = 512, 136, 256, 128
+S, O, H, P = 680, 176, 256, 128  # 2026-11-26 5デッキ（58種類）。features.rs の S・O と同じ
 
 
 def read(path):
@@ -66,10 +66,27 @@ def export(net, path):
             f.write(l.bias.detach().cpu().numpy().astype('<f4').tobytes())
 
 
+def load_bin(net, path):
+    """DMN1 形式の重み（transplant で広げたものなど）から読み込む"""
+    b = open(path, 'rb').read()
+    hdr = struct.unpack_from('<5I', b, 0)
+    assert hdr == (0x444d4e31, S, O, H, P), f'{path}: 大きさが違う {hdr}'
+    a = np.frombuffer(b, dtype='<f4', offset=20)
+    pos = 0
+    with torch.no_grad():
+        for l in [net.l1, net.l2, net.v, net.p1, net.p2]:
+            n = l.weight.numel()
+            l.weight.copy_(torch.from_numpy(a[pos:pos + n].copy()).view_as(l.weight)); pos += n
+            n = l.bias.numel()
+            l.bias.copy_(torch.from_numpy(a[pos:pos + n].copy())); pos += n
+    assert pos == len(a)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--data', nargs='+', required=True)
     ap.add_argument('--init')
+    ap.add_argument('--init-bin', help='最初の重みを .bin から（.pt が無い時）')
     ap.add_argument('--out', required=True)
     ap.add_argument('--epochs', type=float, default=2)
     ap.add_argument('--batch', type=int, default=1024)
@@ -87,6 +104,8 @@ def main():
     net = Net().to(dev)
     if a.init:
         net.load_state_dict(torch.load(a.init, map_location=dev))
+    elif a.init_bin:
+        load_bin(net, a.init_bin)
     opt = torch.optim.AdamW(net.parameters(), lr=a.lr, weight_decay=1e-4)
     stT = torch.from_numpy(st).to(dev); zT = torch.from_numpy(z).to(dev)
     opT = torch.from_numpy(op).to(dev); piT = torch.from_numpy(pi).to(dev)

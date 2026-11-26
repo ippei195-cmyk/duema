@@ -8,7 +8,7 @@ use crate::rng::Rng;
 /// 処理中の効果が指している札（並べ直すと壊れるので動かさない）
 fn pinned(g: &Game) -> Vec<u16> {
     let mut v = vec![];
-    let mut eq = |e: &crate::effects::EQ, v: &mut Vec<u16>| {
+    let eq = |e: &crate::effects::EQ, v: &mut Vec<u16>| {
         v.extend(e.list.iter().copied());
         if e.a > 0 && e.a < 65536 { v.push(e.a as u16); }
         if e.b > 0 && e.b < 65536 { v.push(e.b as u16); }
@@ -28,6 +28,10 @@ fn pinned(g: &Game) -> Vec<u16> {
             Q::Shield { picked, .. } => v.extend(picked.iter().copied()),
             Q::None => {}
         }
+    }
+    // 下にカードが重なっているシールド（エバーラスト等でシールド化した進化エレメント）は動かさない
+    for q in &g.ps {
+        v.extend(q.sh_under.iter().map(|x| x.0));
     }
     for t in &g.stack {
         match t {
@@ -100,6 +104,9 @@ fn card_of(g: &Game, uid: u16) -> (u8, u8) {
         }
         if let Some(c) = q.battle.iter().find(|c| c.card.uid == uid) {
             return (c.card.c as u8, z + 2);
+        }
+        if let Some(c) = q.tama.iter().find(|c| c.uid == uid) {
+            return (c.c as u8, z + 7);
         }
         if let Some(m) = q.mana.iter().find(|m| m.card.uid == uid) {
             return (m.card.c as u8, z + 3);
