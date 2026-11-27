@@ -493,6 +493,10 @@ def check(cl, steps, cx):
             return 'choose の max は1以上'
         if st.get('do') == 'look' and re.search(r'相手は自身の山札|相手の山札', cl) and st.get('who') != 'opp':
             return '相手の山札を見るときは who:"opp"'
+        if st.get('do') == 'look' and '山札の上から' not in cl:
+            return '文に「山札の上から」がないのに look があります'
+        if st.get('do') == 'choose' and 'すべて' in cl and '選' not in cl:
+            return '「すべて」は choose ではなく filter で全部にします'
         if st.get('do') == 'draw' and '引' not in cl:
             return '文に「引く」がないのに draw があります'
         if 'costOf' in (st.get('filter') or {}) and re.search(r'以下|以上', cl):
