@@ -1521,10 +1521,23 @@ pub fn enter(g: &mut Game, p: usize, card: Card, how: How, base: Option<u16>, jo
         g.ps[p].drache_done.retain(|&u| u != card.uid);
     }
     // クリン・ラビィ：各ターンに1度、自分のデスパペットが出た時、1枚引いてもよい（近似：山札が5枚より多ければ引く）
-    if race(card.c) & R_PUPPET != 0 && g.ps[p].once & (1 << 16) == 0 && g.ps[p].deck.len() > 5
-        && (card.c == C::Kurin || g.ps[p].battle.iter().any(|x| x.card.c == C::Kurin && !x.ign())) {
-        g.ps[p].once |= 1 << 16;
-        g.stack.push(Task::Draw { p, n: 1 });
+    // 「各ターンに1度」はクリン・ラビィ1体ごと（QA 44212）：まだ使っていないクリン・ラビィそれぞれが1枚引く
+    if race(card.c) & R_PUPPET != 0 && g.ps[p].deck.len() > 5 {
+        let t = g.turn;
+        let mut n = 0;
+        if card.c == C::Kurin && cre.t1 != t {
+            cre.t1 = t;
+            n += 1;
+        }
+        for x in g.ps[p].battle.iter_mut() {
+            if x.card.c == C::Kurin && !x.ign() && x.t1 != t {
+                x.t1 = t;
+                n += 1;
+            }
+        }
+        if n > 0 {
+            g.stack.push(Task::Draw { p, n });
+        }
     }
     g.ps[p].battle.push(cre);
     g.ps[p].entered_this_turn += 1;
@@ -2524,9 +2537,13 @@ pub fn on_attack(g: &mut Game, att: u16, tgt: Tgt) {
     // ウラ・ニンジャ・ストライク6
     ninja_check(g, op);
     // 西方より来る激流の竜騎公：各ターンに一度、クリーチャーが自分を攻撃する時
-    if tgt == Tgt::Player && has(g, op, C::Seihou) && g.ps[op].once & 256 == 0 {
-        g.ps[op].once |= 256;
-        push(g, Fx::SeihouLook { p: op });
+    // 「各ターンに一度」は西方1体ごと（QA 44212）
+    if tgt == Tgt::Player {
+        let t = g.turn;
+        if let Some(k) = g.ps[op].battle.iter().position(|x| x.card.c == C::Seihou && !x.ign() && x.t1 != t) {
+            g.ps[op].battle[k].t1 = t;
+            push(g, Fx::SeihouLook { p: op });
+        }
     }
     // ターン・プレイヤーの誘発
     if !c.ign() {

@@ -664,3 +664,21 @@ fn dogidante_locks_cost7_creatures() {
     let i = g.find(0, dd.uid).unwrap();
     assert!(g.has_kw(0, &g.ps[0].battle[i].clone(), K_SA), "自分の多色クリーチャーに SA");
 }
+
+#[test]
+fn kurin_draw_is_once_per_kurin_per_turn() {
+    // QA 44212：「各ターンに1度」はクリン・ラビィ1体ごと
+    let mut g = blank("giri4c", "bike_meta", 0);
+    let a = take(&mut g, 0, C::Kurin);
+    put_battle(&mut g, 0, a);
+    let h0 = g.ps[0].hand.len();
+    let b = take(&mut g, 0, C::Kurin);
+    enter(&mut g, 0, b, How::Put, None, 0);
+    settle(&mut g);
+    assert_eq!(g.ps[0].hand.len(), h0 + 2, "2体のクリン・ラビィがそれぞれ1枚引く");
+    let c = take(&mut g, 0, C::Kurin);
+    enter(&mut g, 0, c, How::Put, None, 0);
+    settle(&mut g);
+    assert_eq!(g.ps[0].hand.len(), h0 + 3, "使用済みの2体は引かず、新しく出た1体だけ引く");
+    counts_ok(&g);
+}
