@@ -9984,7 +9984,7 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
      ただし削除より後にその端末で編集したデッキは消さずにアカウントへ戻す。
    ・ACCT_CONFIG が空ならログインボタンは出さず、今まで通りブラウザ保存だけ。 */
 (function(){
-const ACCT_CONFIG = null; // Firebase の「ウェブアプリの設定」（apiKey, authDomain, projectId, appId …）をここに入れる
+const ACCT_CONFIG = { apiKey:"AIzaSyCi2Jp1OaiIFLADdFBoQMuQX9vKcyyCfrI", authDomain:"duema-b2ed9.firebaseapp.com", projectId:"duema-b2ed9", storageBucket:"duema-b2ed9.firebasestorage.app", messagingSenderId:"477882082924", appId:"1:477882082924:web:2766daf192e5cb480b1a49" }; // Firebase（ウェブ用の公開設定。本人のデータしか読めないようにルールで制限）
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const LKEY = 'dmsim-decks', HKEY = 'dmsim-hidden-presets', BKEY = 'dmsim-decks-backup';
 const A = window.DMAI_ACCT = { user:null, state:'off', msg:'' };
