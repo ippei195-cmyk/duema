@@ -1,0 +1,136 @@
+[
+ {
+  "id": "dm24ex1-050",
+  "clause": "その捨てた手札と同じコストを持つ相手のクリーチャーを1体選び、破壊する",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "costOf": "$X"
+    },
+    "min": 1,
+    "max": 1,
+    "as": "Y"
+   },
+   {
+    "do": "destroy",
+    "ids": "$Y"
+   }
+  ]
+ },
+ {
+  "id": "dm24ex1-051",
+  "clause": "コスト3以下のクリーチャーを1体、自分の手札から出してもよい",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$MY_HAND",
+    "filter": {
+     "type": "クリーチャー",
+     "maxCost": 3
+    },
+    "min": 0,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "put",
+    "ids": "$X"
+   }
+  ]
+ },
+ {
+  "id": "dm24ex1-051",
+  "clause": "このターン、そのクリーチャーに「スピードアタッカー」を与え、パワーを+3000する",
+  "steps": [
+   {
+    "do": "giveSA",
+    "ids": "$X"
+   },
+   {
+    "do": "power",
+    "ids": "$X",
+    "delta": 3000
+   }
+  ]
+ },
+ {
+  "id": "dm26ex1-N004",
+  "clause": "このターン、そのクリーチャーのパワーを-2000する",
+  "steps": [
+   {
+    "do": "power",
+    "ids": "$X",
+    "delta": -2000
+   }
+  ]
+ },
+ {
+  "id": "dm25ex2-081",
+  "clause": "次の自分のターンのはじめまで、そのクリーチャーは攻撃もブロックもできない",
+  "steps": [
+   {
+    "do": "lock",
+    "ids": "$X"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp1-S03",
+  "clause": "相手は自身の進化ではないクリーチャーをすべて、好きな順序で山札の下に置く",
+  "steps": [
+   {
+    "do": "filter",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "nonEvolution": true
+    },
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "deckBottom"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp2-S07",
+  "clause": "カードを3枚まで自分のマナゾーンから手札に戻す",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$MY_MANA",
+    "min": 0,
+    "max": 3,
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "hand"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp2-024",
+  "clause": "自分のマナゾーンにあるカードを$CONTAINED枚アンタップする",
+  "steps": [
+   {
+    "do": "untapMana",
+    "n": "$CONTAINED"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp4-030",
+  "clause": "次の自分のターンのはじめまで、それらはアンタップしない",
+  "steps": [
+   {
+    "do": "freeze",
+    "ids": "$X"
+   }
+  ]
+ }
+]

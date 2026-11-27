@@ -20,7 +20,24 @@ if '--model' in sys.argv:
     MODEL = sys.argv[sys.argv.index('--model') + 1]
     ARGS = [a for a in ARGS if a != MODEL]
 RULES_ONLY = '--rules-only' in sys.argv
+THINK = '--think' in sys.argv  # Qwen に考えてから答えさせる（遅いが正確になるか試す）
 OLLAMA = 'http://127.0.0.1:11434/api/chat'
+# 採点で合格した「文 → 手順」をためた例文集。似た文の正解を Qwen に見せる（同じカードの例は使わない）
+BANK = []
+if '--bank' in sys.argv:
+    _b = sys.argv[sys.argv.index('--bank') + 1]
+    ARGS = [a for a in ARGS if a != _b]
+    BANK = json.loads(pathlib.Path(_b).read_text(encoding='utf-8'))
+CUR = {'id': None}
+
+
+def similar(cl, k=4):
+    def grams(t):
+        return {t[i:i + 2] for i in range(len(t) - 1)}
+    g = grams(cl)
+    scored = sorted(((len(g & grams(b['clause'])) / (len(g | grams(b['clause'])) or 1), b) for b in BANK if b['id'] != CUR['id']),
+                    key=lambda x: -x[0])
+    return [b for sc, b in scored[:k] if sc > 0.15]
 
 ZEN = str.maketrans('０１２３４５６７８９＋－−，', '0123456789+--,')
 KEYWORDS = ['W・ブレイカー', 'T・ブレイカー', 'Q・ブレイカー', 'ブロッカー', 'マッハファイター', 'スピードアタッカー', 'ジャストダイバー', 'EXライフ',
@@ -66,6 +83,8 @@ def sentences(t):
 
 
 CONT = re.compile(r'^(その後、|その中から|残り|このターン、|次の(自分|相手)のターン|そうしたら|それ|その|相手はそれ|こうして|そのターン、)')
+# 出た時に動くキーワード能力（注釈の中に処理が書いてある）。これがある面の「出た時」は一部しか手順にできないので手書きに任せる
+ETB_KW = re.compile(r'超魂レイド|超魂X|EXライフ')
 TRIG = re.compile(r'このクリーチャーが(バトルゾーンに)?出た時(または攻撃する時)?、')
 
 
@@ -97,6 +116,10 @@ def abilities(card):
             if not m or re.search(r'召喚(によって|して)', s[:m.end()]):
                 if m:
                     skipped.append((side, '召喚した時だけの能力: ' + s))
+                i += 1
+                continue
+            if ETB_KW.search(face) and 'EXライフ' not in face:
+                skipped.append((side, '出た時に動くキーワード能力がある: ' + s))
                 i += 1
                 continue
             if '各ターンに' in s[:m.start()]:
@@ -371,7 +394,7 @@ FMT = {'schema': True}
 def ollama(prompt, schema):
     t = time.time()
     while True:
-        body = json.dumps({'model': MODEL, 'messages': [{'role': 'user', 'content': prompt}], 'stream': False, 'think': False,
+        body = json.dumps({'model': MODEL, 'messages': [{'role': 'user', 'content': prompt}], 'stream': False, 'think': THINK,
                            'format': schema if FMT['schema'] else 'json', 'options': {'temperature': 0, 'num_ctx': 8192}}).encode('utf-8')
         req = urllib.request.Request(OLLAMA, data=body, headers={'Content-Type': 'application/json'})
         try:
@@ -460,7 +483,16 @@ def check(cl, steps, cx):
             return 'move に to がありません'
         if st.get('do') in ('destroy', 'put', 'tap', 'untap', 'freeze', 'noattack', 'lock', 'giveSA', 'power', 'move') and not st.get('ids'):
             return f'{st["do"]} に ids がありません'
+    TOWORD = {'grave': r'墓地|捨て', 'hand': r'手札', 'mana': r'マナ', 'manaTapped': r'マナ', 'shield': r'シールド', 'deckBottom': r'山札の(一番)?下', 'deckTop': r'山札の(一番)?上'}
     for st in steps:
+        if st.get('as') and not re.fullmatch(r'[A-Z]', st['as']):
+            return f'as は大文字1字（X・Y など）。「{st["as"]}」は使えません'
+        if st.get('do') == 'move' and st.get('to') in TOWORD and not re.search(TOWORD[st['to']], cl):
+            return f'文にない置き場（{st["to"]}）へ動かしています'
+        if st.get('do') == 'choose' and isinstance(st.get('max'), int) and st['max'] < 1:
+            return 'choose の max は1以上'
+        if st.get('do') == 'look' and re.search(r'相手は自身の山札|相手の山札', cl) and st.get('who') != 'opp':
+            return '相手の山札を見るときは who:"opp"'
         if st.get('do') == 'draw' and '引' not in cl:
             return '文に「引く」がないのに draw があります'
         if 'costOf' in (st.get('filter') or {}) and re.search(r'以下|以上', cl):
@@ -480,7 +512,8 @@ def check(cl, steps, cx):
 
 def ask_steps(cl, cx, log):
     h = hints(cl, cx)
-    ex = '\n'.join(f'文：{a}\nヒント：{json.dumps(b, ensure_ascii=False)}\n答え：{json.dumps({"steps": c, "cannot": False}, ensure_ascii=False)}' for a, b, c in EXAMPLES)
+    exs = EXAMPLES + [(b['clause'], b.get('hints', {}), b['steps']) for b in similar(cl)]
+    ex = '\n'.join(f'文：{a}\nヒント：{json.dumps(b, ensure_ascii=False)}\n答え：{json.dumps({"steps": c, "cannot": False}, ensure_ascii=False)}' for a, b, c in exs)
     base = f"""あなたはデュエル・マスターズのルール処理係。カードの能力の1文を、ゲームエンジンの手順に変換する。
 {SPEC}
 
@@ -643,6 +676,7 @@ def main():
         abl, skipped = abilities(c)
         for side, why in skipped:
             report.append(f'- {c["name"]}：{why}')
+        CUR['id'] = c['id']
         for ev, side, body in abl:
             log = []
             steps = convert(body, log)
