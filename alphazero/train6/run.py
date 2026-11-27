@@ -4,8 +4,8 @@
 世代ごと：①自己対戦（いま一番強いネット）→ ②学習 → ③一番強いネットと対戦して 55% 以上なら交代
          ④3世代ごとにフェーズ2版（ismcts:300）と先読み1200回で対戦し、80% 以上（540局で確認）で合格。自己対戦は15デッキ（学習用5＋環境デッキ10）。3割はリースバイク・デモニオ・創世竜・ギリガザミ・王道刈のどれかを入れる（focus）。
          15%はギリガザミ・創世竜の決めパターン直前の局面から始め、note の定石を方策の後押しに使う（scenario・bias）。
-         2026-11-27 一平の判断で創世竜・ゴルギー・ゴルギー（環境版）は自己学習から外す（skip_decks）。
-         交代判定は残り12デッキ、合格判定（ismcts:300 に80%）は学習用のうちゴルギーを除く4デッキ（リースバイク・ハッスル・ジョーカーズ・白緑ウィリデ）
+         2026-11-27 一平の判断で創世竜・ゴルギー・ゴルギー（環境版）・ギリガザミは自己学習から外す（skip_decks）。決め直前の局面は対象デッキが無くなったので使わない。
+         交代判定は残り11デッキ、合格判定（ismcts:300 に80%）は学習用のうちゴルギーを除く4デッキ（リースバイク・ハッスル・ジョーカーズ・白緑ウィリデ）
 記録：log.csv（世代ごと）、elo.csv（各ネットのレート）
 古い学習データ（直近10世代より前）と、交代しなかったネットは自動で消す
 """
@@ -17,8 +17,8 @@ SELFPLAY = os.path.join(D, 'selfplay' + EXE)
 ARENA = os.path.join(D, 'arena' + EXE)
 TH = str(max(2, (os.cpu_count() or 4) - 2))
 CFG = dict(games=2000, sims_full=200, sims_fast=40, p_full=0.25, window=6, epochs=2,
-           eval_games=180, eval_sims=200, promote=0.55, phase2_every=3, phase2_games=180, phase2_sims=1200, focus=0.3, focus_decks='0,11,13,14', scenario=0.15, bias=1.0, teach=0, skip_decks='4,9,12',
-           eval_decks='0,1,2,3,5,6,7,8,10,11,13,14', phase2_decks='0,1,2,3',
+           eval_games=180, eval_sims=200, promote=0.55, phase2_every=3, phase2_games=180, phase2_sims=1200, focus=0.3, focus_decks='0,11,14', scenario=0.15, bias=1.0, teach=0, skip_decks='4,9,12,13',
+           eval_decks='0,1,2,3,5,6,7,8,10,11,14', phase2_decks='0,1,2,3',
            keep_samples=10)  # 学習データは直近この世代数だけ残す（学習に使うのは window 世代）
 for d in ['samples', 'nets']:
     os.makedirs(os.path.join(D, d), exist_ok=True)
