@@ -1262,7 +1262,7 @@ const TRIG = {
   turnEnd: /自分のターンの終わりに/,
   destroyed: /このクリーチャーが破壊された時|このタマシードが破壊された時/,
 };
-const EVLABEL = {etb:'出た時', spell:'呪文', attack:'攻撃する時', turnStart:'ターンのはじめ', turnEnd:'ターンの終わり', destroyed:'破壊された時', manaLeave:'マナを離れた時', rev0:'革命0トリガー', allyEnter:'自分のクリーチャーが出た時', oppEnter:'相手のクリーチャーが出た時', allyDragon:'自分のドラゴンが出た時', shieldPlaced:'シールドが置かれた時', cond:'条件を満たした時'};
+const EVLABEL = {etb:'出た時', spell:'呪文', attack:'攻撃する時', turnStart:'ターンのはじめ', turnEnd:'ターンの終わり', destroyed:'破壊された時', manaLeave:'マナを離れた時', rev0:'革命0トリガー', allyEnter:'自分のクリーチャーが出た時', oppEnter:'相手のクリーチャーが出た時', allyDragon:'自分の他のドラゴンが出た時', shieldPlaced:'シールドが置かれた時', cond:'条件を満たした時', attackEnd:'攻撃の終わり', block:'ブロックした時', leave:'離れた時', allyLeave:'自分の他のクリーチャーが離れた時', oppAttack:'相手のクリーチャーが攻撃する時', oppSpell:'相手が呪文を唱えた時', allySpell:'自分が呪文を唱えた時'};
 function optPref(){ return S.optPref || 'ask'; }
 
 function makeCtx(srcUid, p, extra={}){
@@ -1481,7 +1481,6 @@ const SCRIPTS = {
   }},
   '水上第九院 シャコガイル': { async etb(x){ const g = zoneArr(x.p,'grave').slice(); for (const u of g) place(u, 'deck'); x.shuffle(); log(`シャコガイル：墓地の${g.length}枚を山札に加えてシャッフル`, x.p); } },
   '地封院ギャイ＜まかしとき！＞': { async allyDragon(x){
-    const key = 'gyaiM'+x.src; if (S.tf.used[key]) return; S.tf.used[key] = true;
     if (zoneArr(x.p,'deck').length && await x.optional('山札の上から2枚をタップしてマナゾーンに置きますか？')) x.topToMana(2, true);
     const ds = zoneArr(x.p,'mana').filter(isDragonCard);
     if (ds.length && await x.optional('ドラゴン・カードを1枚、マナゾーンから手札に戻しますか？')){
@@ -1547,6 +1546,7 @@ async function resolveEffect(uid, ev, extra={}){
   }
   const rule = ruleOf(s.name, ev);
   if (rule){
+    if (rule.once && rule.mode!=='skip'){ const k = 't1_'+ev; if (c.m[k]===S.turn) return; c.m[k] = S.turn; } // 各ターンに1度（カードごと。出し直したら別のカード）
     stockNote(uid, s, ev);
     if (rule.mode==='skip'){ log(`《${s.name}》の${EVLABEL[ev]}の能力：処理しない設定`, p); return; }
     if (rule.mode==='manual'){ S.pend.me.push({kind:'manual', src:uid, text:`${p==='op'?'（相手の能力）':''}《${s.name}》の${EVLABEL[ev]}の能力を手で処理してください：\n${rule.memo||s.text}`}); log(`《${s.name}》の${EVLABEL[ev]}の能力は手で処理`, p); return; }
@@ -1617,7 +1617,7 @@ JSONだけで答える：{"steps":[...]}`;
 // RULES[カード名][ev] = {mode:'steps'|'manual'|'skip', steps:[...], memo, at}
 let RULES = {}; let rulesDoc = null; let rulesSaving = Promise.resolve();
 const LAST_STEPS = {};
-const RULE_EVS = ['etb','spell','attack','destroyed','turnStart','turnEnd','allyEnter','oppEnter','shieldPlaced','cond'];
+const RULE_EVS = ['etb','spell','attack','attackEnd','block','destroyed','leave','turnStart','turnEnd','allyEnter','allyDragon','allyLeave','oppEnter','oppAttack','oppSpell','allySpell','shieldPlaced','cond'];
 const isDragonCard = u => /ドラゴン/.test(DB[C(u).cid].race||'');
 function ruleOf(name, ev){ return RULES[name]?.[ev] || null; }
 function hasRule(uid, ev){ const c = C(uid); return !!c && c.cid!==HIDDEN_CID && DB[c.cid].sides.some(s => ruleOf(s.name, ev)); }
@@ -1643,7 +1643,8 @@ function setRule(name, ev, r){
 // 自分／相手のクリーチャーが出た時（ギャイ＜まかしとき！＞のような「自分のドラゴンが出た時」も）
 async function allyEnterHooks(uid){
   const c = C(uid); if (!c || c.zone!=='battle' || S.winner || !isCreature(side(c))) return;
-  if (isDragonCard(uid)) for (const g of inBattle(c.owner, x => cname(x).includes('地封院ギャイ＜まかしとき'))) if (!S.tf.used['gyaiM'+g.uid]) await resolveEffect(g.uid, 'allyDragon', {who:uid});
+  // 「各ターンに１度、自分のドラゴンが出た時」（ギャイ・アーシュ・熊田すずなど）：カード1枚ごとにターン1回。出たドラゴン自身では誘発しない（総合ルール110.2c）
+  if (isDragonCard(uid)) for (const g of inBattle(c.owner, x => x.uid!==uid && /各ターンに[1１]度、自分のドラゴンが(バトルゾーンに)?出た時/.test(txt(x)))) if (g.m.t1Dragon !== S.turn){ g.m.t1Dragon = S.turn; await resolveEffect(g.uid, 'allyDragon', {who:uid}); }
   for (const x of inBattle(c.owner)) if (x.uid!==uid && hasRule(x.uid, 'allyEnter')) await resolveEffect(x.uid, 'allyEnter', {who:uid});
   for (const x of inBattle(other(c.owner))) if (hasRule(x.uid, 'oppEnter')) await resolveEffect(x.uid, 'oppEnter', {who:uid});
 }
@@ -1885,18 +1886,22 @@ JSONだけで答える：{"steps":[...]}`;
 async function stepsEditor(s, ev, steps){
   steps = JSON.parse(JSON.stringify(steps || []));
   let conds = JSON.parse(JSON.stringify(ruleOf(s.name, ev)?.conds || []));
+  let once = !!ruleOf(s.name, ev)?.once;
   if (ev==='cond' && !conds.length){ conds = await condsWizard([]) || []; if (!conds.length) return false; }
   for (;;){
     const btns = [{label:'保存', value:'save', primary:true}, {label:'手順を追加', value:'add'}];
     if (ev==='cond') btns.push({label:'条件を直す', value:'conds'});
+    btns.push({label:`各ターンに1度だけ：${once?'する':'しない'}`, value:'once'});
     if (steps.length) btns.push({label:'手順を消す', value:'del'});
     if (sampleFn) btns.push({label:'説明を書いて作り直す', value:'desc'});
     btns.push({label:'JSONで直す（上級）', value:'json'}, {label:'やめる', value:null});
-    const condHtml = ev==='cond' ? `<p><b>いつ：</b>このカードがバトルゾーンにある間に「${esc(condsLine(conds))}」を満たした時（満たしていない状態から満たした時に1回）</p>` : '';
+    const onceHtml = once ? '<p><b>各ターンに1度だけ</b>（カード1枚ごと。離れて出し直したら、また使える）</p>' : '';
+    const condHtml = onceHtml + (ev==='cond' ? `<p><b>いつ：</b>このカードがバトルゾーンにある間に「${esc(condsLine(conds))}」を満たした時（満たしていない状態から満たした時に1回）</p>` : '');
     const v = await modal({title:`《${s.name}》${EVLABEL[ev]}の手順`, html:`<p class="rtx">${esc(s.text)}</p>${condHtml}<div class="rsteps">${stepsHTML(steps)}</div><p class="rtx">上から順に処理します。「保存」すると次からこの手順で処理します。</p>`, buttons:btns});
     if (!v) return false;
     if (v==='conds'){ const c2 = await condsWizard([]); if (c2 && c2.length) conds = c2; continue; }
-    if (v==='save'){ setRule(s.name, ev, {mode:'steps', steps, ...(ev==='cond'?{conds}:{})}); log(`《${s.name}》の${EVLABEL[ev]}の処理を変更しました`); return true; }
+    if (v==='once'){ once = !once; continue; }
+    if (v==='save'){ setRule(s.name, ev, {mode:'steps', steps, ...(ev==='cond'?{conds}:{}), ...(once?{once:true}:{})}); log(`《${s.name}》の${EVLABEL[ev]}の処理を変更しました`); return true; }
     if (v==='add'){ const add = await addStepWizard(steps); if (add) steps.push(...add); }
     if (v==='del'){ const i = await modal({title:'どの手順を消しますか？', buttons:[...steps.map((st,i)=>({label:`${i+1}. ${stepLine(st).slice(0,40)}`, value:i})), {label:'やめる', value:-1}]}); if (i>=0) steps.splice(i,1); }
     if (v==='desc'){
@@ -1920,6 +1925,13 @@ function relevantEvs(s){
   for (const ev of ['etb','attack','destroyed','turnStart','turnEnd']) if (TRIG[ev].test(s.text)) out.push(ev);
   if (/自分の(ドラゴン|クリーチャー)が(バトルゾーンに)?出た時/.test(s.text)) out.push('allyEnter');
   if (/相手の(クリーチャー)が(バトルゾーンに)?出た時/.test(s.text)) out.push('oppEnter');
+  if (/自分の(他の)?ドラゴンが(バトルゾーンに)?出た時/.test(s.text)) out.push('allyDragon');
+  if (/このクリーチャーが(バトルゾーンを)?離れた時/.test(s.text)) out.push('leave');
+  if (/自分の他の[^。、]*が(バトルゾーンを)?離れた時/.test(s.text)) out.push('allyLeave');
+  if (/(このクリーチャーが)?ブロックした時/.test(s.text)) out.push('block');
+  if (/相手が呪文を唱えた時/.test(s.text)) out.push('oppSpell');
+  if (/相手のクリーチャーが攻撃する時/.test(s.text)) out.push('oppAttack');
+  if (/攻撃の終わりに|攻撃した後/.test(s.text)) out.push('attackEnd');
   for (const ev of Object.keys(RULES[s.name]||{})) if (!out.includes(ev)) out.push(ev);
   if (!out.length) out.push(isCreature(s) ? 'etb' : 'spell');
   return out;
@@ -9647,5 +9659,143 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
   });
 })();
 
+</script>
+<script id="etbfx">
+/* 学習デッキの誘発効果の追加（2026-11-27）：アーシュ・熊田すず・ジャストダイバー・ダークマスターズ・ラフルル・ラブ・クサビラガミ・マーダン=ダイロウ */
+(function(){
+  if (window.__etbfx) return; window.__etbfx = true;
+  const wrapF = (n, f) => { const o = window[n]; if (typeof o === 'function') window[n] = f(o); };
+  const nonEvo = c => !(c.under && c.under.length) && !/進化/.test(side(c).type);
+  const isSeitokai = c => /生徒会組/.test(DB[c.cid].race || '');
+  const randDiscard = (who, by) => { const h = zoneArr(who, 'hand'); if (!h.length) return; const u = h[Math.floor(Math.random() * h.length)]; place(u, 'grave'); log(`${by}：${PN[who]}の手札《${cname(C(u))}》を捨てさせた`, other(who)); };
+
+  Object.assign(SCRIPTS, {
+    // 各ターンに１度、自分のドラゴンが出た時、カードを１枚引いてもよい
+    '流星アーシュ＜私が主役': { async allyDragon(x){ if (zoneArr(x.p, 'deck').length && await x.optional('カードを1枚引きますか？')) x.draw(1); } },
+    // 各ターンに１度、自分のドラゴンが出た時、相手の手札を１枚見ないで選び、捨てさせる
+    '熊田すず＜わらわは天才': { async allyDragon(x){ randDiscard(x.q, '熊田すず'); } },
+    // 出た時、相手の手札を見て３枚まで選び、捨てさせる
+    '悪魔龍 ダークマスターズ': { async etb(x){
+      const h = zoneArr(x.q, 'hand').slice(); if (!h.length) return;
+      log(`ダークマスターズ：${PN[x.q]}の手札を見た：${h.map(u => '《' + cname(C(u)) + '》').join('')}`, x.p);
+      const pick = await x.choose({q: '捨てさせるカード（3枚まで）', cands: h, min: Math.min(3, h.length), max: 3, score: u => side(C(u)).cost});
+      for (const u of pick) place(u, 'grave');
+      if (pick.length) log(`ダークマスターズ：${pick.map(u => '《' + cname(C(u)) + '》').join('')}を捨てさせた`, x.p);
+    } },
+    // 出た時、次の相手のターンの終わりまで、相手は呪文を唱えられない
+    '音卿の精霊龍 ラフルル・ラブ': { async etb(x){
+      const until = S.active === x.p ? S.turn + 1 : S.turn;
+      (S.spellLock ||= {})[x.q] = Math.max(S.spellLock[x.q] || 0, until);
+      log(`ラフルル・ラブ：次の${PN[x.q]}のターンの終わりまで、${PN[x.q]}は呪文を唱えられない`, x.p);
+    } },
+    // 召喚によって出た時、または自分のターンのはじめにアンタップした時
+    '土神 クサビラガミ': {
+      async etb(x){ if (x.how === 'summon') await kusabira(x); },
+      async turnStart(x){ if ((S.kusaUntapped || []).includes(x.src)) await kusabira(x); },
+    },
+    // 出た時、それが進化なら相手の進化ではないクリーチャーをすべて山札の下へ。出た時、相手の進化ではないクリーチャーをすべて破壊
+    '大崩壊炉 マーダン=ダイロウ': { async etb(x){
+      if (x.evolved){ const l = inBattle(x.q, nonEvo).map(c => c.uid); if (l.length){ await x.move(l, 'deckBottom'); log(`マーダン=ダイロウ：${PN[x.q]}の進化ではないクリーチャー${l.length}体を山札の下へ`, x.p); } }
+      const d = inBattle(x.q, nonEvo).map(c => c.uid); if (d.length){ await x.destroy(d); log(`マーダン=ダイロウ：${PN[x.q]}の進化ではないクリーチャー${d.length}体を破壊`, x.p); }
+    } },
+  });
+  async function kusabira(x){
+    // 山札の上から２枚までマナゾーンに置く
+    const n = Math.min(2, zoneArr(x.p, 'deck').length);
+    let k = n;
+    if (x.p === 'me' && n){ const i = await x.mode('山札の上から何枚マナゾーンに置きますか？', Array.from({length: n + 1}, (_, i) => `${n - i}枚`)); k = n - i; }
+    if (k) x.topToMana(k, false);
+    if (zoneArr(x.p, 'mana').length < 12) return;
+    const oc = inBattle(x.q, c => isCreature(side(c))).map(c => c.uid);
+    if (oc.length){ const t = await x.choose({q: 'マナゾーンに置く自分のクリーチャーを2体選ぶ', cands: oc, min: Math.min(2, oc.length), max: 2, by: x.q, score: u => -side(C(u)).cost}); await x.move(t, 'mana'); log(`クサビラガミ：${PN[x.q]}はクリーチャー${t.length}体をマナゾーンに置いた`, x.p); }
+    const mc = zoneArr(x.p, 'mana').filter(u => isCreature(DB[C(u).cid].sides[0]));
+    if (mc.length){ const t = await x.choose({q: 'マナゾーンから出すクリーチャー（2体まで）', cands: mc, min: 0, max: 2, score: u => DB[C(u).cid].sides[0].cost}); await x.put(t); }
+  }
+
+  // ターンのはじめ：ジャストダイバーの終わり、クサビラガミの「アンタップした時」
+  wrapF('startTurn', o => async function(p){
+    for (const c of inBattle(p)) delete c.m.jd;
+    S.kusaUntapped = inBattle(p, c => c.tapped && !c.m.frozen && cname(c).includes('土神 クサビラガミ')).map(c => c.uid);
+    return o.apply(this, arguments);
+  });
+  // ジャストダイバー：出た時、次の自分のターンのはじめまで、相手に選ばれず、攻撃されない
+  wrapF('allyEnterHooks', o => async function(uid){
+    const c = C(uid);
+    if (c && c.zone === 'battle' && !NOFX && /(^|[\s　])ジャストダイバー(?!を)/.test(txt(c))){ c.m.jd = c.owner; log(`《${cname(c)}》：ジャストダイバー（次の${PN[c.owner]}のターンのはじめまで、相手に選ばれず、攻撃されない）`, c.owner); }
+    return o.apply(this, arguments);
+  });
+  wrapF('makeCtx', o => function(srcUid, p){
+    const x = o.apply(this, arguments);
+    const ch = x.choose;
+    x.choose = opts => { const by = opts.by || p; return ch({...opts, cands: (opts.cands || []).filter(u => !(C(u) && C(u).zone === 'battle' && C(u).m.jd && C(u).owner !== by))}); };
+    return x;
+  });
+  wrapF('canAttack', o => function(c, target){
+    const r = o.apply(this, arguments); if (r || NOFX) return r;
+    if (target !== 'player' && C(target) && C(target).m.jd) return 'ジャストダイバー（次の持ち主のターンのはじめまで攻撃されない）';
+    // 流星アーシュ：ドラゴンではないクリーチャーは、出たターンに攻撃できない（相手のアーシュはレッドゾーンで無視できる）
+    if (c.enteredT === S.turn && !isDragonCard(c.uid)){
+      const own = inBattle(c.owner, x => cname(x).includes('流星アーシュ')).length, opp = inBattle(other(c.owner), x => cname(x).includes('流星アーシュ')).length;
+      if (own || (opp && !inBattle(c.owner, x => cname(x).includes('レッドゾーン')).length)) return '流星アーシュ：ドラゴンではないクリーチャーは出たターンに攻撃できない';
+    }
+    return null;
+  });
+  // 熊田すず：自分の生徒会組すべてにスレイヤー（バトルの後、相手クリーチャーを破壊）
+  wrapF('battle', o => async function(a, b){
+    const A = C(a), B = C(b);
+    const sl = c => c && !NOFX && isSeitokai(c) && inBattle(c.owner, x => cname(x).includes('熊田すず')).length > 0;
+    const sa = sl(A), sb = sl(B);
+    await o.apply(this, arguments);
+    if (sa && C(b) && C(b).zone === 'battle'){ log(`スレイヤー（熊田すず）：《${cname(C(b))}》を破壊`, A.owner); await leave(b, 'grave', {destroy: true}); }
+    if (sb && C(a) && C(a).zone === 'battle'){ log(`スレイヤー（熊田すず）：《${cname(C(a))}》を破壊`, B.owner); await leave(a, 'grave', {destroy: true}); }
+  });
+  // ラフルル・ラブ：呪文を唱えられない
+  wrapF('metaConfirm', o => async function(p, s){
+    if (!NOFX && s && s.type === '呪文' && S.spellLock && (S.spellLock[p] || 0) >= S.turn){ log(`《音卿の精霊龍 ラフルル・ラブ》の効果で、${PN[p]}は呪文《${s.name}》を唱えられない`, p); return false; }
+    return o.apply(this, arguments);
+  });
+  // 「処理を変更」で決めた誘発（カードのスクリプトや自動処理が無いタイミング）を起こす
+  const ruled = (uid, ev) => !NOFX && C(uid) && hasRule(uid, ev);
+  const T1D = /各ターンに[1１]度、自分のドラゴンが(バトルゾーンに)?出た時/;
+  wrapF('allyEnterHooks', o => async function(uid){
+    await o.apply(this, arguments);
+    const c = C(uid); if (!c || c.zone !== 'battle' || S.winner || !isDragonCard(uid)) return;
+    for (const x of inBattle(c.owner)) if (x.uid !== uid && !T1D.test(txt(x)) && ruled(x.uid, 'allyDragon')) await resolveEffect(x.uid, 'allyDragon', {who: uid});
+  });
+  wrapF('leave', o => async function(uid){
+    const c = C(uid); const was = c && c.zone === 'battle'; const p = c && c.owner;
+    const r = await o.apply(this, arguments);
+    if (was && C(uid) && C(uid).zone !== 'battle' && !S.winner){
+      if (ruled(uid, 'leave')) await resolveEffect(uid, 'leave');
+      for (const x of inBattle(p)) if (ruled(x.uid, 'allyLeave')) await resolveEffect(x.uid, 'allyLeave', {who: uid});
+    }
+    return r;
+  });
+  wrapF('attack', o => async function(attUid){
+    const r = await o.apply(this, arguments);
+    const A = C(attUid);
+    if (r && r.ok && A && !S.winner) for (const x of inBattle(other(A.owner))) if (ruled(x.uid, 'oppAttack')) await resolveEffect(x.uid, 'oppAttack', {who: attUid});
+    return r;
+  });
+  wrapF('resolveAttack', o => async function(a){
+    const prev = S.__atk; S.__atk = {a: a.attUid, t: a.target};
+    try { await o.apply(this, arguments); } finally { S.__atk = prev; }
+    if (!S.winner && ruled(a.attUid, 'attackEnd') && !(scriptFor(a.attUid) || {}).attackEnd) await resolveEffect(a.attUid, 'attackEnd');
+  });
+  wrapF('battle', o => async function(a, b){
+    if (S.__atk && S.__atk.a === a && S.__atk.t !== b && ruled(b, 'block')) await resolveEffect(b, 'block', {who: a});
+    if (!C(a) || C(a).zone !== 'battle' || !C(b) || C(b).zone !== 'battle') return;
+    return o.apply(this, arguments);
+  });
+  wrapF('useCard', o => async function(uid, opt){
+    const c = C(uid); const p = c && c.owner; const si = (opt && opt.sideIdx) || 0; const sp = c && DB[c.cid].sides[si] && DB[c.cid].sides[si].type === '呪文';
+    const r = await o.apply(this, arguments);
+    if (sp && r && r.ok && !S.winner){
+      for (const x of inBattle(other(p))) if (ruled(x.uid, 'oppSpell')) await resolveEffect(x.uid, 'oppSpell', {who: uid});
+      for (const x of inBattle(p)) if (ruled(x.uid, 'allySpell')) await resolveEffect(x.uid, 'allySpell', {who: uid});
+    }
+    return r;
+  });
+})();
 </script>
 </body></html>
