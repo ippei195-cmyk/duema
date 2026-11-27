@@ -35,6 +35,7 @@ pub struct Cre {
     pub stay: bool,          // ザゼ・ゼーン／コハク：次の自分のターンのはじめまで離れない（どの効果でもバトルでも）
     pub emo_ign: bool,       // エモーショナル・ハードコアで能力を無視されている（毎回計算し直す）
     pub emo: Option<C>,      // エモーショナル・ハードコアが選んだ名前
+    pub t1: u32,             // 「各ターンに１度」の能力を使ったターン番号（カードごと。0=まだ。QA 44212）
 }
 
 impl Cre {
@@ -809,6 +810,7 @@ impl Game {
             stay: false,
             emo_ign: false,
             emo: None,
+            t1: 0,
         }
     }
 
