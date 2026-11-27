@@ -1547,6 +1547,9 @@ async function resolveEffect(uid, ev, extra={}){
   }
   const rule = ruleOf(s.name, ev);
   if (rule){
+    if (rule.summonOnly && ev==='etb' && extra.how!=='summon') return; // 召喚によって出た時だけ
+    if (rule.untapOnly && ev==='turnStart' && !(S.untappedAtStart||[]).includes(uid)) return; // ターンのはじめにアンタップした時だけ
+    if (rule.mode!=='skip' && rule.conds && rule.conds.length && ev!=='cond' && !condsOk(rule.conds, p)) return; // 能力の条件
     if (rule.once && rule.mode!=='skip'){ const k = 't1_'+ev; if (c.m[k]===S.turn) return; c.m[k] = S.turn; } // 各ターンに1度（カードごと。出し直したら別のカード）
     stockNote(uid, s, ev);
     if (rule.mode==='skip'){ log(`《${s.name}》の${EVLABEL[ev]}の能力：処理しない設定`, p); return; }
@@ -1556,6 +1559,8 @@ async function resolveEffect(uid, ev, extra={}){
     try { await runSteps(rule.steps, x, 0); } catch(e){ console.error(e); log('効果処理エラー：'+e.message); }
     loseCheck(); return;
   }
+  // 「自分のターンのはじめにアンタップした時」：タップしていなかった（アンタップしなかった）時は使わない
+  if (ev==='turnStart' && !(S.untappedAtStart||[]).includes(uid)){ const UT = /自分のターンのはじめに(この[^、。]*を)?アンタップした時/g; if (UT.test(s.text) && !TRIG.turnStart.test(s.text.replace(UT, ''))) return; }
   stockNote(uid, s, ev);
   if (sc){
     if (typeof sc[ev] === 'function'){ const x = makeCtx(uid, p, extra); try { await sc[ev](x); } catch(e){ console.error(e); log('効果処理エラー：'+e.message); } }
@@ -1892,21 +1897,42 @@ async function stepsEditor(s, ev, steps){
   steps = JSON.parse(JSON.stringify(steps || []));
   let conds = JSON.parse(JSON.stringify(ruleOf(s.name, ev)?.conds || []));
   let once = !!ruleOf(s.name, ev)?.once;
+  let summonOnly = !!ruleOf(s.name, ev)?.summonOnly, untapOnly = !!ruleOf(s.name, ev)?.untapOnly;
+  let also = [];
   if (ev==='cond' && !conds.length){ conds = await condsWizard([]) || []; if (!conds.length) return false; }
   for (;;){
     const btns = [{label:'保存', value:'save', primary:true}, {label:'手順を追加', value:'add'}];
-    if (ev==='cond') btns.push({label:'条件を直す', value:'conds'});
+    btns.push({label: ev==='cond' ? '条件を直す' : `条件：${conds.length ? 'あり' : 'なし'}`, value:'conds'});
     btns.push({label:`各ターンに1度だけ：${once?'する':'しない'}`, value:'once'});
+    if (ev==='etb') btns.push({label:`召喚によって出た時だけ：${summonOnly?'する':'しない'}`, value:'summon'});
+    if (ev==='turnStart') btns.push({label:`アンタップした時だけ：${untapOnly?'する':'しない'}`, value:'untap'});
+    btns.push({label:`ほかのタイミングでも同じ手順：${also.length ? also.map(e=>EVLABEL[e]).join('・') : 'なし'}`, value:'also'});
     if (steps.length) btns.push({label:'手順を消す', value:'del'});
     if (sampleFn) btns.push({label:'説明を書いて作り直す', value:'desc'});
     btns.push({label:'JSONで直す（上級）', value:'json'}, {label:'やめる', value:null});
-    const onceHtml = once ? '<p><b>各ターンに1度だけ</b>（カード1枚ごと。離れて出し直したら、また使える）</p>' : '';
-    const condHtml = onceHtml + (ev==='cond' ? `<p><b>いつ：</b>このカードがバトルゾーンにある間に「${esc(condsLine(conds))}」を満たした時（満たしていない状態から満たした時に1回）</p>` : '');
+    const onceHtml = (once ? '<p><b>各ターンに1度だけ</b>（カード1枚ごと。離れて出し直したら、また使える）</p>' : '')
+      + (ev==='etb' && summonOnly ? '<p><b>召喚によって出た時だけ</b>（効果で出した時・革命チェンジなどでは使わない）</p>' : '')
+      + (ev==='turnStart' && untapOnly ? '<p><b>自分のターンのはじめにアンタップした時だけ</b>（タップしていた時だけ使う）</p>' : '')
+      + (also.length ? `<p><b>同じ手順を使うタイミング：</b>${also.map(e=>esc(EVLABEL[e])).join('・')}</p>` : '');
+    const condHtml = onceHtml + (ev==='cond' ? `<p><b>いつ：</b>このカードがバトルゾーンにある間に「${esc(condsLine(conds))}」を満たした時（満たしていない状態から満たした時に1回）</p>` : (conds.length ? `<p><b>条件：</b>「${esc(condsLine(conds))}」を満たしている時だけ使う</p>` : ''));
     const v = await modal({title:`《${s.name}》${EVLABEL[ev]}の手順`, html:`<p class="rtx">${esc(s.text)}</p>${condHtml}<div class="rsteps">${stepsHTML(steps)}</div><p class="rtx">上から順に処理します。「保存」すると次からこの手順で処理します。</p>`, buttons:btns});
     if (!v) return false;
-    if (v==='conds'){ const c2 = await condsWizard([]); if (c2 && c2.length) conds = c2; continue; }
+    if (v==='conds'){
+      if (ev!=='cond' && conds.length){ const a = await modal({title:'条件', html:`<p>いまの条件：${esc(condsLine(conds))}</p>`, buttons:[{label:'条件を作り直す', value:'new', primary:true}, {label:'条件をなくす', value:'clear'}, {label:'もどる', value:null}]}); if (a==='clear'){ conds = []; continue; } if (a!=='new') continue; }
+      const c2 = await condsWizard([]); if (c2 && c2.length) conds = c2; continue; }
     if (v==='once'){ once = !once; continue; }
-    if (v==='save'){ setRule(s.name, ev, {mode:'steps', steps, ...(ev==='cond'?{conds}:{}), ...(once?{once:true}:{})}); log(`《${s.name}》の${EVLABEL[ev]}の処理を変更しました`); return true; }
+    if (v==='summon'){ summonOnly = !summonOnly; continue; }
+    if (v==='untap'){ untapOnly = !untapOnly; continue; }
+    if (v==='also'){
+      const evs = RULE_EVS.filter(e => e!==ev && e!=='cond');
+      const f = await modal({title:'ほかのタイミングでも同じ手順を使う', html:'<p>「〜した時、または〜した時」のような能力は、ここで両方のタイミングを選んでください。保存するとそのタイミングにも同じ手順が入ります。</p>' + evs.map(e => `<label style="display:block"><input type="checkbox" class="alsoev" value="${e}" ${also.includes(e)?'checked':''}> ${esc(EVLABEL[e])}</label>`).join(''), buttons:[{label:'決定', value:'ok', primary:true}, {label:'もどる', value:null}]});
+      if (f==='ok') also = (window._alsoEv || []).slice();
+      continue; }
+    if (v==='save'){
+      const opt = ev2 => ({mode:'steps', steps, ...(conds.length?{conds}:{}), ...(once?{once:true}:{}), ...(ev2==='etb'&&summonOnly?{summonOnly:true}:{}), ...(ev2==='turnStart'&&untapOnly?{untapOnly:true}:{})});
+      setRule(s.name, ev, opt(ev));
+      for (const e of also){ const r = opt(e); if (e==='etb' && ev!=='etb' && /召喚によって(バトルゾーンに)?出た時/.test(s.text)) r.summonOnly = true; if (e==='turnStart' && ev!=='turnStart' && /ターンのはじめに(この[^、。]*を)?アンタップした時/.test(s.text)) r.untapOnly = true; setRule(s.name, e, r); }
+      log(`《${s.name}》の${[ev, ...also].map(e=>EVLABEL[e]).join('・')}の処理を変更しました`); return true; }
     if (v==='add'){ const add = await addStepWizard(steps); if (add) steps.push(...add); }
     if (v==='del'){ const i = await modal({title:'どの手順を消しますか？', buttons:[...steps.map((st,i)=>({label:`${i+1}. ${stepLine(st).slice(0,40)}`, value:i})), {label:'やめる', value:-1}]}); if (i>=0) steps.splice(i,1); }
     if (v==='desc'){
@@ -2449,7 +2475,7 @@ async function shakogairuStart(active){
 async function startTurn(p){
   S.turn++; S.active = p; S.charged = false; S.skipRest = false;
   S.tf = {freePlayOp:false, freePlayMe:false, used:{}};
-  S.look = {me:[],op:[]};
+  S.look = {me:[],op:[]}; S.untappedAtStart = [];
   log(`―― ${Math.ceil(S.turn/2)}ターン目 ${PN[p]}のターン ――`);
   kifuSnap();
   for (const c of [...inBattle(p), ...zoneArr(p,'mana').map(C)]){
@@ -2457,6 +2483,7 @@ async function startTurn(p){
       if (c.m.protect && c.m.protectUntil===p){ c.m.protect=false; }
       if (c.m.frozen){ c.m.frozen=false; continue; }
       if (/ターンのはじめにアンタップしない/.test(txt(c))) { c.sick=false; continue; }
+      if (c.tapped) (S.untappedAtStart ||= []).push(c.uid); // 「ターンのはじめにアンタップした時」用
       c.tapped=false; c.sick=false;
     } else c.tapped=false;
   }
@@ -2567,6 +2594,9 @@ async function userUse(uid, fromMana=false){
   if (!res.ok) await modal({title:'使えません', html:`<p>${esc(res.err)}</p>`, buttons:[{label:'閉じる',value:1}]});
 }
 // capture form values inside a modal at click time (the modal is removed right after)
+document.addEventListener('click', e => {
+  const m0 = e.target.closest('.modal'); if (m0 && m0.querySelector('.alsoev')) window._alsoEv = [...m0.querySelectorAll('.alsoev:checked')].map(i => i.value);
+}, true);
 document.addEventListener('click', e => {
   const m = e.target.closest('.modal'); if (!m || !S) return;
   const g = id => m.querySelector('#'+id);
