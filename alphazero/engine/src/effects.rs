@@ -1645,7 +1645,8 @@ fn enter_ability(g: &mut Game, p: usize, src: u16, c: C) {
         C::Sozanmaru => ask(g, K::SozanDraw, p, 0, 0, vec![]),
         C::Laffrull => {
             // 次の相手のターンの終わりまで、相手は呪文を唱えられない
-            let until = if g.tp == p { g.turn + 1 } else { g.turn };
+            // 「次の相手のターン」＝今のターンより後の最初の相手のターン（相手のターン中に出たら、今のターンではなくその次の相手のターン）
+            let until = if g.tp == p { g.turn + 1 } else { g.turn + 2 };
             g.ps[op].spell_lock_until = g.ps[op].spell_lock_until.max(until);
         }
         C::Kusabira => {} // 召喚によって出た時のみ（enter_summon）
