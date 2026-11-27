@@ -8167,6 +8167,46 @@ body.gx.gx-wide .half.me .turnrow{display:none}
 #gxTurn:disabled{opacity:1;cursor:default;color:#5a554c}
 #gxTurn small{display:block;font-size:10px;letter-spacing:.18em;color:#5a554c}
 body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
+/* ---- スマホ（盤面を小さく縮めて表示している時）：iPhoneの横向きの「文字の自動拡大」で文字があふれるのを止め、
+   代わりに枠に収まる大きさで文字を大きくする（--gxk は縮小率から計算。PCでは付かない） ---- */
+body.gx-sm .top,body.gx-sm #board,body.gx-sm #gxLeft,body.gx-sm #gxRight,body.gx-sm #cardPop{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body.gx-sm{--k:var(--gxk,1.6)}
+body.gx-sm .top h1{font-size:calc(14px*var(--k))}
+body.gx-sm .top button{font-size:calc(11px*var(--k))}
+body.gx-sm .turnbadge{font-size:calc(10px*var(--k))}
+body.gx-sm .half .who{font-size:calc(11px*var(--k));white-space:nowrap;overflow:hidden;min-width:0}
+body.gx-sm .half .who>*{min-width:0;overflow:hidden;text-overflow:ellipsis}
+body.gx-sm .slot .badges{max-width:100%;right:0;gap:1px}
+body.gx-sm #board .bdg{font-size:calc(9px*var(--k));line-height:1.15;padding:1px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;letter-spacing:-.03em}
+body.gx-sm .z-mana-z .zcount,body.gx-sm .z-shield-z .zcount{font-size:calc(14px*var(--k));top:-8px}
+body.gx-sm .z-mana-z .zcount::before,body.gx-sm .z-shield-z .zcount::before{font-size:calc(9px*var(--k));letter-spacing:.1em}
+body.gx-sm .z-mana-z .zc,body.gx-sm .z-shield-z .zc{padding-top:calc(16px*var(--k))}
+body.gx-sm .z .zcount{font-size:calc(11px*var(--k))}
+body.gx-sm .pilebox{padding-bottom:calc(20px*var(--k))}
+body.gx-sm .pilebox::after{font-size:calc(10px*var(--k));letter-spacing:.04em;padding:1px 6px}
+body.gx-sm .mana-chip{font-size:calc(10px*var(--k))}
+body.gx-sm .z .wm{font-size:calc(14px*var(--k));letter-spacing:.3em}
+body.gx-sm #gxStack{font-size:calc(11px*var(--k))}
+body.gx-sm #gxLast .h{font-size:calc(10px*var(--k));letter-spacing:.04em}
+body.gx-sm #gxLast .cap{font-size:calc(10px*var(--k));letter-spacing:0;line-height:1.35;overflow-wrap:anywhere}
+body.gx-sm .voicebar .vt,body.gx-sm #pendPanel h2,body.gx-sm .logpanel h2,body.gx-sm #sheet .ovh h3{font-size:calc(10px*var(--k));letter-spacing:.04em}
+body.gx-sm.gx-wide .voice{font-size:calc(11px*var(--k))}
+body.gx-sm .log{font-size:calc(11px*var(--k))}
+body.gx-sm #gxRight{font-size:calc(11px*var(--k))}
+body.gx-sm #gxRight .gx-top{gap:4px}
+body.gx-sm .gx-emb{width:52px;height:52px}
+body.gx-sm .gx-name{padding:4px 3px 5px}
+body.gx-sm .gx-name small{font-size:calc(9px*var(--k));letter-spacing:.04em;white-space:nowrap}
+body.gx-sm .gx-name b{font-size:calc(10px*var(--k))}
+body.gx-sm .gx-name .tn{font-size:calc(9px*var(--k));letter-spacing:0;padding:1px 6px;white-space:nowrap}
+body.gx-sm #gxTurn{width:96px;height:96px;font-size:calc(11px*var(--k));letter-spacing:.04em;line-height:1.3}
+body.gx-sm #gxTurn small{font-size:calc(8px*var(--k));letter-spacing:.04em}
+body.gx-sm #gxOps button{height:auto;min-height:calc(30px*var(--k));font-size:calc(11px*var(--k));padding:2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+body.gx-sm #cardPop{max-width:min(calc(380px*var(--k)),100%)}
+body.gx-sm .cpop .cph b{font-size:calc(11px*var(--k))}
+body.gx-sm .cpop .cph button{height:auto;min-height:calc(26px*var(--k));font-size:calc(10px*var(--k))}
+body.gx-sm .cpop .acts button{min-height:calc(30px*var(--k));font-size:calc(11px*var(--k))}
+body.gx-sm #detail{font-size:calc(11px*var(--k))}
 @media (max-width:1099px){body.gx:not(.lay-pc) #board{padding:8px;border-radius:14px}
   body.gx:not(.lay-pc) .half.me{padding:16px 12px 10px}
   body.gx:not(.lay-pc) .half.me .z-hand-z .zc{min-height:120px;padding-top:18px}}
@@ -8322,7 +8362,10 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
     const cards = [...zc.querySelectorAll(':scope > .card')]; const n = cards.length; if (!n) return;
     const wide = document.body.classList.contains('gx-wide');
     const cw = wide ? 124 : Math.max(64, Math.min(96, Math.round(window.innerWidth * 0.2)));
-    const W = zc.clientWidth - 20;
+    const step0 = n > 1 ? Math.min(3, 20 / (n - 1)) : 0;
+    // 端のカードは傾く分だけ外へ出るので、その分も引いて枠の中に収める
+    const tilt = cw * 1.2 * Math.sin(step0 * (n - 1) / 2 * Math.PI / 180) + cw * 0.06;
+    const W = zc.clientWidth - 20 - 2 * tilt;
     let ov = n > 1 ? Math.min(-cw * 0.22, (W - 40 - n * cw) / (n - 1)) : 0;
     ov = Math.max(ov, -cw * 0.78);
     const step = n > 1 ? Math.min(3, 20 / (n - 1)) : 0;
@@ -8351,6 +8394,13 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
     if (busyUpd) return; busyUpd = true;
     try {
       document.body.classList.toggle('gx-wide', theme === 'goth' && (document.body.classList.contains('lay-pc') || (!document.body.classList.contains('lay-phone') && window.innerWidth >= 1100)));
+      try {
+        // スマホで盤面をかなり縮めて表示している時だけ gx-sm（文字を枠に収まる大きさで大きくする）
+        const zf = parseFloat(document.body.style.zoom) || 1;
+        const sm = theme === 'goth' && document.body.classList.contains('gx-wide') && zf < 0.8 && window.matchMedia('(pointer: coarse)').matches;
+        document.body.classList.toggle('gx-sm', sm);
+        if (sm) document.documentElement.style.setProperty('--gxk', Math.max(1, Math.min(1.8, 0.7 / zf)).toFixed(2));
+      } catch (e) {}
       try { trackLast(); } catch (e) {}
       placeSide(theme === 'goth' && document.body.classList.contains('gx-wide'));
       if (theme !== 'goth') return;
@@ -8360,7 +8410,7 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
   const sched = () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; update(); }); };
   new MutationObserver(muts => { if (muts.some(m => [...m.addedNodes].some(n => n.id !== 'gxStack'))) sched(); }).observe(board, {childList:true});
   const tb = document.getElementById('turnBadge'); if (tb) new MutationObserver(sched).observe(tb, {childList:true, characterData:true, subtree:true, attributes:true});
-  new MutationObserver(sched).observe(document.body, {attributes:true, attributeFilter:['class']});
+  new MutationObserver(sched).observe(document.body, {attributes:true, attributeFilter:['class', 'style']});
   window.addEventListener('resize', sched);
   setTheme(theme);
 })();
