@@ -72,6 +72,8 @@ def filt(f, comp=None):
             raise Fail('名前の条件')
         else:
             raise Fail(f'条件 {k}')
+    if not out:  # 「カード」だけなど、絞り込みがない
+        return 'ANY'
     return 'Filt { ' + ', '.join(f'{k}: {v}' for k, v in out.items()) + ', ..ANY }'
 
 
