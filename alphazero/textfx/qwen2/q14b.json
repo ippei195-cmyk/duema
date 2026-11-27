@@ -1,0 +1,961 @@
+[
+ {
+  "id": "dm22ex1-037",
+  "name": "キユリのASMラジオ",
+  "ev": "spell",
+  "steps": [
+   {
+    "do": "look",
+    "n": 5,
+    "as": "L"
+   },
+   {
+    "do": "choose",
+    "from": "$L",
+    "min": 0,
+    "max": 2,
+    "as": "X",
+    "filter": {
+     "maxCost": 3,
+     "type": "クリーチャー"
+    }
+   },
+   {
+    "do": "move",
+    "ids": "$L",
+    "to": "deckBottom",
+    "except": "$X"
+   },
+   {
+    "do": "put",
+    "ids": "$X"
+   }
+  ],
+  "side": 0
+ },
+ {
+  "id": "dm24ex1-050",
+  "name": "ハンプティ・ルピア",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_HAND",
+    "min": 1,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "grave"
+   },
+   {
+    "do": "choose",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "costOf": "$X"
+    },
+    "min": 1,
+    "max": 1,
+    "as": "Y"
+   },
+   {
+    "do": "destroy",
+    "ids": "$Y"
+   }
+  ]
+ },
+ {
+  "id": "dm26rp1-S002",
+  "name": "世界のY チャクラ・デル・フィン",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "topToShield",
+    "n": 1
+   }
+  ]
+ },
+ {
+  "id": "dm26rp1-S009",
+  "name": "轟腕のR ダグラジャパニカン",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$MY_SHIELD",
+    "min": 1,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "mana"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp3-DM1",
+  "name": "轟く邪道 レッドゾーン",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "untap",
+    "ids": "$SELF"
+   },
+   {
+    "do": "filter",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "lowestPower": true
+    },
+    "as": "X"
+   },
+   {
+    "do": "destroy",
+    "ids": "$X"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp3-DM1",
+  "name": "轟く邪道 レッドゾーン",
+  "ev": "attack",
+  "steps": [
+   {
+    "do": "filter",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "lowestPower": true
+    },
+    "as": "X"
+   },
+   {
+    "do": "destroy",
+    "ids": "$X"
+   }
+  ]
+ },
+ {
+  "id": "dm24ex1-051",
+  "name": "ピザスターのアンティハムト",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "draw",
+    "n": 1
+   },
+   {
+    "do": "choose",
+    "from": "$MY_HAND",
+    "filter": {
+     "type": "クリーチャー",
+     "maxCost": 3,
+     "nonEvolution": true
+    },
+    "min": 0,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "put",
+    "ids": "$X"
+   },
+   {
+    "do": "giveSA",
+    "ids": "$X"
+   },
+   {
+    "do": "power",
+    "ids": "$X",
+    "delta": 3000
+   }
+  ]
+ },
+ {
+  "id": "dm23ex3-012",
+  "name": "神判のカルマ コットン / ジャッジ・水晶チャージャー",
+  "ev": "spell",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_MANA",
+    "filter": {
+     "costGreaterThanMana": "opp"
+    },
+    "min": 1,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "deckBottom"
+   }
+  ],
+  "side": 1
+ },
+ {
+  "id": "dm24rp3-005",
+  "name": "深淵の逆転撃",
+  "ev": "spell",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_BATTLE",
+    "min": 1,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "power",
+    "ids": "$X",
+    "delta": -2147483647
+   }
+  ],
+  "side": 0
+ },
+ {
+  "id": "dm26ex1-N004",
+  "name": "邪幽 ジャヴェール / 「ヤベーのを見たいか？」",
+  "ev": "spell",
+  "steps": [
+   {
+    "do": "topToMana",
+    "n": 1,
+    "tapped": true
+   },
+   {
+    "do": "if",
+    "conds": [
+     {
+      "who": "me",
+      "zone": "mana",
+      "filter": {
+       "race": "アビス"
+      },
+      "op": "==",
+      "n": 0
+     }
+    ],
+    "steps": [
+     {
+      "do": "choose",
+      "from": "$OPP_BATTLE",
+      "min": 1,
+      "max": 1,
+      "as": "X"
+     },
+     {
+      "do": "power",
+      "ids": "$X",
+      "delta": -2000
+     }
+    ]
+   }
+  ],
+  "side": 1
+ },
+ {
+  "id": "dmex17-021",
+  "name": "流星のガイアッシュ・カイザー",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "draw",
+    "n": 2
+   }
+  ]
+ },
+ {
+  "id": "dmr17-006",
+  "name": "悪魔龍 ダークマスターズ",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_HAND",
+    "min": 0,
+    "max": 3,
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "grave"
+   }
+  ]
+ },
+ {
+  "id": "dm25ex2-081",
+  "name": "青寂の精霊龍 カーネル / サイレント・ジェラシー",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_BATTLE",
+    "min": 1,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "lock",
+    "ids": "$X"
+   }
+  ]
+ },
+ {
+  "id": "dm25ex2-081",
+  "name": "青寂の精霊龍 カーネル / サイレント・ジェラシー",
+  "ev": "spell",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_HAND",
+    "random": true,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "grave"
+   },
+   {
+    "do": "choose",
+    "from": "$MY_SHIELD",
+    "min": 1,
+    "max": 1,
+    "as": "Y"
+   },
+   {
+    "do": "move",
+    "ids": "$Y",
+    "to": "hand"
+   }
+  ],
+  "side": 1
+ },
+ {
+  "id": "dm26ex4-010",
+  "name": "切札混成 光隼 蒼斬丸",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "mode",
+    "q": "何枚引く？",
+    "options": [
+     {
+      "label": "0枚",
+      "steps": []
+     },
+     {
+      "label": "1枚",
+      "steps": [
+       {
+        "do": "draw",
+        "n": 1
+       }
+      ]
+     },
+     {
+      "label": "2枚",
+      "steps": [
+       {
+        "do": "draw",
+        "n": 2
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dmrp03-s03",
+  "name": "水上第九院 シャコガイル",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "move",
+    "ids": "$MY_GRAVE",
+    "to": "deckBottom"
+   },
+   {
+    "do": "shuffle"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp1-S03",
+  "name": "大崩壊炉 マーダン=ダイロウ",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "if",
+    "conds": [
+     {
+      "self": "evolved"
+     }
+    ],
+    "steps": [
+     {
+      "do": "filter",
+      "from": "$OPP_BATTLE",
+      "filter": {
+       "nonEvolution": true
+      },
+      "as": "X"
+     },
+     {
+      "do": "move",
+      "ids": "$X",
+      "to": "deckBottom"
+     }
+    ]
+   },
+   {
+    "do": "filter",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "nonEvolution": true
+    },
+    "as": "Y"
+   },
+   {
+    "do": "destroy",
+    "ids": "$Y"
+   }
+  ]
+ },
+ {
+  "id": "dmsd01-011",
+  "name": "ジョジョジョ・ジョーカーズ",
+  "ev": "spell",
+  "steps": [
+   {
+    "do": "look",
+    "n": 4,
+    "as": "L"
+   },
+   {
+    "do": "choose",
+    "from": "$L",
+    "min": 0,
+    "max": 1,
+    "as": "X",
+    "filter": {
+     "race": "ジョーカーズ",
+     "type": "クリーチャー"
+    }
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "hand"
+   },
+   {
+    "do": "move",
+    "ids": "$L",
+    "to": "deckBottom",
+    "except": "$X"
+   }
+  ],
+  "side": 0
+ },
+ {
+  "id": "dm26rp3-042",
+  "name": "銃車逆夢 ザ・マグニー / ジョリー・ザ・スクラッパー",
+  "ev": "spell",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_BATTLE",
+    "min": 1,
+    "max": 1,
+    "as": "X",
+    "filter": {
+     "maxCost": 3
+    }
+   },
+   {
+    "do": "destroy",
+    "ids": "$X"
+   }
+  ],
+  "side": 1
+ },
+ {
+  "id": "dm26rp3-S003",
+  "name": "Dr.富士山ッピング",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "look",
+    "n": 3,
+    "as": "L"
+   },
+   {
+    "do": "filter",
+    "from": "$L",
+    "filter": {
+     "race": "ジョーカーズ"
+    },
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "hand"
+   },
+   {
+    "do": "move",
+    "ids": "$L",
+    "to": "deckBottom",
+    "except": "$X"
+   }
+  ]
+ },
+ {
+  "id": "dmrp06-s01",
+  "name": "キング・ザ・スロットン７ / 7777777",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "look",
+    "n": 3,
+    "as": "L"
+   },
+   {
+    "do": "if",
+    "conds": [
+     {
+      "who": "me",
+      "zone": "battle",
+      "filter": {
+       "race": "ジョーカーズ"
+      },
+      "op": "==",
+      "n": 0
+     }
+    ],
+    "steps": [
+     {
+      "do": "choose",
+      "from": "$L",
+      "filter": {
+       "type": "クリーチャー"
+      },
+      "min": 1,
+      "max": 1,
+      "as": "X"
+     },
+     {
+      "do": "put",
+      "ids": "$X"
+     }
+    ]
+   },
+   {
+    "do": "giveSA",
+    "ids": "$X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "deckBottom"
+   }
+  ]
+ },
+ {
+  "id": "dmrp06-s01",
+  "name": "キング・ザ・スロットン７ / 7777777",
+  "ev": "spell",
+  "steps": [
+   {
+    "do": "look",
+    "n": 3,
+    "as": "X"
+   },
+   {
+    "do": "choose",
+    "from": "$X",
+    "min": 1,
+    "max": 1,
+    "as": "Y"
+   },
+   {
+    "do": "choose",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "costOf": "$Y"
+    },
+    "min": 0,
+    "max": 0,
+    "by": "opp",
+    "as": "X"
+   },
+   {
+    "do": "look",
+    "n": 3,
+    "as": "$L"
+   },
+   {
+    "do": "move",
+    "ids": "$Y",
+    "to": "deckBottom"
+   },
+   {
+    "do": "move",
+    "ids": "$L",
+    "to": "deckBottom"
+   }
+  ],
+  "side": 1
+ },
+ {
+  "id": "dm26ex1-N002",
+  "name": "ジョギメラゴン＆メラビート ～Jの焔舞～",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "look",
+    "n": 4,
+    "as": "L"
+   },
+   {
+    "do": "choose",
+    "from": "$L",
+    "min": 0,
+    "max": 1,
+    "as": "X",
+    "filter": {
+     "race": "ジョーカーズ"
+    }
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "hand"
+   },
+   {
+    "do": "move",
+    "ids": "$L",
+    "to": "deckBottom",
+    "except": "$X"
+   }
+  ]
+ },
+ {
+  "id": "dm25ex2-008",
+  "name": "メラベンチャー・ザ・ジョニー",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$MY_HAND",
+    "filter": {
+     "type": "クリーチャー",
+     "text": "ジョーカーズ",
+     "nonEvolution": true
+    },
+    "min": 0,
+    "max": 2,
+    "as": "X"
+   },
+   {
+    "do": "put",
+    "ids": "$X"
+   },
+   {
+    "do": "giveSA",
+    "ids": "$X"
+   }
+  ]
+ },
+ {
+  "id": "dmex12-s03",
+  "name": "ジョギラゴン＆ジョニー ～Jの旅路～",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "draw",
+    "n": 1
+   },
+   {
+    "do": "choose",
+    "from": "$MY_HAND",
+    "min": 1,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "grave"
+   },
+   {
+    "do": "if",
+    "conds": [
+     {
+      "who": "me",
+      "zone": "grave",
+      "filter": {
+       "race": "ジョーカーズ"
+      },
+      "op": "==",
+      "n": 1
+     }
+    ],
+    "steps": [
+     {
+      "do": "choose",
+      "from": "$X",
+      "filter": {
+       "text": "このクリーチャーがバトルゾーンに出た時"
+      },
+      "min": 0,
+      "max": 1,
+      "as": "Y"
+     },
+     {
+      "do": "put",
+      "ids": "$Y"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dmrp04s-s01",
+  "name": "最終兵ッキー",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$MY_BATTLE",
+    "min": 0,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "deckBottom"
+   },
+   {
+    "do": "draw",
+    "n": 1
+   },
+   {
+    "do": "choose",
+    "from": "$MY_HAND",
+    "filter": {
+     "costOf": "$X",
+     "nonEvolution": true,
+     "type": "クリーチャー"
+    },
+    "min": 0,
+    "max": 1,
+    "as": "Y"
+   },
+   {
+    "do": "put",
+    "ids": "$Y"
+   }
+  ]
+ },
+ {
+  "id": "dmrp04s-s01",
+  "name": "最終兵ッキー",
+  "ev": "attack",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$MY_BATTLE",
+    "min": 0,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "deckBottom"
+   },
+   {
+    "do": "draw",
+    "n": 1
+   },
+   {
+    "do": "choose",
+    "from": "$MY_HAND",
+    "filter": {
+     "costOf": "$X",
+     "nonEvolution": true,
+     "type": "クリーチャー"
+    },
+    "min": 0,
+    "max": 1,
+    "as": "Y"
+   },
+   {
+    "do": "put",
+    "ids": "$Y"
+   }
+  ]
+ },
+ {
+  "id": "dmrp05-s08",
+  "name": "アイアン・マンハッタン",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_SHIELD",
+    "min": 2,
+    "max": 2,
+    "by": "opp",
+    "as": "X"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp2-S07",
+  "name": "轟䡛合体 ゴルギーオージャー",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "look",
+    "n": "$CONTAINED",
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "mana"
+   },
+   {
+    "do": "choose",
+    "from": "$MY_MANA",
+    "min": 0,
+    "max": 3,
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "hand"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp2-S01",
+  "name": "華謡の精霊カンツォーネ",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "choose",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "type": "カード"
+    },
+    "min": 0,
+    "max": 1,
+    "by": "opp",
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "shield"
+   }
+  ]
+ },
+ {
+  "id": "dm25rp4-030",
+  "name": "吟弾の妖精",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "draw",
+    "n": "$CONTAINED"
+   },
+   {
+    "do": "choose",
+    "from": "$OPP_BATTLE",
+    "min": 1,
+    "max": 1,
+    "as": "X"
+   },
+   {
+    "do": "tap",
+    "ids": "$X"
+   },
+   {
+    "do": "freeze",
+    "ids": "$X"
+   }
+  ]
+ },
+ {
+  "id": "dm23rp4-030",
+  "name": "アシステスト・シネラリア",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "if",
+    "conds": [
+     {
+      "who": "me",
+      "zone": "battle",
+      "filter": {
+       "race": "ジャイアント"
+      },
+      "op": ">=",
+      "n": 2
+     }
+    ],
+    "steps": [
+     {
+      "do": "draw",
+      "n": 1
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dm23ex1-003",
+  "name": "飛翔龍 5000VT",
+  "ev": "etb",
+  "steps": [
+   {
+    "do": "filter",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "maxPower": 5000
+    },
+    "as": "X"
+   },
+   {
+    "do": "move",
+    "ids": "$X",
+    "to": "hand"
+   },
+   {
+    "do": "filter",
+    "from": "$OPP_BATTLE",
+    "filter": {
+     "maxPower": 5000
+    },
+    "as": "Y"
+   },
+   {
+    "do": "noattack",
+    "ids": "$X"
+   }
+  ]
+ }
+]
