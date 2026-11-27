@@ -144,6 +144,13 @@ pub(crate) fn shield_stack_pub(g: &mut Game, p: usize, cards: Vec<Card>) {
 pub(crate) fn shieldify_top_pub(g: &mut Game, p: usize) -> Option<u16> {
     shieldify_top(g, p)
 }
+/// 「各ターンに１度」をこのカードで使った
+fn t1_mark(g: &mut Game, p: usize, uid: u16) {
+    let t = g.turn;
+    if let Some(i) = g.find(p, uid) {
+        g.ps[p].battle[i].t1 = t;
+    }
+}
 pub(crate) fn untap_mana_pub(g: &mut Game, p: usize, n: usize) {
     untap_mana(g, p, n);
 }
@@ -1772,18 +1779,24 @@ pub fn run_fx(g: &mut Game, fx: Fx) {
             }
         }
         Fx::DragonEntered { p } => {
+            // 「各ターンに１度、自分のドラゴンが出た時」：カード1枚ごとに1ターン1回（QA 44212）。
+            // 出たドラゴン自身にも誘発する（「自分のドラゴンが出た時」は自身を含む：QA 41443）。
+            // 「〜てもよい」を使わなかった時は、そのターンの次のドラゴンでまた誘発する。
             let op = 1 - p;
-            if has(g, p, C::Gyai) && g.ps[p].once & 8 == 0 {
-                g.ps[p].once |= 8;
-                ask(g, K::GyaiMill, p, 0, 0, vec![]);
-            }
-            if has(g, p, C::Ash) && g.ps[p].once & 16 == 0 {
-                g.ps[p].once |= 16;
-                ask(g, K::AshDraw, p, 0, 0, vec![]);
-            }
-            if has(g, p, C::Suzu) && g.ps[p].once & 32 == 0 {
-                g.ps[p].once |= 32;
-                random_discard(g, op);
+            let turn = g.turn;
+            let srcs: Vec<(u16, C)> = g.ps[p].battle.iter().filter(|x| !x.ign() && x.t1 != turn && matches!(x.card.c, C::Gyai | C::Ash | C::Suzu)).map(|x| (x.card.uid, x.card.c)).collect();
+            for (u, c) in srcs.into_iter().rev() {
+                match c {
+                    C::Gyai => ask(g, K::GyaiMill, p, u as i32, 0, vec![]),
+                    C::Ash => ask(g, K::AshDraw, p, u as i32, 0, vec![]),
+                    _ => {
+                        // 熊田すず：強制（相手の手札を見ないで1枚捨てさせる）
+                        if let Some(i) = g.find(p, u) {
+                            g.ps[p].battle[i].t1 = turn;
+                        }
+                        random_discard(g, op);
+                    }
+                }
             }
         }
         Fx::TriggerDecl { owner, uids } => {
@@ -2238,12 +2251,25 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
             }
         }
         K::GyaiMill => {
+            // 前半だけ・後半だけでもよい。どちらかを使えばそのターンはもう使えない（QA 49213）
+            if g.find(p, q.a as u16).map(|i| g.ps[p].battle[i].t1 == g.turn).unwrap_or(false) {
+                return; // 同じターンに先に使った（別のドラゴンの誘発の解決で）
+            }
             if o == Opt::Yes {
+                t1_mark(g, p, q.a as u16);
                 g.mill_to_mana(p, 2, true);
-                ask(g, K::GyaiReturn, p, 0, 0, vec![]);
+            }
+            ask(g, K::GyaiReturn, p, q.a, 0, vec![]);
+        }
+        K::GyaiReturn => {
+            if let Some(u) = pick {
+                if let Some(c) = g.take_mana(p, u) {
+                    g.ps[p].hand.push(c);
+                }
+                t1_mark(g, p, q.a as u16);
             }
         }
-        K::GyaiReturn | K::PPPReturn => {
+        K::PPPReturn => {
             if let Some(u) = pick {
                 if let Some(c) = g.take_mana(p, u) {
                     g.ps[p].hand.push(c);
@@ -2251,7 +2277,8 @@ pub fn answer(g: &mut Game, _player: usize, q: EQ, o: Opt) {
             }
         }
         K::AshDraw => {
-            if o == Opt::Yes {
+            if o == Opt::Yes && !g.find(p, q.a as u16).map(|i| g.ps[p].battle[i].t1 == g.turn).unwrap_or(false) {
+                t1_mark(g, p, q.a as u16);
                 g.draw1(p);
             }
         }
