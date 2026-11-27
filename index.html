@@ -1262,7 +1262,7 @@ const TRIG = {
   turnEnd: /自分のターンの終わりに/,
   destroyed: /このクリーチャーが破壊された時|このタマシードが破壊された時/,
 };
-const EVLABEL = {etb:'出た時', spell:'呪文', attack:'攻撃する時', turnStart:'ターンのはじめ', turnEnd:'ターンの終わり', destroyed:'破壊された時', manaLeave:'マナを離れた時', rev0:'革命0トリガー', allyEnter:'自分のクリーチャーが出た時', oppEnter:'相手のクリーチャーが出た時', allyDragon:'自分の他のドラゴンが出た時', shieldPlaced:'シールドが置かれた時', cond:'条件を満たした時', attackEnd:'攻撃の終わり', block:'ブロックした時', leave:'離れた時', allyLeave:'自分の他のクリーチャーが離れた時', oppAttack:'相手のクリーチャーが攻撃する時', oppSpell:'相手が呪文を唱えた時', allySpell:'自分が呪文を唱えた時'};
+const EVLABEL = {etb:'出た時', spell:'呪文', attack:'攻撃する時', turnStart:'ターンのはじめ', turnEnd:'ターンの終わり', destroyed:'破壊された時', manaLeave:'マナを離れた時', rev0:'革命0トリガー', allyEnter:'自分のクリーチャーが出た時', oppEnter:'相手のクリーチャーが出た時', allyDragon:'自分のドラゴンが出た時', shieldPlaced:'シールドが置かれた時', cond:'条件を満たした時', attackEnd:'攻撃の終わり', block:'ブロックした時', leave:'離れた時', allyLeave:'自分の他のクリーチャーが離れた時', oppAttack:'相手のクリーチャーが攻撃する時', oppSpell:'相手が呪文を唱えた時', allySpell:'自分が呪文を唱えた時'};
 function optPref(){ return S.optPref || 'ask'; }
 
 function makeCtx(srcUid, p, extra={}){
@@ -1481,11 +1481,12 @@ const SCRIPTS = {
   }},
   '水上第九院 シャコガイル': { async etb(x){ const g = zoneArr(x.p,'grave').slice(); for (const u of g) place(u, 'deck'); x.shuffle(); log(`シャコガイル：墓地の${g.length}枚を山札に加えてシャッフル`, x.p); } },
   '地封院ギャイ＜まかしとき！＞': { async allyDragon(x){
-    if (zoneArr(x.p,'deck').length && await x.optional('山札の上から2枚をタップしてマナゾーンに置きますか？')) x.topToMana(2, true);
+    const used = () => { if (C(x.src)) C(x.src).m.t1Dragon = S.turn; };
+    if (zoneArr(x.p,'deck').length && await x.optional('山札の上から2枚をタップしてマナゾーンに置きますか？')){ x.topToMana(2, true); used(); }
     const ds = zoneArr(x.p,'mana').filter(isDragonCard);
     if (ds.length && await x.optional('ドラゴン・カードを1枚、マナゾーンから手札に戻しますか？')){
       const [t] = await x.choose({q:'マナゾーンから手札に戻すドラゴン', cands:ds, min:1, max:1});
-      if (t){ await x.move(t,'hand'); log(`ギャイ：《${cname(C(t))}》をマナゾーンから手札へ`, x.p); }
+      if (t){ await x.move(t,'hand'); used(); log(`ギャイ：《${cname(C(t))}》をマナゾーンから手札へ`, x.p); }
     }
   }},
   '地封院ギャイ': { async etb(x){
@@ -1643,8 +1644,12 @@ function setRule(name, ev, r){
 // 自分／相手のクリーチャーが出た時（ギャイ＜まかしとき！＞のような「自分のドラゴンが出た時」も）
 async function allyEnterHooks(uid){
   const c = C(uid); if (!c || c.zone!=='battle' || S.winner || !isCreature(side(c))) return;
-  // 「各ターンに１度、自分のドラゴンが出た時」（ギャイ・アーシュ・熊田すずなど）：カード1枚ごとにターン1回。出たドラゴン自身では誘発しない（総合ルール110.2c）
-  if (isDragonCard(uid)) for (const g of inBattle(c.owner, x => x.uid!==uid && /各ターンに[1１]度、自分のドラゴンが(バトルゾーンに)?出た時/.test(txt(x)))) if (g.m.t1Dragon !== S.turn){ g.m.t1Dragon = S.turn; await resolveEffect(g.uid, 'allyDragon', {who:uid}); }
+  // 「各ターンに１度、自分のドラゴンが出た時」（ギャイ・アーシュ・熊田すずなど）：カード1枚ごとにターン1回（公式Q&A 44212）。
+  // そのカード自身が出た時にも誘発する（公式Q&A 41443）。使わなかった時は、同じターンの次のドラゴンでまた使える（Q&A 44212）。片方だけ使っても使ったことになる（Q&A 49213）
+  if (isDragonCard(uid)) for (const g of inBattle(c.owner, x => /各ターンに[1１]度、自分のドラゴンが(バトルゾーンに)?出た時/.test(txt(x)))) if (g.zone==='battle' && g.m.t1Dragon !== S.turn){
+    const own = (scriptFor(g.uid)||{}).allyDragon; // スクリプトは使った時だけ g.m.t1Dragon を付ける
+    await resolveEffect(g.uid, 'allyDragon', {who:uid}); if (!own && C(g.uid)) C(g.uid).m.t1Dragon = S.turn;
+  }
   for (const x of inBattle(c.owner)) if (x.uid!==uid && hasRule(x.uid, 'allyEnter')) await resolveEffect(x.uid, 'allyEnter', {who:uid});
   for (const x of inBattle(other(c.owner))) if (hasRule(x.uid, 'oppEnter')) await resolveEffect(x.uid, 'oppEnter', {who:uid});
 }
@@ -9671,9 +9676,9 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
 
   Object.assign(SCRIPTS, {
     // 各ターンに１度、自分のドラゴンが出た時、カードを１枚引いてもよい
-    '流星アーシュ＜私が主役': { async allyDragon(x){ if (zoneArr(x.p, 'deck').length && await x.optional('カードを1枚引きますか？')) x.draw(1); } },
+    '流星アーシュ＜私が主役': { async allyDragon(x){ if (zoneArr(x.p, 'deck').length && await x.optional('カードを1枚引きますか？')){ x.draw(1); if (C(x.src)) C(x.src).m.t1Dragon = S.turn; } } },
     // 各ターンに１度、自分のドラゴンが出た時、相手の手札を１枚見ないで選び、捨てさせる
-    '熊田すず＜わらわは天才': { async allyDragon(x){ randDiscard(x.q, '熊田すず'); } },
+    '熊田すず＜わらわは天才': { async allyDragon(x){ if (C(x.src)) C(x.src).m.t1Dragon = S.turn; randDiscard(x.q, '熊田すず'); } },
     // 出た時、相手の手札を見て３枚まで選び、捨てさせる
     '悪魔龍 ダークマスターズ': { async etb(x){
       const h = zoneArr(x.q, 'hand').slice(); if (!h.length) return;
@@ -9760,7 +9765,7 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
   wrapF('allyEnterHooks', o => async function(uid){
     await o.apply(this, arguments);
     const c = C(uid); if (!c || c.zone !== 'battle' || S.winner || !isDragonCard(uid)) return;
-    for (const x of inBattle(c.owner)) if (x.uid !== uid && !T1D.test(txt(x)) && ruled(x.uid, 'allyDragon')) await resolveEffect(x.uid, 'allyDragon', {who: uid});
+    for (const x of inBattle(c.owner)) if (!T1D.test(txt(x)) && ruled(x.uid, 'allyDragon')) await resolveEffect(x.uid, 'allyDragon', {who: uid});
   });
   wrapF('leave', o => async function(uid){
     const c = C(uid); const was = c && c.zone === 'battle'; const p = c && c.owner;
