@@ -384,7 +384,13 @@ pub fn pick(a: Agent, g: &Game, rng: &mut Rng) -> usize {
 pub fn play_game(d0: &[C], d1: &[C], agents: [Agent; 2], seed: u64) -> usize {
     let mut g = Game::new(d0, d1, seed);
     let mut rng = Rng::new(seed ^ 0x5151);
+    let mut n = 0u32;
     while g.winner.is_none() {
+        // 判断が多すぎる対局は引き分けで打ち切る（終わらない手順の保険、selfplay と同じ）
+        n += 1;
+        if n > 3000 {
+            return 2;
+        }
         let p = g.decision.as_ref().unwrap().player;
         let i = pick(agents[p], &g, &mut rng);
         g.step(i);
