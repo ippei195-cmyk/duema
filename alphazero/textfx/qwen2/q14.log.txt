@@ -1,0 +1,160 @@
+○ キユリのASMラジオ spell（自分の山札の上から5枚を見る。その中から、コスト3以下のクリーチャーを2体まで出す。残りを好きな順番で山札の下に置く）
+  Python「自分の山札の上から5枚を見る」→ [{"do": "look", "n": 5, "as": "L"}]
+  Python「その中から、コスト3以下のクリーチャーを2体まで出す」→ [{"do": "choose", "from": "$L", "min": 0, "max": 2, "as": "X", "filter": {"maxCost": 3, "type": "クリーチャー"}}, {"do": "put", "ids": "$X"}]
+  Python「残りを好きな順番で山札の下に置く」→ [{"do": "move", "ids": "$L", "to": "deckBottom", "except": "$X"}]
+× ハンプティ・ルピア etb（相手の手札を見て1枚選び、捨てさせる。その後、その捨てた手札と同じコストを持つ相手のクリーチャーを1体選び、破壊する）
+  Python「相手の手札を見て1枚選び、捨てさせる」→ [{"do": "choose", "from": "$OPP_HAND", "min": 1, "max": 1, "as": "X"}, {"do": "move", "ids": "$X", "to": "grave"}]
+  Qwen[1] 「その捨てた手札と同じコストを持つ相手のクリーチャーを1体選び、破壊する」→ [{"do": "choose", "from": "$OPP_BATTLE", "filter": {"costOf": "$X"}, "min": 1, "max": 1, "by": "opp", "delta": 1}, {"do": "destroy", "ids": "$Y"}]  ×choose に as（変数名）がありません
+  Qwen[2] 「その捨てた手札と同じコストを持つ相手のクリーチャーを1体選び、破壊する」→ [{"do": "choose", "from": "$OPP_BATTLE", "filter": {"costOf": "$X"}, "min": 1, "max": 1, "by": "opp", "delta": 1}, {"do": "destroy", "ids": "$X"}]  ×choose に as（変数名）がありません
+  Qwen[3] 「その捨てた手札と同じコストを持つ相手のクリーチャーを1体選び、破壊する」→ [{"do": "choose", "from": "$OPP_BATTLE", "filter": {"costOf": "$X"}, "min": 1, "max": 1, "by": "opp", "delta": 1}, {"do": "destroy", "ids": "$X"}]  ×choose に as（変数名）がありません
+○ 世界のY チャクラ・デル・フィン etb（自分の山札の上から1枚をシールド化する）
+  Python「自分の山札の上から1枚をシールド化する」→ [{"do": "topToShield", "n": 1}]
+○ 轟腕のR ダグラジャパニカン etb（自分のシールドを1つマナゾーンに置く）
+  Python「自分のシールドを1つマナゾーンに置く」→ [{"do": "choose", "from": "$MY_SHIELD", "min": 1, "max": 1, "as": "X"}, {"do": "move", "ids": "$X", "to": "mana"}]
+○ 轟く邪道 レッドゾーン etb（アンタップする。相手の、パワーが一番小さいクリーチャーをすべて破壊する）
+  Python「アンタップする」→ [{"do": "untap", "ids": "$SELF"}]
+  Python「相手の、パワーが一番小さいクリーチャーをすべて破壊する」→ [{"do": "filter", "from": "$OPP_BATTLE", "filter": {"lowestPower": true}, "as": "X"}, {"do": "destroy", "ids": "$X"}]
+○ 轟く邪道 レッドゾーン attack（相手の、パワーが一番小さいクリーチャーをすべて破壊する）
+  Python「相手の、パワーが一番小さいクリーチャーをすべて破壊する」→ [{"do": "filter", "from": "$OPP_BATTLE", "filter": {"lowestPower": true}, "as": "X"}, {"do": "destroy", "ids": "$X"}]
+× ピザスターのアンティハムト etb（カードを1枚引く。その後、コスト3以下のクリーチャーを1体、自分の手札から出してもよい。このターン、そのクリーチャーに「スピードアタッカー」を与え、パワーを+3000する）
+  Python「カードを1枚引く」→ [{"do": "draw", "n": 1}]
+  Qwen[1] 「コスト3以下のクリーチャーを1体、自分の手札から出してもよい」→ [{"do": "choose", "from": "$MY_HAND", "filter": {"type": "クリーチャー", "maxCost": 3}, "min": 0, "max": 1, "random": false, "by": "me", "delta": 0}, {"do": "put", "ids": "$X"}]  ×choose に as（変数名）がありません
+  Qwen[2] 「コスト3以下のクリーチャーを1体、自分の手札から出してもよい」→ [{"do": "choose", "from": "$MY_HAND", "filter": {"type": "クリーチャー", "maxCost": 3}, "min": 0, "max": 1, "random": false, "by": "me", "delta": 0}, {"do": "put", "ids": "$X"}]  ×choose に as（変数名）がありません
+  Qwen[3] 「コスト3以下のクリーチャーを1体、自分の手札から出してもよい」→ [{"do": "choose", "from": "$MY_HAND", "filter": {"type": "クリーチャー", "maxCost": 3}, "min": 0, "max": 1, "random": false, "by": "me", "delta": 0}, {"do": "put", "ids": "$X"}]  ×choose に as（変数名）がありません
+× 神判のカルマ コットン / ジャッジ・水晶チャージャー spell（相手のマナゾーンにあるカードの枚数より大きいコストを持つ相手のエレメントを1つ選ぶ。相手はそれを山札の下に置く）
+  Qwen[1] 「相手のマナゾーンにあるカードの枚数より大きいコストを持つ相手のエレメントを1つ選ぶ」→ [{"do": "choose", "from": "$OPP_MANA", "filter": {"costGreaterThanMana": "opp"}, "min": 1, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+  Qwen[2] 「相手のマナゾーンにあるカードの枚数より大きいコストを持つ相手のエレメントを1つ選ぶ」→ [{"do": "choose", "from": "$OPP_MANA", "filter": {"costGreaterThanMana": "opp"}, "min": 1, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+  Qwen[3] 「相手のマナゾーンにあるカードの枚数より大きいコストを持つ相手のエレメントを1つ選ぶ」→ [{"do": "choose", "from": "$OPP_MANA", "filter": {"costGreaterThanMana": "opp"}, "min": 1, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+× 深淵の逆転撃 spell（相手のクリーチャーを1体選ぶ。このターン、そのクリーチャーのパワーを-∞する）
+  Qwen[1] 「相手のクリーチャーを1体選ぶ」→ [{"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+  Qwen[2] 「相手のクリーチャーを1体選ぶ」→ [{"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+  Qwen[3] 「相手のクリーチャーを1体選ぶ」→ [{"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+× 邪幽 ジャヴェール / 「ヤベーのを見たいか？」 spell（自分の山札の上から1枚をタップしてマナゾーンに置く。その後、自分のマナゾーンにあるカードがすべてアビス・カードなら、相手のクリーチャーを1体選び、このターン、そのクリーチャーのパワーを-2000する）
+  Python「自分の山札の上から1枚をタップしてマナゾーンに置く」→ [{"do": "topToMana", "n": 1, "tapped": true}]
+  Qwen 条件「自分のマナゾーンにあるカードがすべてアビス・カード」→ [{"who": "me", "zone": "mana", "filter": {"notRace": "アビス"}, "op": "==", "n": 0}]
+  Qwen[1] 「相手のクリーチャーを1体選ぶ」→ [{"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+  Qwen[2] 「相手のクリーチャーを1体選ぶ」→ [{"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+  Qwen[3] 「相手のクリーチャーを1体選ぶ」→ [{"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+○ 流星のガイアッシュ・カイザー etb（カードを2枚引く）
+  Python「カードを2枚引く」→ [{"do": "draw", "n": 2}]
+○ 悪魔龍 ダークマスターズ etb（相手の手札を見て3枚まで選び、捨てさせる）
+  Python「相手の手札を見て3枚まで選び、捨てさせる」→ [{"do": "choose", "from": "$OPP_HAND", "min": 0, "max": 3, "as": "X"}, {"do": "move", "ids": "$X", "to": "grave"}]
+- 青寂の精霊龍 カーネル / サイレント・ジェラシー：ただし書きは手順にしない: ただし、その「S・トリガー」は使えない
+× 青寂の精霊龍 カーネル / サイレント・ジェラシー etb（相手のクリーチャーを1体選ぶ。次の自分のターンのはじめまで、そのクリーチャーは攻撃もブロックもできない）
+  Qwen[1] 「相手のクリーチャーを1体選ぶ」→ [{"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+  Qwen[2] 「相手のクリーチャーを1体選ぶ」→ [{"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+  Qwen[3] 「相手のクリーチャーを1体選ぶ」→ [{"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+○ 青寂の精霊龍 カーネル / サイレント・ジェラシー spell（相手の手札を1枚見ないで選び、捨てさせる。自分のシールドを1つ手札に加える）
+  Python「相手の手札を1枚見ないで選び、捨てさせる」→ [{"do": "choose", "from": "$OPP_HAND", "random": true, "max": 1, "as": "X"}, {"do": "move", "ids": "$X", "to": "grave"}]
+  Python「自分のシールドを1つ手札に加える」→ [{"do": "choose", "from": "$MY_SHIELD", "min": 1, "max": 1, "as": "Y"}, {"do": "move", "ids": "$Y", "to": "hand"}]
+○ 切札混成 光隼 蒼斬丸 etb（カードを2枚まで引く）
+  Python「カードを2枚まで引く」→ [{"do": "mode", "q": "何枚引く？", "options": [{"label": "0枚", "steps": []}, {"label": "1枚", "steps": [{"do": "draw", "n": 1}]}, {"label": "2枚", "steps": [{"do": "draw", "n": 2}]}]}]
+- 音卿の精霊龍 ラフルル・ラブ / 「未来から来る、だからミラクル」：手順にできない文がある呪文: その後、コスト5以下の呪文を1枚、自分の手札からコストを支払わずに唱えてもよい
+× 音卿の精霊龍 ラフルル・ラブ / 「未来から来る、だからミラクル」 etb（次の相手のターンの終わりまで、相手は呪文を唱えられない）
+  Qwen: 書けない「次の相手のターンの終わりまで、相手は呪文を唱えられない」
+○ 水上第九院 シャコガイル etb（自分の墓地にあるカードをすべて山札に加え、シャッフルする）
+  Python「自分の墓地にあるカードをすべて山札に加え、シャッフルする」→ [{"do": "move", "ids": "$MY_GRAVE", "to": "deckBottom"}, {"do": "shuffle"}]
+× 大崩壊炉 マーダン=ダイロウ etb（それが進化クリーチャーなら、相手は自身の進化ではないクリーチャーをすべて、好きな順序で山札の下に置く。相手の進化ではないクリーチャーをすべて破壊する）
+  Python 条件「それが進化クリーチャー」→ [{"self": "evolved"}]
+  Qwen[1] 「相手は自身の進化ではないクリーチャーをすべて、好きな順序で山札の下に置く」→ [{"do": "filter", "from": "$OPP_BATTLE", "filter": {"nonEvolution": true}, "min": 0, "max": "$CONTAINED", "by": "opp", "delta": 0}, {"do": "move", "ids": "$X", "to": "deckBottom"}]  ×filter に as（変数名）がありません
+  Qwen[2] 「相手は自身の進化ではないクリーチャーをすべて、好きな順序で山札の下に置く」→ [{"do": "filter", "from": "$OPP_BATTLE", "filter": {"nonEvolution": true}, "min": 0, "max": "$CONTAINED", "by": "opp", "delta": 0}, {"do": "move", "ids": "$X", "to": "deckBottom"}]  ×filter に as（変数名）がありません
+  Qwen[3] 「相手は自身の進化ではないクリーチャーをすべて、好きな順序で山札の下に置く」→ [{"do": "filter", "from": "$OPP_BATTLE", "filter": {"nonEvolution": true}, "min": 0, "max": "$CONTAINED", "by": "opp", "delta": 0}, {"do": "move", "ids": "$X", "to": "deckBottom"}]  ×filter に as（変数名）がありません
+○ ジョジョジョ・ジョーカーズ spell（自分の山札の上から4枚を見る。その中からジョーカーズ・クリーチャーを1体、相手に見せてから手札に加えてもよい。残りを好きな順序で自分の山札の一番下に置く）
+  Python「自分の山札の上から4枚を見る」→ [{"do": "look", "n": 4, "as": "L"}]
+  Python「その中からジョーカーズ・クリーチャーを1体、相手に見せてから手札に加えてもよい」→ [{"do": "choose", "from": "$L", "min": 0, "max": 1, "as": "X", "filter": {"race": "ジョーカーズ", "type": "クリーチャー"}}, {"do": "move", "ids": "$X", "to": "hand"}]
+  Python「残りを好きな順序で自分の山札の一番下に置く」→ [{"do": "move", "ids": "$L", "to": "deckBottom", "except": "$X"}]
+○ 銃車逆夢 ザ・マグニー / ジョリー・ザ・スクラッパー spell（相手のコスト3以下のエレメントを1つ選び、破壊する）
+  Python「相手のコスト3以下のエレメントを1つ選び、破壊する」→ [{"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "as": "X", "filter": {"maxCost": 3}}, {"do": "destroy", "ids": "$X"}]
+○ Dr.富士山ッピング etb（自分の山札の上から3枚を表向きにする。その中からジョーカーズ・カードを好きな枚数手札に加え、残りを好きな順序で山札の下に置く）
+  Python「自分の山札の上から3枚を表向きにする」→ [{"do": "look", "n": 3, "as": "L"}]
+  Python「その中からジョーカーズ・カードを好きな枚数手札に加え」→ [{"do": "filter", "from": "$L", "filter": {"race": "ジョーカーズ"}, "as": "X"}, {"do": "move", "ids": "$X", "to": "hand"}]
+  Python「残りを好きな順序で山札の下に置く」→ [{"do": "move", "ids": "$L", "to": "deckBottom", "except": "$X"}]
+× キング・ザ・スロットン７ / 7777777 etb（自分の山札の上から3枚を表向きにする。それがすべてジョーカーズなら、その中からクリーチャーを1体、バトルゾーンに出す。そのターン、そのクリーチャーは、相手プレイヤーを攻撃できる。残りのカードを好きな順序で自分の山札の一番下に置く）
+  Python「自分の山札の上から3枚を表向きにする」→ [{"do": "look", "n": 3, "as": "L"}]
+  Qwen 条件「それがすべてジョーカーズ」→ [{"who": "me", "zone": "battle", "filter": {"race": "ジョーカーズ"}, "op": "==", "n": 0}]
+  Qwen[1] 「その中からクリーチャーを1体、バトルゾーンに出す」→ [{"do": "choose", "from": "$L", "filter": {"type": "クリーチャー"}, "min": 1, "max": 1, "random": false, "by": "me", "delta": 1}, {"do": "put", "ids": "$X"}]  ×choose に as（変数名）がありません
+  Qwen[2] 「その中からクリーチャーを1体、バトルゾーンに出す」→ [{"do": "choose", "from": "$L", "filter": {"type": "クリーチャー"}, "min": 1, "max": 1, "random": false, "by": "me", "delta": 1}, {"do": "put", "ids": "$X"}]  ×choose に as（変数名）がありません
+  Qwen[3] 「その中からクリーチャーを1体、バトルゾーンに出す」→ [{"do": "choose", "from": "$L", "filter": {"type": "クリーチャー"}, "min": 1, "max": 1, "random": false, "by": "me", "delta": 1}, {"do": "put", "ids": "$X"}]  ×choose に as（変数名）がありません
+× キング・ザ・スロットン７ / 7777777 spell（相手は自身の山札の上から3枚を表向きにし、自分はその中から1枚を選ぶ。その選んだカードとコストが同じ相手のクリーチャーをすべてと、表向きにした3枚を、相手は好きな順序で自身の山札の一番下に置く）
+  Qwen[1] 「相手は自身の山札の上から3枚を表向きにし、自分はその中から1枚を選ぶ」→ [{"do": "look", "n": 3, "as": "X"}, {"do": "choose", "from": "$X", "min": 1, "max": 1, "random": false, "by": "me", "delta": 1}]  ×choose に as（変数名）がありません
+  Qwen[2] 「相手は自身の山札の上から3枚を表向きにし、自分はその中から1枚を選ぶ」→ [{"do": "look", "n": 3, "as": "X"}, {"do": "choose", "from": "$X", "min": 1, "max": 1, "random": false, "by": "me", "delta": 1}]  ×choose に as（変数名）がありません
+  Qwen[3] 「相手は自身の山札の上から3枚を表向きにし、自分はその中から1枚を選ぶ」→ [{"do": "look", "n": 3, "as": "X"}, {"do": "choose", "from": "$X", "min": 1, "max": 1, "random": false, "by": "me", "delta": 1}]  ×choose に as（変数名）がありません
+× “↑↑”ブランド etb（自分の手札を好きな数捨ててもよい。こうして捨てたカード1枚につき、相手のパワー6000以下のクリーチャーを1体選び、破壊する）
+  Qwen[1] 「自分の手札を好きな数捨ててもよい」→ [{"do": "choose", "from": "$MY_HAND", "min": 0, "max": "$CONTAINED", "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+  Qwen[2] 「自分の手札を好きな数捨ててもよい」→ [{"do": "choose", "from": "$MY_HAND", "min": 0, "max": "$CONTAINED", "random": false, "by": "me", "delta": 0}, {"do": "move", "ids": "$X", "to": "grave"}]  ×choose に as（変数名）がありません
+  Qwen[3] 「自分の手札を好きな数捨ててもよい」→ [{"do": "choose", "from": "$MY_HAND", "min": 0, "max": "$CONTAINED", "random": false, "by": "me", "delta": 0}, {"do": "move", "ids": "$X", "to": "grave"}]  ×choose に as（変数名）がありません
+○ ジョギメラゴン＆メラビート ～Jの焔舞～ etb（自分の山札の上から4枚を見る。その中からジョーカーズ・カードを1枚表向きにし、手札に加えてもよい。残りを好きな順序で山札の下に置く）
+  Python「自分の山札の上から4枚を見る」→ [{"do": "look", "n": 4, "as": "L"}]
+  Python「その中からジョーカーズ・カードを1枚表向きにし、手札に加えてもよい」→ [{"do": "choose", "from": "$L", "min": 0, "max": 1, "as": "X", "filter": {"race": "ジョーカーズ"}}, {"do": "move", "ids": "$X", "to": "hand"}]
+  Python「残りを好きな順序で山札の下に置く」→ [{"do": "move", "ids": "$L", "to": "deckBottom", "except": "$X"}]
+× メラベンチャー・ザ・ジョニー etb（ジョーカーズ・クリーチャーを2体まで自分の手札から出し、それらに「スピードアタッカー」を与える）
+  Qwen[1] 「ジョーカーズ・クリーチャーを2体まで自分の手札から出し、それらに「スピードアタッカー」を与える」→ [{"do": "choose", "from": "$MY_HAND", "filter": {"type": "クリーチャー", "text": "ジョーカーズ"}, "min": 0, "max": 2, "random": false, "by": "me", "delta": 0}, {"do": "put", "ids": "$X"}, {"do": "giveSA", "ids": "$X"}]  ×choose に as（変数名）がありません
+  Qwen[2] 「ジョーカーズ・クリーチャーを2体まで自分の手札から出し、それらに「スピードアタッカー」を与える」→ [{"do": "choose", "from": "$MY_HAND", "filter": {"type": "クリーチャー", "text": "ジョーカーズ"}, "min": 0, "max": 2, "random": false, "by": "me", "delta": 0}, {"do": "put", "ids": "$X"}, {"do": "giveSA", "ids": "$X"}]  ×choose に as（変数名）がありません
+  Qwen[3] 「ジョーカーズ・クリーチャーを2体まで自分の手札から出し、それらに「スピードアタッカー」を与える」→ [{"do": "choose", "from": "$MY_HAND", "filter": {"type": "クリーチャー", "text": "ジョーカーズ"}, "min": 0, "max": 2, "random": false, "by": "me", "delta": 0}, {"do": "put", "ids": "$X"}, {"do": "giveSA", "ids": "$X"}]  ×choose に as（変数名）がありません
+× ジョギラゴン＆ジョニー ～Jの旅路～ etb（カードを1枚引き、その後、自分の手札を1枚捨てる。こうして捨てたカードがジョーカーズなら、そのカードの「このクリーチャーがバトルゾーンに出た時」で始まる能力を1つ使ってもよい）
+  Qwen[1] 「カードを1枚引き」→ [{"do": "draw", "n": 1}]
+  Qwen[1] 「自分の手札を1枚捨てる」→ [{"do": "choose", "from": "$MY_HAND", "min": 1, "max": 1, "random": false, "by": "me", "delta": 1000000000000000}, {"do": "move", "ids": "$X", "to": "grave"}]  ×choose に as（変数名）がありません
+  Qwen[2] 「自分の手札を1枚捨てる」→ [{"do": "choose", "from": "$MY_HAND", "min": 1, "max": 1, "random": false, "by": "me", "delta": 1000000000000000}, {"do": "move", "ids": "$X", "to": "grave"}]  ×choose に as（変数名）がありません
+  Qwen[3] 「自分の手札を1枚捨てる」→ [{"do": "choose", "from": "$MY_HAND", "min": 1, "max": 1, "random": false, "by": "me", "delta": 1000000000000000}, {"do": "move", "ids": "$X", "to": "grave"}]  ×choose に as（変数名）がありません
+× 勝敵逆夢王 モウジャキンガ etb（相手の、シールド1つとクリーチャー1体を選ぶ。その後、相手の手札を1枚見ないで選ぶ。相手はそれらをすべて墓地に置く）
+  Qwen[1] 「相手の、シールド1つとクリーチャー1体を選ぶ」→ [{"do": "choose", "from": "$OPP_SHIELD", "min": 1, "max": 1, "random": false, "by": "opp", "delta": 1}, {"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "opp", "delta": 1}]  ×choose に as（変数名）がありません
+  Qwen[2] 「相手の、シールド1つとクリーチャー1体を選ぶ」→ [{"do": "choose", "from": "$OPP_SHIELD", "min": 1, "max": 1, "random": false, "by": "opp", "delta": 1}, {"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "opp", "delta": 1}]  ×choose に as（変数名）がありません
+  Qwen[3] 「相手の、シールド1つとクリーチャー1体を選ぶ」→ [{"do": "choose", "from": "$OPP_SHIELD", "min": 1, "max": 1, "random": false, "by": "opp", "delta": 1}, {"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "opp", "delta": 1}]  ×choose に as（変数名）がありません
+× にやにYAH etb（次の中から1回選ぶ）
+  Qwen: 書けない「次の中から1回選ぶ」
+× 勝熱と弾丸と自由の決断 spell（次の中から2回選ぶ。▶バトルゾーンにある、コスト3以下のカードを1枚選び、持ち主の山札の下に置く。▶このターン、自分のクリーチャー1体は相手プレイヤーを攻撃できる。▶相手のクリーチャーを1体選ぶ。このターン、そのクリーチャーの能力をすべて無視する）
+  Qwen: 書けない「次の中から2回選ぶ」
+× 最終兵ッキー etb（バトルゾーンにある他のクリーチャーを1体選んでもよい。そうしたら、そのクリーチャーの持ち主はそれを自身の山札の一番下に置き、カードを1枚引く。その後、選んだクリーチャー以下のコストを持つクリーチャーを1体、その持ち主は自身の手札からバトルゾーンに出してもよい）
+  Qwen[1] 「バトルゾーンにある他のクリーチャーを1体選んでもよい」→ [{"do": "choose", "from": "$MY_BATTLE", "min": 0, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+  Qwen[2] 「バトルゾーンにある他のクリーチャーを1体選んでもよい」→ [{"do": "choose", "from": "$MY_BATTLE", "min": 0, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+  Qwen[3] 「バトルゾーンにある他のクリーチャーを1体選んでもよい」→ [{"do": "choose", "from": "$MY_BATTLE", "min": 0, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+× 最終兵ッキー attack（バトルゾーンにある他のクリーチャーを1体選んでもよい。そうしたら、そのクリーチャーの持ち主はそれを自身の山札の一番下に置き、カードを1枚引く。その後、選んだクリーチャー以下のコストを持つクリーチャーを1体、その持ち主は自身の手札からバトルゾーンに出してもよい）
+  Qwen[1] 「バトルゾーンにある他のクリーチャーを1体選んでもよい」→ [{"do": "choose", "from": "$MY_BATTLE", "min": 0, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+  Qwen[2] 「バトルゾーンにある他のクリーチャーを1体選んでもよい」→ [{"do": "choose", "from": "$MY_BATTLE", "min": 0, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+  Qwen[3] 「バトルゾーンにある他のクリーチャーを1体選んでもよい」→ [{"do": "choose", "from": "$MY_BATTLE", "min": 0, "max": 1, "random": false, "by": "me", "delta": 0}]  ×choose に as（変数名）がありません
+× アイアン・マンハッタン etb（相手のシールドを2つ選ぶ）
+  Qwen[1] 「相手のシールドを2つ選ぶ」→ [{"do": "choose", "from": "$OPP_SHIELD", "min": 2, "max": 2, "random": false, "by": "opp", "delta": 2000}]  ×choose に as（変数名）がありません
+  Qwen: 書けない「相手のシールドを2つ選ぶ」
+× 天V王 エバーラスト etb（エレメントを1つ選び、シールド化してもよい）
+  Qwen[1] 「エレメントを1つ選び、シールド化してもよい」→ [{"do": "choose", "from": "$MY_SHIELD", "min": 0, "max": 1, "random": false, "by": "me", "delta": 1}]  ×choose に as（変数名）がありません
+  Qwen[2] 「エレメントを1つ選び、シールド化してもよい」→ [{"do": "choose", "from": "$MY_SHIELD", "min": 0, "max": 1, "random": false, "by": "me", "delta": 1}, {"do": "put", "ids": "$X"}]  ×choose に as（変数名）がありません
+  Qwen[3] 「エレメントを1つ選び、シールド化してもよい」→ [{"do": "choose", "from": "$MY_SHIELD", "min": 0, "max": 1, "random": false, "by": "me", "delta": 1}, {"do": "put", "ids": "$X"}]  ×choose に as（変数名）がありません
+× 天V王 エバーラスト attack（エレメントを1つ選び、シールド化してもよい）
+  Qwen[1] 「エレメントを1つ選び、シールド化してもよい」→ [{"do": "choose", "from": "$MY_SHIELD", "min": 0, "max": 1, "random": false, "by": "me", "delta": 1}]  ×choose に as（変数名）がありません
+  Qwen[2] 「エレメントを1つ選び、シールド化してもよい」→ [{"do": "choose", "from": "$MY_SHIELD", "min": 0, "max": 1, "random": false, "by": "me", "delta": 1}, {"do": "put", "ids": "$X"}]  ×choose に as（変数名）がありません
+  Qwen[3] 「エレメントを1つ選び、シールド化してもよい」→ [{"do": "choose", "from": "$MY_SHIELD", "min": 0, "max": 1, "random": false, "by": "me", "delta": 1}, {"do": "put", "ids": "$X"}]  ×choose に as（変数名）がありません
+× 神聖龍 エモーショナル・ハードコア etb（《神聖龍エモーショナル・ハードコア》以外のクリーチャーの名前を1つ選ぶ）
+  Qwen: 書けない「《神聖龍エモーショナル・ハードコア》以外のクリーチャーの名前を1つ選ぶ」
+× 轟䡛合体 ゴルギーオージャー etb（このクリーチャーに含まれるカードの枚数まで、自分の山札の上からマナゾーンに置く。その後、カードを3枚まで自分のマナゾーンから手札に戻す）
+  Qwen[1] 「このクリーチャーに含まれるカードの枚数まで、自分の山札の上からマナゾーンに置く」→ [{"do": "draw", "n": "$CONTAINED", "as": "X"}, {"do": "move", "ids": "$X", "to": "mana"}]  ×ids の $X はまだない変数です（使えるのは $MY_BATTLE, $MY_GRAVE, $MY_HAND, $MY_MANA, $MY_SHIELD, $OPP_BATTLE, $OPP_GRAVE, $OPP_HAND, $OPP_MANA, $OPP_SHIELD, $SELF）
+  Qwen[2] 「このクリーチャーに含まれるカードの枚数まで、自分の山札の上からマナゾーンに置く」→ [{"do": "look", "n": "$CONTAINED", "as": "X"}, {"do": "move", "ids": "$X", "to": "mana"}]
+  Qwen[1] 「カードを3枚まで自分のマナゾーンから手札に戻す」→ [{"do": "choose", "from": "$MY_MANA", "min": 0, "max": 3, "random": false, "by": "me", "delta": 3000}]  ×choose に as（変数名）がありません
+  Qwen: 書けない「カードを3枚まで自分のマナゾーンから手札に戻す」
+× 華謡の精霊カンツォーネ etb（相手のエレメントを1つ選び、シールド化してもよい）
+  Qwen[1] 「相手のエレメントを1つ選び、シールド化してもよい」→ [{"do": "choose", "from": "$OPP_BATTLE", "filter": {"type": "カード"}, "min": 0, "max": 1, "random": false, "by": "opp", "delta": 1000}]  ×choose に as（変数名）がありません
+  Qwen[2] 「相手のエレメントを1つ選び、シールド化してもよい」→ [{"do": "choose", "from": "$OPP_BATTLE", "filter": {"type": "カード"}, "min": 0, "max": 1, "random": false, "by": "opp", "delta": 1000}]  ×choose に as（変数名）がありません
+  Qwen[3] 「相手のエレメントを1つ選び、シールド化してもよい」→ [{"do": "choose", "from": "$OPP_BATTLE", "filter": {"type": "カード"}, "min": 0, "max": 1, "random": false, "by": "opp", "delta": 1000}]  ×choose に as（変数名）がありません
+× 大集合！アカネ&アサギ&コハク etb（自分の山札の上から2枚を見る。その中から1枚を手札に加えるかマナゾーンに置き、残りの1枚を山札の下に置く）
+  Python「自分の山札の上から2枚を見る」→ [{"do": "look", "n": 2, "as": "L"}]
+  Qwen: 書けない「その中から1枚を手札に加えるかマナゾーンに置き」
+× 観覧！ホールインランド・ヘラクレス etb（カードを2枚引く。その後、このクリーチャーに含まれるカード1枚につき、自分のマナゾーンにあるカードを1枚アンタップする）
+  Python「カードを2枚引く」→ [{"do": "draw", "n": 2}]
+  Qwen[1] 「このクリーチャーに含まれるカード1枚につき、自分のマナゾーンにあるカードを1枚アンタップする」→ [{"do": "untapMana", "n": "$CONTAINED"}]  ×文中の数 1 が手順にありません
+  Qwen[2] 「このクリーチャーに含まれるカード1枚につき、自分のマナゾーンにあるカードを1枚アンタップする」→ [{"do": "choose", "from": "$MY_MANA", "min": 1, "max": 1, "random": false, "by": "me", "delta": 1}, {"do": "untap", "ids": "$X"}]  ×choose に as（変数名）がありません
+  Qwen[3] 「このクリーチャーに含まれるカード1枚につき、自分のマナゾーンにあるカードを1枚アンタップする」→ [{"do": "choose", "from": "$MY_MANA", "min": 1, "max": 1, "random": false, "by": "me", "delta": 1}, {"do": "untap", "ids": "$X"}]  ×choose に as（変数名）がありません
+× ソウルサンライト コハク etb（次の自分のターンのはじめまで、このクリーチャーは離れない）
+  Qwen[1] 「次の自分のターンのはじめまで、このクリーチャーは離れない」→ [{"do": "freeze", "ids": "$X"}]  ×ids の $X はまだない変数です（使えるのは $MY_BATTLE, $MY_GRAVE, $MY_HAND, $MY_MANA, $MY_SHIELD, $OPP_BATTLE, $OPP_GRAVE, $OPP_HAND, $OPP_MANA, $OPP_SHIELD, $SELF）
+  Qwen: 書けない「次の自分のターンのはじめまで、このクリーチャーは離れない」
+× 吟弾の妖精 etb（このクリーチャーに含まれるカード1枚につき、相手のクリーチャーを1体選び、タップする。次の自分のターンのはじめまで、それらはアンタップしない）
+  Qwen[1] 「このクリーチャーに含まれるカード1枚につき、相手のクリーチャーを1体選び、タップする」→ [{"do": "draw", "n": "$CONTAINED"}, {"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "me", "delta": 1}, {"do": "tap", "ids": "$X"}]  ×choose に as（変数名）がありません
+  Qwen[2] 「このクリーチャーに含まれるカード1枚につき、相手のクリーチャーを1体選び、タップする」→ [{"do": "draw", "n": "$CONTAINED"}, {"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "me", "delta": 1}, {"do": "tap", "ids": "$X"}]  ×choose に as（変数名）がありません
+  Qwen[3] 「このクリーチャーに含まれるカード1枚につき、相手のクリーチャーを1体選び、タップする」→ [{"do": "draw", "n": "$CONTAINED"}, {"do": "choose", "from": "$OPP_BATTLE", "min": 1, "max": 1, "random": false, "by": "me", "delta": 1}, {"do": "tap", "ids": "$X"}]  ×choose に as（変数名）がありません
+○ アシステスト・シネラリア etb（自分の他のジャイアントがあれば、カードを1枚引く）
+  Python 条件「自分の他のジャイアントが」→ [{"who": "me", "zone": "battle", "filter": {"race": "ジャイアント"}, "op": ">=", "n": 2}]
+  Python「カードを1枚引く」→ [{"do": "draw", "n": 1}]
+× 飛翔龍 5000VT etb（相手のパワー5000以下のクリーチャーをすべて、持ち主の手札に戻す。次の相手のターン中、相手はパワー5000以下のクリーチャーを出せない）
+  Qwen[1] 「相手のパワー5000以下のクリーチャーをすべて、持ち主の手札に戻す」→ [{"do": "filter", "from": "$OPP_BATTLE", "filter": {"maxPower": 5000}, "min": 0, "max": "$CONTAINED", "random": false, "by": "me", "delta": 5000}, {"do": "move", "ids": "$X", "to": "hand"}]  ×filter に as（変数名）がありません
+  Qwen[2] 「相手のパワー5000以下のクリーチャーをすべて、持ち主の手札に戻す」→ [{"do": "filter", "from": "$OPP_BATTLE", "filter": {"maxPower": 5000}, "min": 0, "max": "$CONTAINED", "random": false, "by": "me", "delta": 5000}, {"do": "move", "ids": "$X", "to": "hand"}]  ×filter に as（変数名）がありません
+  Qwen[3] 「相手のパワー5000以下のクリーチャーをすべて、持ち主の手札に戻す」→ [{"do": "filter", "from": "$OPP_BATTLE", "filter": {"maxPower": 5000}, "min": 0, "max": "$CONTAINED", "random": false, "by": "me", "delta": 5000}, {"do": "move", "ids": "$X", "to": "hand"}]  ×filter に as（変数名）がありません
+
+モデル qwen3:14b、Qwen 呼び出し 79 回・146 秒、全体 146 秒、手順にできた能力 15
