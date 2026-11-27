@@ -266,7 +266,8 @@ def rule(cl, cx):
 SPEC = """手順(steps)の書き方。1つの文を、ゲームエンジンが実行できる手順のJSON配列にする。
 - {"do":"choose","from":"$OPP_BATTLE","filter":{...},"min":1,"max":1,"as":"X","random":false,"by":"me"}  カードを選ぶ。「〜まで」「〜てもよい」は min 0。「見ないで選ぶ」は random:true。「相手は自身の〜を選び」は by:"opp"。
 - {"do":"filter","from":"$OPP_BATTLE","filter":{...},"as":"X"}  条件に合うカードをすべて（「すべて」のとき）
-- {"do":"move","ids":"$X","to":"hand|mana|manaTapped|grave|shield|deckTop|deckBottom"}  カードを動かす（「捨てる」は grave、「山札の下」は deckBottom）
+- {"do":"move","ids":"$X","to":"hand|mana|manaTapped|grave|shield|deckTop|deckBottom"}  カードを動かす（「捨てる」は grave、「山札の下」は deckBottom、「シールド化」は shield）
+- choose・filter・look には必ず "as" を付ける。選んだ後に「破壊する」「手札に戻す」などがあれば、その手順も続けて書く。
 - {"do":"put","ids":"$X"} バトルゾーンに出す / {"do":"destroy","ids":"$X"} 破壊
 - {"do":"draw","n":1} / {"do":"topToMana","n":1,"tapped":false}（「タップして」なら tapped:true） / {"do":"topToShield","n":1}（シールド化）
 - {"do":"tap","ids":"$X"} / {"do":"untap","ids":"$X"} / {"do":"freeze","ids":"$X"}（「次の自分のターンのはじめまで…アンタップしない」）
@@ -372,6 +373,36 @@ def hints(cl, cx):
     return h
 
 
+ALLOWED = {'choose': {'from', 'filter', 'min', 'max', 'as', 'random', 'by'}, 'filter': {'from', 'filter', 'as'}, 'look': {'n', 'as', 'who'},
+           'move': {'ids', 'except', 'to'}, 'power': {'ids', 'delta'}, 'draw': {'n', 'who'}, 'topToMana': {'n', 'tapped', 'who'},
+           'topToShield': {'n'}, 'untapMana': {'n'}, 'shuffle': set(), 'win': set(), 'lose': {'who'}}
+ACT = re.compile(r'破壊|手札に(加え|戻)|マナゾーンに置|捨て|墓地に置|出す|出して|シールド化|山札の(一番)?下|タップ|アンタップ|攻撃|パワー|与え')
+
+
+def tidy(steps, cx):
+    """Qwen がよく間違える形を Python で直す：as（変数名）の書き忘れ、その手順に関係ない項目、既定値のままの項目。"""
+    used = set(cx.picked) | ({'L'} if cx.look else set())
+    for st in steps:
+        d = st.get('do')
+        keep = ALLOWED.get(d, {'ids'})
+        for k in [k for k in st if k != 'do' and k not in keep]:
+            del st[k]
+        if st.get('random') is False:
+            del st['random']
+        if st.get('by') == 'me':
+            del st['by']
+        if st.get('who') == 'me':
+            del st['who']
+        if d in ('choose', 'filter', 'look') and not st.get('as'):
+            v = 'L' if d == 'look' and 'L' not in used else next(x for x in VARS if x not in used)
+            st['as'] = v
+        if st.get('as'):
+            used.add(st['as'])
+        if d == 'choose' and st.get('random') and 'min' in st:
+            del st['min']
+    return steps
+
+
 def check(cl, steps, cx):
     """Qwen の答えを確かめる。問題があればその説明（文字列）、なければ None。"""
     if not steps:
@@ -393,6 +424,8 @@ def check(cl, steps, cx):
             return 'move に to がありません'
         if st.get('do') in ('destroy', 'put', 'tap', 'untap', 'freeze', 'noattack', 'lock', 'giveSA', 'power', 'move') and not st.get('ids'):
             return f'{st["do"]} に ids がありません'
+    if steps[-1].get('do') in ('choose', 'filter') and ACT.search(cl.split('選')[-1]):
+        return '選んだカードをどうするか（破壊する・手札に戻す など）の手順がありません'
     dump = json.dumps(steps, ensure_ascii=False)
     for n in re.findall(r'\d+', cl):
         if n not in dump and not (n == '1' and ('"min": 1' in dump or '"max": 1' in dump or '"n": 1' in dump)):
@@ -424,7 +457,7 @@ def ask_steps(cl, cx, log):
         if res.get('cannot'):
             log.append(f'  Qwen: 書けない「{cl}」')
             return None
-        steps = res.get('steps') or []
+        steps = tidy(res.get('steps') or [], cx)
         err = check(cl, steps, cx)
         log.append(f'  Qwen[{tries + 1}] 「{cl}」→ {json.dumps(steps, ensure_ascii=False)}' + (f'  ×{err}' if err else ''))
         if not err:
