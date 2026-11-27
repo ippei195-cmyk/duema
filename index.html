@@ -10111,4 +10111,22 @@ if (rd('dmsim-acct', 0)) sdk().then(watch).catch(() => {});
 document.addEventListener('visibilitychange', () => { if (document.visibilityState==='visible' && A.user) sync(); });
 })();
 </script>
+<script id="redzonefx">
+/* 轟く邪道 レッドゾーン：自分のクリーチャーは、相手のカードによる攻撃できない効果を無視して攻撃できる（2026-11-27）
+   無視するもの：カーネルなどの「攻撃もブロックもできない」の攻撃の部分（ブロックできないは残る）、G・ストライク、コットン、アオフェシー、ガイアッシュ、効果による「このターン攻撃できない」 */
+(function(){
+  if (window.__redzonefx) return; window.__redzonefx = true;
+  const o = window.canAttack; if (typeof o !== 'function') return;
+  const ignores = p => !NOFX && inBattle(p, x => /相手のカードによる攻撃できない効果を無視して攻撃できる/.test(txt(x))).length > 0;
+  window.canAttack = function(c, target){
+    if (!c || !ignores(c.owner)) return o.apply(this, arguments);
+    const m = c.m || {}; const save = {noAttack: m.noAttack, noAttackPlayer: m.noAttackPlayer, lockUntil: m.lockUntil};
+    const all = S.dmaiLockAll && S.dmaiLockAll[c.owner];
+    if (!m.noAttackSelf) m.noAttack = false;
+    m.noAttackPlayer = false; delete m.lockUntil; if (all) delete S.dmaiLockAll[c.owner];
+    try { const r = o.apply(this, arguments); return r && /ギガンディダノス/.test(r) ? null : r; }
+    finally { m.noAttack = save.noAttack; m.noAttackPlayer = save.noAttackPlayer; if (save.lockUntil !== undefined) m.lockUntil = save.lockUntil; if (all) S.dmaiLockAll[c.owner] = all; }
+  };
+})();
+</script>
 </body></html>
