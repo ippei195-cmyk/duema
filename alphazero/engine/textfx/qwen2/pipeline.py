@@ -129,7 +129,14 @@ def clauses(body):
     """文をさらに「その後、」「、残り」で区切る。[(文の番号, 区切った文)]"""
     out = []
     for k, s in enumerate(body):
-        s = re.sub(r'^その後、', '', s)
+        s = re.sub(r'^(その後|そうしたら)、', '', s)
+        # 「このクリーチャーに含まれるカード1枚につき、…を1体」→ 数を $CONTAINED に（Python で書き換える）
+        m = re.match(r'^このクリーチャーに含まれるカード1枚につき、(.*?)(1)(体|枚|つ)(.*)$', s)
+        if m:
+            s = m.group(1) + '$CONTAINED' + m.group(3) + m.group(4)
+        m = re.match(r'^このクリーチャーに含まれるカードの枚数まで、自分の山札の上から(マナゾーンに置く|シールド化する)$', s)
+        if m:
+            s = '自分の山札の上から$CONTAINED枚を' + m.group(1)
         for part in re.split(r'、その後、|、(?=残り)', s):
             part = part.strip('、')
             if part:
@@ -142,6 +149,7 @@ def parse_filter(ph):
     """「コスト3以下の」「ジョーカーズ・クリーチャー」などを filter にする。読めない語が残れば None。"""
     f, rest = {}, ph
     rules = [
+        (r'相手のマナゾーンにあるカードの枚数より(大きい|多い)コストを持つ(相手の)?', lambda m: f.__setitem__('costGreaterThanMana', 'opp')),
         (r'コスト(\d+)以下の', lambda m: f.__setitem__('maxCost', int(m.group(1)))),
         (r'コスト(\d+)以上の', lambda m: f.__setitem__('minCost', int(m.group(1)))),
         (r'パワー(\d+)以下の', lambda m: f.__setitem__('maxPower', int(m.group(1)))),
@@ -161,6 +169,14 @@ def parse_filter(ph):
             rest = rest[:m.start()] + rest[m.end():]
     rest = rest.strip('、の')
     return f if rest == '' else None
+
+
+def num(x):
+    return x if x == '$CONTAINED' else int(x)
+
+
+# エンジンの手順で表せない言い回し。これがある文は Qwen に聞かずに、能力ごと手書きに任せる
+CANNOT = re.compile(r'∞|出せない|唱えられない|その持ち主|バトルゾーンにある(?!自分|相手)|名前を|ブレイク|無視|かわりに|離れない|負けず')
 
 
 class Ctx:
@@ -196,13 +212,13 @@ def rule(cl, cx):
     if m:
         cx.look = '$L'
         return [{'do': 'look', 'n': int(m.group(1)), 'as': 'L'}]
-    m = re.fullmatch(r'自分の山札の上から(\d+)枚を(タップして)?マナゾーンに(タップして)?置く', cl)
+    m = re.fullmatch(r'自分の山札の上から(\d+|\$CONTAINED)枚を(タップして)?マナゾーンに(タップして)?置く', cl)
     if m:
-        return [{'do': 'topToMana', 'n': int(m.group(1)), 'tapped': bool(m.group(2) or m.group(3))}]
-    m = re.fullmatch(r'自分の山札の上から(\d+)枚をシールド化する', cl)
+        return [{'do': 'topToMana', 'n': num(m.group(1)), 'tapped': bool(m.group(2) or m.group(3))}]
+    m = re.fullmatch(r'自分の山札の上から(\d+|\$CONTAINED)枚をシールド化する', cl)
     if m:
-        return [{'do': 'topToShield', 'n': int(m.group(1))}]
-    m = re.fullmatch(r'残り(の\d+枚)?を(好きな順(序|番)で)?(自分の)?山札の(一番)?下に置く', cl)
+        return [{'do': 'topToShield', 'n': num(m.group(1))}]
+    m = re.fullmatch(r'残り(の\d+枚|のカード)?を(好きな順(序|番)で)?(自分の)?山札の(一番)?下に置く', cl)
     if m and cx.look:
         st = {'do': 'move', 'ids': '$L', 'to': 'deckBottom'}
         if cx.from_look:
@@ -223,15 +239,17 @@ def rule(cl, cx):
         return [{'do': 'choose', 'from': '$MY_SHIELD', 'min': n, 'max': n, 'as': v}, {'do': 'move', 'ids': '$' + v, 'to': to}]
     if cl == 'アンタップする':
         return [{'do': 'untap', 'ids': '$SELF'}]
-    m = re.fullmatch(r'相手の、?(.*?)を(\d+)(体|つ)選び、(破壊する|タップする|手札に戻す|持ち主の手札に戻す)', cl)
+    m = re.fullmatch(r'相手の、?(.*?)を(\d+|\$CONTAINED)(体|つ)選(び、(破壊する|タップする|手札に戻す|持ち主の手札に戻す)|ぶ)', cl)
     if m:
         f = parse_filter(m.group(1))
         if f is not None:
-            n = int(m.group(2)); v = cx.new()
+            n = num(m.group(2)); v = cx.new()
             ch = {'do': 'choose', 'from': '$OPP_BATTLE', 'min': n, 'max': n, 'as': v}
             if f:
                 ch['filter'] = f
-            act = {'破壊する': {'do': 'destroy', 'ids': '$' + v}, 'タップする': {'do': 'tap', 'ids': '$' + v}}.get(m.group(4), {'do': 'move', 'ids': '$' + v, 'to': 'hand'})
+            if not m.group(5):
+                return [ch]
+            act = {'破壊する': {'do': 'destroy', 'ids': '$' + v}, 'タップする': {'do': 'tap', 'ids': '$' + v}}.get(m.group(5), {'do': 'move', 'ids': '$' + v, 'to': 'hand'})
             return [ch, act]
     m = re.fullmatch(r'相手の、?(.*?)をすべて(破壊する|手札に戻す)', cl)
     if m:
@@ -253,6 +271,16 @@ def rule(cl, cx):
             to = m.group(6)
             act = {'do': 'put', 'ids': '$' + v} if to.startswith('出') else {'do': 'move', 'ids': '$' + v, 'to': 'mana' if 'マナ' in to else 'hand'}
             return [ch, act]
+    m = re.fullmatch(r'その中から、?(.*?)(\d+)枚を手札に加えるかマナゾーンに置(く|き)', cl)
+    if m and cx.look:
+        f = parse_filter(m.group(1)) if m.group(1) else {}
+        if f is not None:
+            n = int(m.group(2)); v = cx.new('$L')
+            ch = {'do': 'choose', 'from': '$L', 'min': n, 'max': n, 'as': v}
+            if f:
+                ch['filter'] = f
+            return [ch, {'do': 'mode', 'q': '手札かマナか', 'options': [{'label': '手札', 'steps': [{'do': 'move', 'ids': '$' + v, 'to': 'hand'}]},
+                                                                     {'label': 'マナ', 'steps': [{'do': 'move', 'ids': '$' + v, 'to': 'mana'}]}]}]
     m = re.fullmatch(r'その中から、?(.*?)を好きな(枚数|数)手札に加え(る)?', cl)
     if m and cx.look:
         f = parse_filter(m.group(1))
@@ -379,7 +407,7 @@ ALLOWED = {'choose': {'from', 'filter', 'min', 'max', 'as', 'random', 'by'}, 'fi
 ACT = re.compile(r'破壊|手札に(加え|戻)|マナゾーンに置|捨て|墓地に置|出す|出して|シールド化|山札の(一番)?下|タップ|アンタップ|攻撃|パワー|与え')
 
 
-def tidy(steps, cx):
+def tidy(steps, cx, cl=''):
     """Qwen がよく間違える形を Python で直す：as（変数名）の書き忘れ、その手順に関係ない項目、既定値のままの項目。"""
     used = set(cx.picked) | ({'L'} if cx.look else set())
     for st in steps:
@@ -389,10 +417,18 @@ def tidy(steps, cx):
             del st[k]
         if st.get('random') is False:
             del st['random']
+        if st.get('by') == 'opp' and not re.search(r'相手は', cl):
+            del st['by']
         if st.get('by') == 'me':
             del st['by']
         if st.get('who') == 'me':
             del st['who']
+        if d in ('choose', 'filter', 'look') and st.get('as') in used:  # 前の変数と同じ名前は付け替える
+            old, st['as'] = st['as'], next(x for x in VARS if x not in used)
+            for later in steps[steps.index(st) + 1:]:
+                for k in ('ids', 'from', 'except'):
+                    if later.get(k) == '$' + old:
+                        later[k] = '$' + st['as']
         if d in ('choose', 'filter', 'look') and not st.get('as'):
             v = 'L' if d == 'look' and 'L' not in used else next(x for x in VARS if x not in used)
             st['as'] = v
@@ -424,6 +460,13 @@ def check(cl, steps, cx):
             return 'move に to がありません'
         if st.get('do') in ('destroy', 'put', 'tap', 'untap', 'freeze', 'noattack', 'lock', 'giveSA', 'power', 'move') and not st.get('ids'):
             return f'{st["do"]} に ids がありません'
+    for st in steps:
+        if st.get('do') == 'draw' and '引' not in cl:
+            return '文に「引く」がないのに draw があります'
+        if 'costOf' in (st.get('filter') or {}) and re.search(r'以下|以上', cl):
+            return 'costOf は「同じコスト」だけ。「以下」「以上」は表せないので cannot にする'
+        if st.get('do') == 'choose' and re.search(r'相手の.*(クリーチャー|エレメント)', cl) and st.get('from') in ('$OPP_MANA', '$OPP_HAND', '$OPP_GRAVE') and not re.search(r'マナゾーンから|手札から|墓地から', cl):
+            return '相手のクリーチャー・エレメントは $OPP_BATTLE から選びます'
     if steps[-1].get('do') in ('choose', 'filter') and ACT.search(cl.split('選')[-1]):
         return '選んだカードをどうするか（破壊する・手札に戻す など）の手順がありません'
     dump = json.dumps(steps, ensure_ascii=False)
@@ -457,7 +500,7 @@ def ask_steps(cl, cx, log):
         if res.get('cannot'):
             log.append(f'  Qwen: 書けない「{cl}」')
             return None
-        steps = tidy(res.get('steps') or [], cx)
+        steps = tidy(res.get('steps') or [], cx, cl)
         err = check(cl, steps, cx)
         log.append(f'  Qwen[{tries + 1}] 「{cl}」→ {json.dumps(steps, ensure_ascii=False)}' + (f'  ×{err}' if err else ''))
         if not err:
@@ -478,6 +521,9 @@ def ask_steps(cl, cx, log):
 def cond_rule(c):
     if c == 'それが進化クリーチャー':
         return [{'self': 'evolved'}]
+    m = re.fullmatch(r'自分の(マナゾーン|墓地|手札)にあるカードがすべて(.+?)・?カード', c)
+    if m:
+        return [{'who': 'me', 'zone': {'マナゾーン': 'mana', '墓地': 'grave', '手札': 'hand'}[m.group(1)], 'filter': {'notRace': m.group(2)}, 'op': '==', 'n': 0}]
     m = re.fullmatch(r'自分の他の(.+?)が(ある|あれ)?', c)
     if m:
         f = parse_filter(m.group(1))
@@ -490,6 +536,9 @@ def cond_rule(c):
 
 
 def ask_cond(c, log):
+    if c.startswith('それ'):  # 見たカードなどについての条件は、エンジンの条件で表せない
+        log.append(f'  ×条件で表せない「{c}」')
+        return None
     p = f"""あなたはデュエル・マスターズのルール処理係。能力の条件（「〜なら」「〜あれば」の前の部分）を、ゲームエンジンの条件にする。
 {COND_SPEC}
 
@@ -535,6 +584,9 @@ def convert(body, log):
         if mm and rule(cl, Ctx()) is None:  # 「選び、このターン、そのクリーチャーの〜」は「選ぶ」と後ろに分ける
             sub = [mm.group(1).replace('選び', '選ぶ'), (mm.group(2) or '') + mm.group(3) + mm.group(4)]
         for s in sub:
+            if CANNOT.search(s):
+                log.append(f'  ×手順で表せない言い回し「{s}」')
+                return None
             r = rule(s, cx)
             if r is not None:
                 log.append(f'  Python「{s}」→ {json.dumps(r, ensure_ascii=False)}')
@@ -547,7 +599,23 @@ def convert(body, log):
                     return None
             optional = bool(re.search(r'てもよい$', s)) and not any(x.get('do') in ('choose', 'optional', 'mode') for x in r)
             out_stack[-1].extend([{'do': 'optional', 'q': s + '？', 'steps': r}] if optional else r)
-    return fix_order(steps, cx)
+    steps = fix_order(steps, cx)
+    flat = json.dumps(steps, ensure_ascii=False)
+    for st in walk(steps):  # 選んだのに何もしないカードがあれば、文の切り出しが途中で終わっている
+        if st.get('do') in ('choose', 'filter') and flat.count('"$' + st['as'] + '"') < 1:
+            log.append(f'  ×選んだ ${st["as"]} を使う手順がない（能力の切り出しが途中まで）')
+            return None
+    return steps
+
+
+def walk(steps):
+    for st in steps:
+        yield st
+        for k in ('steps', 'else'):
+            if isinstance(st.get(k), list):
+                yield from walk(st[k])
+        for o in st.get('options', []) or []:
+            yield from walk(o.get('steps', []))
 
 
 def fix_order(steps, cx):
