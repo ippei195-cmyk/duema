@@ -9975,4 +9975,140 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
   });
 })();
 </script>
+<script id="acct">
+/* ---------- アカウントでデッキを保存（Googleログイン／Firebase） ----------
+   ログインすると、デッキ（と隠した既定デッキ）を Firestore の users/<uid>/ に保存し、どの端末でも同じデッキが出る。
+   ・このブラウザの dmsim-decks は消さずにそのまま控えとして使い続ける（ログアウトしても、ネットが切れても残る）。
+   ・ログインした時、このブラウザにだけあるデッキ・こちらの方が新しいデッキはアカウントへ取り込む。
+   ・削除は users/<uid>/meta/state の deleted（id→削除した時刻）に記録し、他の端末の控えからも消す。
+     ただし削除より後にその端末で編集したデッキは消さずにアカウントへ戻す。
+   ・ACCT_CONFIG が空ならログインボタンは出さず、今まで通りブラウザ保存だけ。 */
+(function(){
+const ACCT_CONFIG = null; // Firebase の「ウェブアプリの設定」（apiKey, authDomain, projectId, appId …）をここに入れる
+const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
+const LKEY = 'dmsim-decks', HKEY = 'dmsim-hidden-presets', BKEY = 'dmsim-decks-backup';
+const A = window.DMAI_ACCT = { user:null, state:'off', msg:'' };
+if (!ACCT_CONFIG || (typeof deckStore!=='undefined' && deckStore.kind==='db')) return;
+
+const rd = (k, d) => { try{ const v = JSON.parse(localStorage.getItem(k)||'null'); return v==null ? d : v; }catch(e){ return d; } };
+const wr = (k, v) => { try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} };
+const load = src => new Promise((ok, ng) => { const s = document.createElement('script'); s.src = SDK+src; s.onload = ok; s.onerror = ng; document.head.appendChild(s); });
+let fb = null, fs = null;
+async function sdk(){
+  if (fb) return fb;
+  await load('firebase-app-compat.js');
+  await Promise.all([load('firebase-auth-compat.js'), load('firebase-firestore-compat.js')]);
+  fb = firebase.initializeApp(ACCT_CONFIG); fs = firebase.firestore();
+  try{ fs.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
+  return fb;
+}
+const decksCol = () => fs.collection('users/'+A.user.uid+'/decks');
+const metaDoc = () => fs.doc('users/'+A.user.uid+'/meta/state');
+const pack = d => ({name:d.name, cards:d.cards.map(([c,n])=>({c,n})), updated:d.updated||0});
+
+// 本体の起動（カード一覧の読み込み）が済んでから loadDecks を呼ぶ
+let bootOk; const booted = new Promise(r => bootOk = r);
+const origInit = initDeckStore;
+initDeckStore = async function(){ const r = await origInit.apply(this, arguments); bootOk(); return r; };
+(function poll(){ try{ if (FULL && Object.keys(FULL).length > 1000) return setTimeout(bootOk, 300); }catch(e){} setTimeout(poll, 300); })();
+
+let syncing = null;
+async function sync(){
+  if (!A.user) return;
+  if (syncing) return syncing;
+  syncing = (async () => {
+    A.state = 'sync'; paint();
+    try{
+      const [q, m] = await Promise.all([decksCol().get(), metaDoc().get()]);
+      const meta = (m.exists && m.data()) || {};
+      const deleted = meta.deleted || {};
+      const remote = new Map(q.docs.map(x => { const v = x.data(); return [x.id, {id:x.id, name:v.name, cards:(v.cards||[]).map(y=>[y.c,y.n]), updated:v.updated||0}]; }));
+      const local = rd(LKEY, []);
+      if (!rd(BKEY, null) && local.length) wr(BKEY, {at:Date.now(), decks:local}); // 初めてログインした時の控え（念のため）
+      const out = new Map(remote), up = [];
+      for (const d of local){
+        if (!d || !d.id || !Array.isArray(d.cards)) continue;
+        const r = remote.get(d.id);
+        if (r && (r.updated||0) >= (d.updated||0)) continue;
+        if (!r && deleted[d.id] && (d.updated||0) <= deleted[d.id]) continue; // 別の端末で消したデッキ
+        out.set(d.id, d); up.push(d);
+      }
+      const b = fs.batch();
+      up.forEach(d => b.set(decksCol().doc(d.id), pack(d)));
+      const hidden = [...new Set([...(rd(HKEY, [])), ...(meta.hidden||[])])];
+      const del2 = Object.assign({}, deleted); up.forEach(d => delete del2[d.id]);
+      b.set(metaDoc(), {hidden, deleted:del2, updated:Date.now()}, {merge:false});
+      await b.commit();
+      wr(LKEY, [...out.values()]); wr(HKEY, hidden);
+      A.state = 'on'; A.msg = up.length ? `このブラウザのデッキ ${up.length} 個をアカウントに取り込みました` : '';
+      await booted; await loadDecks(); relist();
+    }catch(e){ A.state = 'err'; A.msg = '同期できませんでした（'+(e.code||e.message||e)+'）。デッキはこのブラウザに残っています'; }
+    paint();
+  })();
+  try{ return await syncing; } finally { syncing = null; }
+}
+
+// 保存・削除はこれまで通りブラウザにも書き、ログイン中はアカウントにも書く
+const origSave = saveDeck, origDel = deleteDeck, origHide = setHiddenPresets;
+saveDeck = async function(d){
+  await origSave.apply(this, arguments);
+  if (A.user && fs){ try{ await decksCol().doc(d.id).set(pack(d)); await metaDoc().set({deleted:{[d.id]:firebase.firestore.FieldValue.delete()}}, {merge:true}); }catch(e){ A.state='err'; A.msg='アカウントに保存できませんでした。このブラウザには保存済みです'; paint(); } }
+};
+deleteDeck = async function(d){
+  await origDel.apply(this, arguments);
+  if (A.user && fs && !d.preset){ try{ await decksCol().doc(d.id).delete(); await metaDoc().set({deleted:{[d.id]:Date.now()}}, {merge:true}); }catch(e){} }
+};
+setHiddenPresets = async function(ids){
+  await origHide.apply(this, arguments);
+  if (A.user && fs){ try{ await metaDoc().set({hidden:ids}, {merge:true}); }catch(e){} }
+};
+
+async function signIn(){
+  A.state = 'busy'; A.msg = ''; paint();
+  try{
+    await sdk(); watch(); wr('dmsim-acct', 1);
+    const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:'select_account'});
+    try{ await firebase.auth().signInWithPopup(p); }
+    catch(e){ if (/popup-blocked|operation-not-supported/.test(e.code||'')) await firebase.auth().signInWithRedirect(p); else throw e; }
+  }catch(e){ A.state = 'off'; A.msg = /popup-closed|cancelled/.test(e.code||'') ? '' : 'ログインできませんでした（'+(e.code||e.message||e)+'）'; paint(); }
+}
+async function signOut(){ try{ await firebase.auth().signOut(); }catch(e){} A.msg = 'ログアウトしました。デッキはこのブラウザにも残っています'; paint(); }
+
+// ---------- デッキ画面のログイン行 ----------
+function relist(){ const b = document.querySelector('.dm .box[aria-label="デッキ"]'); if (b && b.querySelector('#dClose')){ b.closest('.dm').remove(); openDeckManager(); } }
+function bar(){
+  const u = A.user;
+  const st = A.state==='sync' ? '同期中…' : A.state==='busy' ? 'ログイン中…' : u ? 'アカウントに保存中：'+esc(u.email||u.displayName||'') : 'いまはこのブラウザだけに保存しています';
+  return `<div style="flex:1;min-width:0"><div class="t" style="font-weight:600">${st}</div>${A.msg?`<div class="s" style="font-size:12px;opacity:.85">${esc(A.msg)}</div>`:''}</div>`
+    + (u ? `<button data-acct="sync">今すぐ同期</button><button data-acct="out">ログアウト</button>` : `<button class="primary" data-acct="in">Googleでログイン</button>`);
+}
+function paint(){
+  document.querySelectorAll('.dm .box[aria-label="デッキ"]').forEach(box => {
+    if (!box.querySelector('#dClose')) return;
+    let el = box.querySelector('.acct-bar');
+    if (!el){
+      el = document.createElement('div'); el.className = 'acct-bar deckrow';
+      el.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap';
+      const help = box.querySelector('p.help'); if (help) help.after(el); else box.prepend(el);
+      if (help) help.innerHTML = help.innerHTML.replace(/保存先：.*$/, '');
+      el.addEventListener('click', e => { const k = e.target.dataset.acct; if (k==='in') signIn(); else if (k==='out') signOut(); else if (k==='sync') sync(); });
+    }
+    el.innerHTML = bar();
+  });
+}
+new MutationObserver(() => { const b = document.querySelector('.dm .box[aria-label="デッキ"]'); if (b && b.querySelector('#dClose') && !b.querySelector('.acct-bar')) paint(); })
+  .observe(document.body, {childList:true, subtree:true});
+
+// 前にログインしていたら（またはログイン画面から戻ってきたら）自動で同期。アプリに戻った時も同期する。
+function watch(){
+  if (A.watching) return; A.watching = true;
+  firebase.auth().onAuthStateChanged(async u => {
+    A.user = u || null; wr('dmsim-acct', u ? 1 : 0);
+    if (u){ await booted; await sync(); } else { if (A.state!=='busy') A.state = 'off'; paint(); }
+  });
+}
+if (rd('dmsim-acct', 0)) sdk().then(watch).catch(() => {});
+document.addEventListener('visibilitychange', () => { if (document.visibilityState==='visible' && A.user) sync(); });
+})();
+</script>
 </body></html>
