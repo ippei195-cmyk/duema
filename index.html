@@ -1647,7 +1647,7 @@ async function allyEnterHooks(uid){
   // 「各ターンに１度、自分のドラゴンが出た時」（ギャイ・アーシュ・熊田すずなど）：カード1枚ごとにターン1回（公式Q&A 44212）。
   // そのカード自身が出た時にも誘発する（公式Q&A 41443）。使わなかった時は、同じターンの次のドラゴンでまた使える（Q&A 44212）。片方だけ使っても使ったことになる（Q&A 49213）
   if (isDragonCard(uid)) for (const g of inBattle(c.owner, x => /各ターンに[1１]度、自分のドラゴンが(バトルゾーンに)?出た時/.test(txt(x)))) if (g.zone==='battle' && g.m.t1Dragon !== S.turn){
-    const own = (scriptFor(g.uid)||{}).allyDragon; // スクリプトは使った時だけ g.m.t1Dragon を付ける
+    const sc0 = scriptFor(g.uid); const own = sc0 && !sc0.autofx && sc0.allyDragon; // 自動読み取り（autofx）は全タイミングを返すので除く // スクリプトは使った時だけ g.m.t1Dragon を付ける
     await resolveEffect(g.uid, 'allyDragon', {who:uid}); if (!own && C(g.uid)) C(g.uid).m.t1Dragon = S.turn;
   }
   for (const x of inBattle(c.owner)) if (x.uid!==uid && hasRule(x.uid, 'allyEnter')) await resolveEffect(x.uid, 'allyEnter', {who:uid});
@@ -9689,7 +9689,7 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
     } },
     // 出た時、次の相手のターンの終わりまで、相手は呪文を唱えられない
     '音卿の精霊龍 ラフルル・ラブ': { async etb(x){
-      const until = S.active === x.p ? S.turn + 1 : S.turn;
+      const until = S.turn + (S.active === x.p ? 1 : 2); // 相手のターン中に出たら、その次の相手のターンの終わりまで
       (S.spellLock ||= {})[x.q] = Math.max(S.spellLock[x.q] || 0, until);
       log(`ラフルル・ラブ：次の${PN[x.q]}のターンの終わりまで、${PN[x.q]}は呪文を唱えられない`, x.p);
     } },
@@ -9740,7 +9740,7 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
     if (target !== 'player' && C(target) && C(target).m.jd) return 'ジャストダイバー（次の持ち主のターンのはじめまで攻撃されない）';
     // 流星アーシュ：ドラゴンではないクリーチャーは、出たターンに攻撃できない（相手のアーシュはレッドゾーンで無視できる）
     if (c.enteredT === S.turn && !isDragonCard(c.uid)){
-      const own = inBattle(c.owner, x => cname(x).includes('流星アーシュ')).length, opp = inBattle(other(c.owner), x => cname(x).includes('流星アーシュ')).length;
+      const own = inBattle(c.owner, x => cname(x).includes('流星アーシュ＜私が主役')).length, opp = inBattle(other(c.owner), x => cname(x).includes('流星アーシュ＜私が主役')).length;
       if (own || (opp && !inBattle(c.owner, x => cname(x).includes('レッドゾーン')).length)) return '流星アーシュ：ドラゴンではないクリーチャーは出たターンに攻撃できない';
     }
     return null;
@@ -9748,7 +9748,7 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
   // 熊田すず：自分の生徒会組すべてにスレイヤー（バトルの後、相手クリーチャーを破壊）
   wrapF('battle', o => async function(a, b){
     const A = C(a), B = C(b);
-    const sl = c => c && !NOFX && isSeitokai(c) && inBattle(c.owner, x => cname(x).includes('熊田すず')).length > 0;
+    const sl = c => c && !NOFX && isSeitokai(c) && inBattle(c.owner, x => cname(x).includes('熊田すず＜わらわは天才')).length > 0;
     const sa = sl(A), sb = sl(B);
     await o.apply(this, arguments);
     if (sa && C(b) && C(b).zone === 'battle'){ log(`スレイヤー（熊田すず）：《${cname(C(b))}》を破壊`, A.owner); await leave(b, 'grave', {destroy: true}); }
@@ -9785,7 +9785,7 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
   wrapF('resolveAttack', o => async function(a){
     const prev = S.__atk; S.__atk = {a: a.attUid, t: a.target};
     try { await o.apply(this, arguments); } finally { S.__atk = prev; }
-    if (!S.winner && ruled(a.attUid, 'attackEnd') && !(scriptFor(a.attUid) || {}).attackEnd) await resolveEffect(a.attUid, 'attackEnd');
+    if (!S.winner && ruled(a.attUid, 'attackEnd') && !((sc => sc && !sc.autofx && sc.attackEnd)(scriptFor(a.attUid)))) await resolveEffect(a.attUid, 'attackEnd');
   });
   wrapF('battle', o => async function(a, b){
     if (S.__atk && S.__atk.a === a && S.__atk.t !== b && ruled(b, 'block')) await resolveEffect(b, 'block', {who: a});
@@ -9921,7 +9921,7 @@ body:not(.gx) #gxLast,body:not(.gx) #gxRight{display:none!important}
     }
     for (const f of fuji){
       if (!C(f) || C(f).zone !== 'battle') continue;
-      const has = DB[C(uid).cid].sides.some(s => TRIG.etb.test(s.text)) || (scriptFor(uid) || {}).etb;
+      const has = DB[C(uid).cid].sides.some(s => TRIG.etb.test(s.text)) || ((sc => sc && !sc.autofx && sc.etb)(scriptFor(uid)));
       if (!has) continue;
       const y = makeCtx(f, p);
       if (!await y.optional(`《${cname(C(uid))}》の「出た時」の能力を使いますか？（富士山ッピング）`)) continue;
