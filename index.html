@@ -277,6 +277,7 @@ body:not(.lay-pc) .tbar .ib{width:42px;height:42px}
 .logpanel{display:none}
 .r22{display:flex;flex-direction:column;gap:10px}
 .zoomrow{display:flex;align-items:center;gap:6px}
+.exwrap{display:flex;gap:4px;align-items:flex-start}.expile{position:relative}.expile .pc{transform:scale(.8);transform-origin:top left}.expile .exl{position:absolute;left:0;bottom:-2px;font-size:9px;background:rgba(0,0,0,.6);color:#fff;padding:0 3px;border-radius:3px}
 .zoomrow .zv{font-family:var(--f-mono);min-width:4em;text-align:center}
 .ordwrap{display:flex;flex-direction:column;gap:10px}
 .ordcol{border:1px solid var(--line);border-radius:10px;padding:8px}
@@ -584,7 +585,10 @@ const HIDDEN_CID = '?';
 const HIDDEN_CARD = {name:'？', race:'', civs:[], sides:[{name:'？（非公開）', type:'', civs:[], cost:0, power:0, text:''}]};
 function mkCard(cid){
   const [name,type,civ,cost,pw,race,text] = FULL[cid];
-  const names = name.split(' / '); const n = names.length;
+  let names = name.split(' / ');
+  // サイキック・ドラグハートは表の名前しか無い（裏は「――」の後ろの文章だけ）。裏面を作る
+  if (names.length===1 && / \/ /.test(type) && /サイキック|ドラグハート/.test(type) && String(text).includes('――')) names = [name, name + (/ドラグハート/.test(type) ? '（龍解）' : '（覚醒）')];
+  const n = names.length;
   const sp = v => { const a = String(v||'').split(' / '); return i => (a[Math.min(i,a.length-1)]||'').trim(); };
   const T=sp(type), CV=sp(civ), CO=sp(cost), PW=sp(pw);
   const texts = n>1 ? String(text).split('――') : [text];
@@ -620,14 +624,14 @@ function newState(first, decks){
   const st = {turn:0, active:first, first, charged:false, winner:null, seq:0, cards:{}, deckName:{me:decks.me.name, op:decks.op.name},
     players:{me:mk(), op:mk()}, log:[], look:{me:[],op:[]}, pend:{me:[],op:[]},
     tf:{freePlayOp:false, freePlayMe:false, used:{}}, opNote:'', lastErr:'', queue:[]};
-  function mk(){return {deck:[],hand:[],mana:[],battle:[],shield:[],grave:[]}}
+  function mk(){return {deck:[],hand:[],mana:[],battle:[],shield:[],grave:[],hyper:[],gr:[],abyss:[]}}
   for (const p of ['me','op']){
     for (const [cid,n] of decks[p].cards) for (let i=0;i<n;i++){
-      const uid = (p==='me'?'m':'o') + (++st.seq);
-      st.cards[uid] = {uid,cid,owner:p,zone:'deck',tapped:false,faceUp:false,sick:false,under:[],ex:null,side:0,m:{}};
-      st.players[p].deck.push(uid);
+      const uid = (p==='me'?'m':'o') + (++st.seq); const z = EXZONE(cid) || 'deck';
+      st.cards[uid] = {uid,cid,owner:p,zone:z,tapped:false,faceUp:false,sick:false,under:[],ex:null,side:0,m:{}};
+      st.players[p][z].push(uid);
     }
-    shuffle(st.players[p].deck);
+    shuffle(st.players[p].deck); shuffle(st.players[p].gr);
   }
   return st;
 }
@@ -654,7 +658,7 @@ const mach = c => /マッハファイター/.test(txt(c));
 // 出たターンか（進化して召喚酔いがなくなっても「出たターン」に変わりはない）
 const freshIn = c => c.sick || c.enteredT===S.turn;
 const speed = c => !!c.m?.sa || /スピードアタッカー/.test(txt(c)); // c.m.sa：手動でスピードアタッカーにした（場を離れると消える）
-const zoneArr = (p,z) => S.players[p][z];
+const zoneArr = (p,z) => S.players[p][z] || ((z==='hyper'||z==='gr'||z==='abyss') ? (S.players[p][z] = []) : undefined);
 const inBattle = (p, pred) => zoneArr(p,'battle').map(C).filter(c => !pred || pred(c));
 const has = (p, name) => inBattle(p, c => cname(c).includes(name));
 const faceUpShields = (p, name) => zoneArr(p,'shield').map(C).filter(c => c.faceUp && (!name || cname(c).includes(name)));
@@ -734,12 +738,18 @@ function detach(uid){
 function place(uid, zone, o={}){
   const c = C(uid); const from = c.zone;
   if (from==='shield' && c.faceUp && zone!=='shield') zone = 'grave';  // G城 leaves face up -> graveyard
+  // 超次元・GRのカードはバトルゾーン以外に行く時、自分のゾーンに戻る（深淵ゾーンへの移動は妨げられない）
+  const exz = EXZONE(c.cid); if (exz && zone!=='battle' && zone!==exz && zone!=='abyss' && zone!=='limbo' && zone!=='under' && zone!=='stack'){ zone = exz; if (exz==='gr') o = {...o, bottom:true}; }
+  // 装備・クロスしていたカード：ドラグハートは超次元ゾーンへ、クロスギアはバトルゾーンに残る
+  if (from==='battle'){ const P = S.players[c.owner]; for (const w of (P.battle||[]).slice()) if (w!==uid && C(w) && C(w).eq===uid){ C(w).eq = null; if (/ドラグハート/.test(DB[C(w).cid].sides[0].type)){ place(w, 'hyper'); log(`《${cname(C(w))}》は超次元ゾーンに戻った`, c.owner); } } }
+  if (zone!=='battle') c.eq = null;
+  if (from==='battle' && c.seal && c.seal.length){ const sl = c.seal; c.seal = []; for (const u of sl){ C(u).zone = 'limbo'; place(u, 'grave'); } }
   detach(uid);
   if (from==='deck'){ const li=S.look[c.owner].indexOf(uid); if(li>=0) S.look[c.owner].splice(li,1); }
   c.zone = zone; c.m = {}; c.sick = false; c.tapped = false; c.faceUp = false; c.ex = null;
   if (from==='battle' || from==='shield'){ const under = c.under; c.under = []; for (const u of under){ C(u).zone='limbo'; place(u, zone==='battle'?'grave':zone, {}); } }
   const arr = zoneArr(c.owner, zone);
-  if (zone==='deck'){ if (o.bottom) arr.push(uid); else arr.unshift(uid); }
+  if (zone==='deck' || zone==='gr'){ if (o.bottom || zone==='gr') arr.push(uid); else arr.unshift(uid); }
   else arr.push(uid);
   if (zone==='mana'){ c.tapped = !!o.tapped || allCivs(c).length>1; c.faceDown = !!o.faceDown; } else c.faceDown=false;
   if (zone==='shield'){ c.faceUp = !!o.faceUp; onShieldPlaced(c.owner, uid); }
@@ -1313,6 +1323,7 @@ function makeCtx(srcUid, p, extra={}){
       for (const u of [].concat(ids||[])){
         const c = C(u); if (!c) continue;
         if (dest==='battle'){ await putIntoBattle(u, 'put'); continue; }
+        if (dest==='abyss'){ const from = c.zone; place(u, 'abyss'); log(`《${cname(c)}》を深淵送りにした`, c.owner); if (from==='battle' && window.DMAI_AFTER_ABYSS) await window.DMAI_AFTER_ABYSS(u); continue; }
         const map = {hand:['hand'], mana:['mana'], manaT:['mana',{tapped:true}], grave:['grave'], shield:['shield'], deckTop:['deck'], deckBottom:['deck',{bottom:true}]};
         const [z, o] = map[dest] || ['grave'];
         if (c.zone==='battle') await leave(u, z, o||{});
@@ -3029,7 +3040,11 @@ function zoneHTML(p){
   const untapped = pl.mana.filter(u=>!C(u).tapped).length;
   const mana = !me ? zoneBox(`mana-${p}`, 'マナゾーン', manaFan(pl.mana), {count: pl.mana.length ? `${untapped}/${pl.mana.length}` : null, cls:'mfz'}) : zoneBox(`mana-${p}`, 'マナゾーン', pl.mana.map(u=>{const c=C(u); return `<div class="mana-chip${c.tapped?' tapped':''}${selected===u?' sel':''}" data-uid="${u}"><span class="dots">${(c.faceDown?[]:allCivs(c)).map(v=>`<span class="dot" style="background:${CIVCOLOR[v]}"></span>`).join('')||'<span class="dot" style="background:var(--c-none)"></span>'}</span><span class="nm">${c.faceDown?'裏向き':esc(cname(c))}</span></div>`}).join(''), {count: pl.mana.length ? `${untapped}/${pl.mana.length}` : null});
   const g = pl.grave; const top = g.length ? C(g[g.length-1]) : null;
-  const grave = `<div class="pilebox" data-pile="grave-${p}" role="button" aria-label="墓地 ${g.length}枚">${top?`<div class="pc">${cardHTML(top)}<span class="pn">${g.length}</span></div>`:'<div class="empty">墓地</div>'}</div>`;
+  const grave0 = `<div class="pilebox" data-pile="grave-${p}" role="button" aria-label="墓地 ${g.length}枚">${top?`<div class="pc">${cardHTML(top)}<span class="pn">${g.length}</span></div>`:'<div class="empty">墓地</div>'}</div>`;
+  // 超次元ゾーン・GRゾーン・深淵ゾーン（カードがある時だけ小さく出す）
+  const exPile = (z, label) => { const a = zoneArr(p, z) || []; if (!a.length) return ''; return `<div class="pilebox expile" data-pile="${z}-${p}" role="button" aria-label="${label} ${a.length}枚" title="${label}"><div class="pc${z==='gr'?' back':''}">${z==='gr'?'':cardHTML(C(a[a.length-1]))}<span class="pn">${a.length}</span></div><span class="exl">${label}</span></div>`; };
+  const exz = exPile('hyper','超次元') + exPile('gr','GR') + exPile('abyss','深淵');
+  const grave = exz ? `<div class="exwrap">${grave0}${exz}</div>` : grave0;
   const handInner = me ? pl.hand.map(u=>cardHTML(C(u))).join('')
     : pl.hand.map(u=> oppMode()==='manual' ? cardHTML(C(u)) : `<div class="card back"></div>`).join('');
   const hand = zoneBox(`hand-${p}`, '手札', handInner, {count:pl.hand.length, tag: me?'':'相手の手札'});
@@ -3697,6 +3712,10 @@ document.getElementById('board').addEventListener('click', async e => {
   const pile = e.target.closest('[data-pile]');
   if (pile){
     const [kind,p] = pile.dataset.pile.split('-');
+    if (kind==='hyper' || kind==='abyss'){ const g = zoneArr(p, kind) || []; if (!g.length) return;
+      const r = await modal({title:`${PN[p]}の${kind==='hyper'?'超次元ゾーン':'深淵ゾーン'}`, html:'<p>カードを選ぶと詳細と操作が下に出ます。</p>', pick:{uids:g.slice(), max:1, min:0}, buttons:[{label:'選ぶ',value:1,primary:true},{label:'閉じる',value:0}]});
+      if (r.value && r.picked[0]){ selected = r.picked[0]; render(); } return; }
+    if (kind==='gr'){ await modal({title:`${PN[p]}のGRゾーン`, html:`<p>裏向きのカードが${(zoneArr(p,'gr')||[]).length}枚あります（GR召喚で上から出ます）。</p>`, buttons:[{label:'閉じる',value:1}]}); return; }
     if (kind==='grave'){ const g = S.players[p].grave; if (!g.length) return;
       const r = await modal({title:`${PN[p]}の墓地`, html:'<p>カードを選ぶと詳細と操作が下に出ます。</p>', pick:{uids:g.slice().reverse(), max:1, min:0}, buttons:[{label:'選ぶ',value:1,primary:true},{label:'閉じる',value:0}]});
       if (r.value && r.picked[0]){ selected = r.picked[0]; render(); } }
@@ -3803,8 +3822,11 @@ function findCard(q){
   if (part.length===1) return {hit:part[0].cid, cands:[]};
   return {hit:null, cands:part.sort((a,b)=>a.n.length-b.n.length).slice(0,8).map(x=>x.cid)};
 }
-const UNSUPPORTED = /サイキック|ドラグハート|GRクリーチャー|デュエリスト/;
-const deckCount = d => d.cards.reduce((a,[,n])=>a+n, 0);
+const UNSUPPORTED = /(?!)/; // 2026-11-28 超次元・GRゾーンに対応したので、入れられないカードはない
+// 超次元ゾーン・GRゾーンに置くカード（デッキの40枚には数えない）
+const EXZONE = cid => { const t = (DB[cid] && DB[cid].sides[0].type) || ''; return /GRクリーチャー/.test(t) ? 'gr' : /サイキック|ドラグハート|デュエルメイト|デュエリスト/.test(t) ? 'hyper' : null; };
+const deckCount = d => d.cards.reduce((a,[c,n])=>a+(EXZONE(c)?0:n), 0);
+const exCount = (d, z) => d.cards.reduce((a,[c,n])=>a+(EXZONE(c)===z?n:0), 0);
 async function initDeckStore(){
   try{
     const [db, user] = window.claude?.use ? await Promise.all([window.claude.use('db'), window.claude.use('user')]) : [null, null];
@@ -4216,7 +4238,7 @@ function openEditor(box, d, back, opt={}){
   }
   function renderDeck(){
     const total = count();
-    const c = box.querySelector('#eCount'); c.className = total===40?'ok':total>40?'over':''; c.textContent = total;
+    const c = box.querySelector('#eCount'); c.className = total===40?'ok':total>40?'over':''; const hx = exCount(d,'hyper'), gx = exCount(d,'gr'); c.textContent = total + (hx ? `＋超次元${hx}` : '') + (gx ? `＋GR${gx}` : ''); c.title = '山札40枚・超次元ゾーン8枚まで・GRゾーン12枚';
     const list = deckSorted();
     const deck = box.querySelector('#eDeck');
     deck.innerHTML = list.length ? list.flatMap(([cid,n]) => Array.from({length:n}, () => `<div class="dk-card" data-open="${cid}" title="${esc(DB[cid].name)}">${faceHTML(cid)}</div>`)).join('')
@@ -4551,7 +4573,7 @@ function netShared(){
 }
 // 自分のカードのうち公開されているもの（相手の端末が '?' を埋めるのに使う）
 function netRv(){ const rv = {}; if (!S || !S.cards || S.demo) return rv; const hid = netHiddenSet(); for (const c of Object.values(S.cards)) if (c.owner==='me' && c.cid!==HIDDEN_CID && !netHidden(c, hid)) rv[c.uid] = c.cid; return rv; }
-const mkZones = () => ({deck:[],hand:[],mana:[],battle:[],shield:[],grave:[]});
+const mkZones = () => ({deck:[],hand:[],mana:[],battle:[],shield:[],grave:[],hyper:[],gr:[],abyss:[]});
 function netApply(stIn, force){
   if (!stIn) return;
   if (!force && stIn.gen <= NET.appliedGen) return;
@@ -6037,7 +6059,7 @@ window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude
 (() => {
   const wrap = (name, f) => { const orig = window[name]; if (typeof orig !== 'function') { console.warn('dmai patch: missing ' + name); return; } window[name] = f(orig); };
   const MAXN = 4;
-  const UNSUP = /サイキック|ドラグハート|GRクリーチャー|デュエリスト/;
+  const UNSUP = /(?!)/; // 超次元・GRゾーンに対応済み
   const DITTO = /^[〃″"”“'’`ゞヾ々ミ>＞\s]+$/;
 
   /* 名前の照合：norm（ひらがな→カタカナ・空白と・を除く）に、読み違えても同じ意味の記号だけ揃える */
@@ -9090,7 +9112,7 @@ body.gx-sm #detail{font-size:calc(11px*var(--k))}
     '破壊する': 'destroy', '持ち主の手札に戻す': 'hand', '手札に戻す': 'hand', 'タップする': 'tap', 'アンタップする': 'untap',
     '持ち主のマナゾーンに置く': 'mana', 'マナゾーンに置く': 'mana', '持ち主の墓地に置く': 'grave', '墓地に置く': 'grave',
     '持ち主の山札の下に置く': 'deckBottom', '持ち主の山札の一番下に置く': 'deckBottom', '山札の下に置く': 'deckBottom',
-    '持ち主のシールドゾーンに裏向きにして加える': 'shield', '持ち主のシールドゾーンに加える': 'shield',
+    '持ち主のシールドゾーンに裏向きにして加える': 'shield', '持ち主のシールドゾーンに加える': 'shield', '深淵送りにする': 'abyss',
   };
   const ACT_RE = Object.keys(ACT).sort((a, b) => b.length - a.length).map(k => k.replace(/[()]/g, '\\$&')).join('|');
 
@@ -9136,6 +9158,8 @@ body.gx-sm #detail{font-size:calc(11px*var(--k))}
       .replace(/^(相手|自分)の(.*?)クリーチャーを(\d+)体選んで(タップ|破壊)する$/, '$1の$2クリーチャーを$3体選び、$4する')
       .replace(/新しいシールドとして(?:自分の)?シールドゾーンに置く$/, 'シールド化する').replace(/を裏向きのまま、?シールド化する$/, 'をシールド化する');
     if (!s) return { op: { k: 'nop' } };
+    // 追加の読み取り（超次元・GR・深淵などのブロックが足す）
+    if (root.AUTOFX_EXT) for (const f of root.AUTOFX_EXT) { const r = f(s, prev); if (r) return r; }
     // 「〜てもよい」を外して読む（あとで「使うか」を聞く。選ぶ処理なら0体でもよいにする）
     const MAY = [['破壊してもよい', '破壊する'], ['戻してもよい', '戻す'], ['置いてもよい', '置く'], ['タップしてもよい', 'タップする'], ['アンタップしてもよい', 'アンタップする'], ['加えてもよい', '加える'], ['捨ててもよい', '捨てる'], ['出してもよい', '出す'], ['シールド化してもよい', 'シールド化する']];
     if (!/^その中から/.test(s)) for (const [a, b] of MAY) if (s.endsWith(a) && !/^カードを\d+枚(まで)?引/.test(s)) {
@@ -9490,7 +9514,7 @@ body.gx-sm #detail{font-size:calc(11px*var(--k))}
           ps = await x.choose({ q: `${o.act ? ({ destroy: '破壊する', hand: '手札に戻す', tap: 'タップする', untap: 'アンタップする', mana: 'マナゾーンに置く', grave: '墓地に置く', deckBottom: '山札の下に置く', shield: 'シールド化する' }[o.act]) : '選ぶ'}クリーチャー（${o.min ? o.n + '体' : o.n + '体まで'}）`, cands: cs, min: Math.min(o.min, cs.length), max: o.n, by, score });
         }
         env.X = ps; env.did = ps.length > 0;
-        if (o.act && ps.length) { log(`${names(ps)}を${({ destroy: '破壊', hand: '手札に戻す', tap: 'タップ', untap: 'アンタップ', mana: 'マナへ', grave: '墓地へ', deckBottom: '山札の下へ', shield: 'シールド化' }[o.act])}`, p); await act(x, ps, o.act); }
+        if (o.act && ps.length) { log(`${names(ps)}を${({ destroy: '破壊', hand: '手札に戻す', tap: 'タップ', untap: 'アンタップ', mana: 'マナへ', grave: '墓地へ', deckBottom: '山札の下へ', shield: 'シールド化', abyss: '深淵送り' }[o.act])}`, p); await act(x, ps, o.act); }
         return;
       }
       case 'actSel': if (env.X && env.X.length) { log(`${names(env.X)}を処理`, p); await act(x, env.X, o.act); } else env.did = false; return;
@@ -9511,6 +9535,7 @@ body.gx-sm #detail{font-size:calc(11px*var(--k))}
         }
         return;
       }
+      default: if (window.AUTOFX_OPS && window.AUTOFX_OPS[o.k]) return window.AUTOFX_OPS[o.k](o, x, env);
     }
   }
   // 効果文の一部（キーワード能力の「次の能力」など）をそのまま処理する。読めなければ false
@@ -11321,6 +11346,332 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
     return r;
   });
   window.DMAI_KW_GALAXY = galaxy;
+})();
+</script>
+<script id="zonefx">
+/* 超次元ゾーン・GRゾーン・深淵ゾーン（2026-11-28）
+   GR召喚・超次元ゾーンから出す・ドラグハートの装備・覚醒・解除・龍解・深淵送り。
+   ゾーンそのもの（newState・place・盤面の表示・デッキの数え方）は本体に入れてある */
+(function(){
+  if (window.__zonefx) return; window.__zonefx = true;
+  const wrapF = (n, f) => { const o = window[n]; if (typeof o === 'function') window[n] = f(o); };
+  const nf = t => String(t || '').normalize('NFKC');
+  const offline = p => !(NET.on && p === 'op');
+  const ask = async (p, title, q, yes = 'はい', no = 'いいえ') => p === 'me' ? (S.userTouched = true, await askYesNo(title, q, yes, no)) : offline(p);
+  const CIVS = ['光', '水', '闇', '火', '自然'];
+  const isWeapon = c => /ドラグハート・ウエポン/.test(side(c).type);
+  const isFort = c => /ドラグハート・フォートレス/.test(side(c).type);
+
+  /* ---------- 読み取り（自動処理の文に足す） ---------- */
+  function hyperFilter(t){
+    const f = {}; let s = t;
+    let m;
+    if ((m = s.match(/コスト(\d+)以下の/))) { f.cmax = +m[1]; s = s.replace(m[0], ''); }
+    if ((m = s.match(/コストが?(\d+)の/))) { f.ceq = +m[1]; s = s.replace(m[0], ''); }
+    if (/自分のマナゾーンにあるカードと同じ文明を持つ、?/.test(s)) { f.manaCiv = true; s = s.replace(/自分のマナゾーンにあるカードと同じ文明を持つ、?/, ''); }
+    if (/名前が異なる、?/.test(s)) { f.diff = true; s = s.replace(/名前が異なる、?/, ''); }
+    if (/多色/.test(s)) { f.multi = true; s = s.replace('多色', ''); }
+    const cv = s.match(/^((?:光|水|闇|火|自然)(?:または(?:光|水|闇|火|自然))*)の/); if (cv) { f.civs = cv[1].split('または'); s = s.slice(cv[0].length); }
+    s = s.replace(/^の/, '').replace(/^、/, '');
+    const cv2 = s.match(/((?:光|水|闇|火|自然)(?:または(?:光|水|闇|火|自然))*)の/); if (!f.civs && cv2) { f.civs = cv2[1].split('または'); s = s.replace(cv2[0], ''); }
+    if ((m = s.match(/^(?:の)?(サイキック・クリーチャー|ドラグハート・ウエポン|ドラグハート・フォートレス|ドラグハート|クリーチャー|エレメント|カード|サイキック・クロスギア)$/))) f.kind = m[1];
+    else if ((m = s.match(/^《(.+)》$/))) f.name = m[1];
+    else return null;
+    return f;
+  }
+  (window.AUTOFX_EXT ||= []).push((s0, prev) => {
+    let s = s0, opt = false, m;
+    if ((m = s.match(/^(?:S・トリガー)?GR召喚(?:を(\d+)回)?する$/))) return {op: {k: 'gr', n: +(m[1] || 1)}};
+    if (/^自分の超次元ゾーンから好きな数のサイキック・クリーチャーをコストの合計が(\d+)以下になるように選び、バトルゾーンに出す$/.test(s)) return {op: {k: 'hyper', f: {kind: 'サイキック・クリーチャー'}, n: 99, total: +s.match(/(\d+)以下/)[1]}};
+    if (/相手のエレメントと手札をすべて深淵送りにする$/.test(s)) return {op: {k: 'abyssAll'}};
+    if (/してもよい$/.test(s)) { s = s.replace(/してもよい$/, 'す'); opt = true; }
+    if ((m = s.match(/^(.+?)を(\d+|好きな数)(?:体|枚|つ)?(まで)?、?自分の超次元ゾーンから(?:バトルゾーンに)?出(?:し、このクリーチャーに装備する|す)$/))) {
+      const f = hyperFilter(m[1]); if (!f) return null;
+      const r = {op: {k: 'hyper', f, n: m[2] === '好きな数' ? 99 : +m[2], equip: /装備する$/.test(s) ? 'self' : null}};
+      if (opt) r.opt = true; return r;
+    }
+    if ((m = s.match(/^(《.+?》)を自分の超次元ゾーンから(?:バトルゾーンに)?出す$/))) { const r = {op: {k: 'hyper', f: {name: m[1].slice(1, -1)}, n: 1}}; if (opt) r.opt = true; return r; }
+    return null;
+  });
+
+  /* ---------- 処理 ---------- */
+  const passH = (u, f, p) => {
+    const c = C(u); const s = DB[c.cid].sides[0];
+    if (f.cmax != null && s.cost > f.cmax) return false;
+    if (f.ceq != null && s.cost !== f.ceq) return false;
+    if (f.civs && !f.civs.some(v => DB[c.cid].civs.includes(v))) return false;
+    if (f.multi && DB[c.cid].civs.length < 2) return false;
+    if (f.name && !cname(c).includes(f.name)) return false;
+    if (f.manaCiv){ const have = new Set(zoneArr(p, 'mana').flatMap(m => C(m).faceDown ? [] : allCivs(C(m)))); if (!DB[c.cid].civs.every(v => have.has(v))) return false; }
+    if (f.kind && f.kind !== 'カード' && f.kind !== 'エレメント'){ if (f.kind === 'クリーチャー' ? !/クリーチャー/.test(s.type) : !s.type.includes(f.kind)) return false; }
+    return true;
+  };
+  async function equipTo(w, p, target){
+    let t = target && C(target) && C(target).zone === 'battle' ? target : null;
+    if (!t){
+      const cs = inBattle(p, x => isCreature(side(x)) && x.uid !== w).map(x => x.uid);
+      if (!cs.length) return false;
+      const x = makeCtx(w, p, {}); [t] = await x.choose({q: `《${cname(C(w))}》を装備するクリーチャー`, cands: cs, min: 1, max: 1, score: u => power(C(u))});
+    }
+    if (!t) return false; C(w).eq = t; log(`《${cname(C(w))}》を《${cname(C(t))}》に装備した`, p); return true;
+  }
+  async function putFromHyper(u, p, o = {}){
+    const c = C(u);
+    if (isWeapon(c)){
+      const cs = inBattle(p, x => isCreature(side(x))); if (!cs.length && !o.equipTo){ log(`装備するクリーチャーがいないので《${cname(c)}》は出せない`, p); return false; }
+      const ok = await putIntoBattle(u, 'put'); if (!ok || C(u).zone !== 'battle') return false;
+      await equipTo(u, p, o.equipTo); return true;
+    }
+    return await putIntoBattle(u, o.how || 'put');
+  }
+  (window.AUTOFX_OPS ||= {}).gr = async (o, x) => {
+    const p = x.p; let did = 0;
+    for (let i = 0; i < o.n && !S.winner; i++){
+      const u = zoneArr(p, 'gr')[0]; if (!u){ log(`${PN[p]}：GRゾーンにカードがない`, p); break; }
+      log(`${PN[p]}：GR召喚《${cname(C(u))}》`, p); C(u).m = {}; await putIntoBattle(u, 'summon'); did++;
+    }
+    return did;
+  };
+  window.AUTOFX_OPS.hyper = async (o, x, env) => {
+    const p = x.p; const names = new Set(); let total = 0, n = 0;
+    for (let i = 0; i < o.n && !S.winner; i++){
+      let cands = zoneArr(p, 'hyper').filter(u => passH(u, o.f, p) && (!o.f.diff || !names.has(cname(C(u)))) && (o.total == null || total + DB[C(u).cid].sides[0].cost <= o.total));
+      if (o.f.kind === 'ドラグハート・ウエポン' || o.equip) cands = cands.filter(u => isWeapon(C(u)));
+      if (!cands.length) break;
+      const [u] = await x.choose({q: `超次元ゾーンから出すカード${o.n > 1 && o.n < 99 ? `（${i + 1}/${o.n}）` : ''}`, cands, min: o.n >= 99 ? 0 : 1, max: 1, score: v => DB[C(v).cid].sides[0].cost});
+      if (!u) break;
+      names.add(cname(C(u))); total += DB[C(u).cid].sides[0].cost;
+      log(`${PN[p]}：超次元ゾーンから《${cname(C(u))}》を出す`, p);
+      if (await putFromHyper(u, p, {equipTo: o.equip === 'self' ? x.src : null})) n++;
+    }
+    if (env) env.did = n > 0;
+  };
+  window.AUTOFX_OPS.abyssAll = async (o, x) => {
+    const q = x.q; const es = x.elems(q).slice(); const hs = zoneArr(q, 'hand').slice();
+    for (const u of [...es, ...hs]) place(u, 'abyss');
+    log(`${PN[q]}のエレメント${es.length}つと手札${hs.length}枚を深淵送りにした`, x.p);
+  };
+
+  /* ---------- 装備したクリーチャーは「これを装備したクリーチャー」の能力を得る ---------- */
+  let eqDepth = 0;
+  wrapF('txt', o => function(c){
+    const t = o.apply(this, arguments);
+    if (typeof t !== 'string' || !c || !S || c.zone !== 'battle' || eqDepth) return t;
+    const ws = (zoneArr(c.owner, 'battle') || []).filter(u => C(u) && C(u).eq === c.uid); if (!ws.length) return t;
+    eqDepth++;
+    try {
+      const add = ws.map(w => nf(o.call(this, C(w))).split(/[。\n]/).filter(x => /これを装備したクリーチャー/.test(x) && !/龍解/.test(x)).map(x => x.replace(/これを装備したクリーチャー/g, 'このクリーチャー').trim() + '。').join('\n')).filter(Boolean);
+      return add.length ? t + '\n（装備で得た能力）' + add.join('\n') : t;
+    } finally { eqDepth--; }
+  });
+
+  /* ---------- 覚醒・龍解：条件を満たした時に裏返す ---------- */
+  const FLIP = /(覚醒|スーパー龍解|龍解)\s*[-−:：]\s*([^。]*?)、(?:この(?:クリーチャー|ドラグハート)を)?(?:コストの大きいほうに|クリーチャー側に|ドラグハート・クリーチャー側に)?裏返(?:し、アンタップする|す)?/;
+  function flipInfo(c){
+    if (!c || c.zone !== 'battle' || (c.side || 0) !== 0 || DB[c.cid].sides.length < 2) return null;
+    const t = nf(DB[c.cid].sides[0].text); const m = t.match(FLIP); if (!m) return null;
+    const body = m[2]; const tm = body.match(/^(自分のターンのはじめに|自分のターンの終わりに|各ターンの終わりに|相手のターンの終わりに|(?:[^、]*?)が攻撃する時|(?:[^、]*?)が出た時)、?/);
+    const timing = tm ? tm[1] : ''; const cond = tm ? body.slice(tm[0].length) : body;
+    return {kw: m[1], timing, cond, untap: /アンタップする/.test(m[0])};
+  }
+  async function tryFlip(c, when){
+    const fi = flipInfo(c); if (!fi) return;
+    const tOk = when === 'start' ? /自分のターンのはじめ/.test(fi.timing) : when === 'end' ? /終わりに/.test(fi.timing) && (/各ターン/.test(fi.timing) || (/相手のターン/.test(fi.timing) ? S.active !== c.owner : S.active === c.owner)) : when === 'attack' ? /攻撃する時/.test(fi.timing) : false;
+    if (!tOk) return;
+    const p = c.owner; let ok = window.DMAI_EVALCOND ? window.DMAI_EVALCOND(fi.cond.replace(/(?:場合|なら|ば)$/, 'ば'), p, c) : null;
+    if (ok === null || ok === undefined){
+      if (p === 'me') ok = await ask(p, fi.kw, `《${cname(c)}》の${fi.kw}：${fi.cond || '（条件なし）'}\n条件を満たしていれば裏返します。満たしていますか？`, '裏返す', '裏返さない');
+      else ok = !fi.cond;
+    }
+    if (!ok) return;
+    c.side = 1; c.eq = null; if (fi.untap) c.tapped = false; c.m.flipped = S.turn;
+    log(`${fi.kw}：《${DB[c.cid].sides[0].name}》を裏返した`, p);
+  }
+  wrapF('startTurn', o => async function(p){
+    const r = await o.apply(this, arguments);
+    if (!S || NOFX || S.winner || !offline(p)) return r;
+    for (const c of inBattle(p).slice()) await tryFlip(c, 'start');
+    return r;
+  });
+  wrapF('endTurn', o => async function(p){
+    if (S && !NOFX && !S.winner) for (const pl of [p, other(p)]) if (offline(pl)) for (const c of inBattle(pl).slice()) await tryFlip(c, 'end');
+    return o.apply(this, arguments);
+  });
+  wrapF('resolveEffect', o => async function(uid, ev, extra){
+    const r = await o.apply(this, arguments);
+    if (ev === 'attack' && !NOFX && S && !S.winner){ const a = C(uid); if (a && offline(a.owner)) for (const c of inBattle(a.owner).slice()){ const fi = flipInfo(c); if (!fi || !/攻撃する時/.test(fi.timing)) continue;
+      // 「これを装備したクリーチャーが攻撃する時」は装備先だけ
+      if (/装備したクリーチャー/.test(fi.timing) && c.eq !== uid) continue; if (/このクリーチャーが攻撃/.test(fi.timing) && c.uid !== uid) continue;
+      await tryFlip(c, 'attack'); } }
+    return r;
+  });
+
+  /* ---------- 解除：裏のサイキックが離れる時、かわりに表に戻してもよい ---------- */
+  wrapF('leave', o => async function(uid, dest, opt = {}){
+    const c = C(uid);
+    if (!NOFX && c && c.zone === 'battle' && dest !== 'battle' && (c.side || 0) === 1 && DB[c.cid].sides.length > 1 && /解除/.test(nf(DB[c.cid].sides[1].text))){
+      if (await ask(c.owner, '解除', `《${cname(c)}》が離れます。かわりに解除して表に戻しますか？`, '解除する', 'そのまま離れる')){ c.side = 0; log(`解除：《${DB[c.cid].sides[0].name}》に戻ってバトルゾーンにとどまった`, c.owner); render(); return null; }
+    }
+    return o.apply(this, arguments);
+  });
+
+  /* ---------- 手で操作するボタン ---------- */
+  wrapF('renderDetail', o => function(){
+    const r = o.apply(this, arguments);
+    try {
+      const c = selected && C(selected); if (!c || !S || S.winner) return r;
+      const acts = document.querySelector('#detail .acts'); if (!acts) return r;
+      const own = c.owner === 'me' ? myTurn() || (oppMode() === 'manual') : oppMode() === 'manual';
+      const btn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = () => guard(async () => { selected = null; await fn(); }); acts.appendChild(b); };
+      if (c.zone === 'battle' && DB[c.cid].sides.length > 1 && /サイキック|ドラグハート/.test(DB[c.cid].sides[0].type) && own)
+        btn((c.side || 0) === 0 ? '裏返す（覚醒・龍解）' : '表に戻す（解除）', async () => { c.side = (c.side || 0) ? 0 : 1; if (c.side) c.eq = null; log(`《${DB[c.cid].sides[0].name}》を${c.side ? '裏返した' : '表に戻した'}`, c.owner); });
+      if (c.zone === 'battle' && isWeapon(c) && own)
+        btn(c.eq ? `装備先を変える（いま《${cname(C(c.eq))}》）` : '装備する', async () => { c.eq = null; await equipTo(c.uid, c.owner, null); });
+      if (c.zone === 'hyper' && own){
+        btn('バトルゾーンに出す', async () => { await putFromHyper(c.uid, c.owner, {}); });
+        const s0 = DB[c.cid].sides[0];
+        if (/このクリーチャーを(?:自分の)?超次元ゾーンから召喚してもよい/.test(nf(s0.text)) && c.owner === 'me') btn('超次元ゾーンから召喚', async () => { if (await userPay(s0.civs, s0.cost, c.uid, s0.name)) await useCard(c.uid, {cost: s0.cost, paid: true, how: 'summon'}); });
+      }
+    } catch (e) { console.error(e); }
+    return r;
+  });
+  window.DMAI_ZONE = {putFromHyper, equipTo, tryFlip, flipInfo};
+})();
+</script>
+<script id="xgearfx">
+/* クロスギア（クロス・アクセル・S・トリガーX）・封印と禁断解放・デュエリスト・パンドラ・シフト（2026-11-28）
+   クロスした先は c.eq（ドラグハートの装備と同じ）。クロスギアはクリーチャーが離れても残る（本体の place） */
+(function(){
+  if (window.__xgearfx) return; window.__xgearfx = true;
+  const wrapF = (n, f) => { const o = window[n]; if (typeof o === 'function') window[n] = f(o); };
+  const nf = t => String(t || '').normalize('NFKC');
+  const offline = p => !(NET.on && p === 'op');
+  const ask = async (p, title, q, yes = '使う', no = '使わない') => p === 'me' ? (S.userTouched = true, await askYesNo(title, q, yes, no)) : offline(p);
+  const isGear = c => /クロスギア/.test(side(c).type);
+  const attached = c => (zoneArr(c.owner, 'battle') || []).map(C).filter(x => x && x.eq === c.uid && x.uid !== c.uid);
+
+  /* ---------- クロスする ---------- */
+  async function cross(g, p, opt = {}){
+    const cs = inBattle(p, x => isCreature(side(x))).map(x => x.uid); if (!cs.length) return false;
+    const x = makeCtx(g, p, {}); const [t] = await x.choose({q: `《${cname(C(g))}》をクロスするクリーチャー`, cands: cs, min: opt.min ?? 1, max: 1, score: u => power(C(u))});
+    if (!t) return false;
+    if (!opt.free){ const s = side(C(g)); if (p === 'me'){ if (!await userPay(s.civs, s.cost, g, s.name)) return false; } else if (!payCost(p, s.civs, s.cost, g)) return false; }
+    C(g).eq = t; log(`《${cname(C(g))}》を《${cname(C(t))}》にクロスした`, p); return true;
+  }
+  // 「これをクロスしたクリーチャー」「これを装備したクリーチャー」のパワーとブレイク数
+  const gearOf = c => c && S && c.zone === 'battle' ? attached(c) : [];
+  wrapF('power', o => function(c){
+    let r = o.apply(this, arguments); if (!c || !c.m) return r;
+    for (const g of gearOf(c)){ const m = nf(side(g).text).match(/これを(?:クロス|装備)したクリーチャーのパワーを\+(\d+)/); if (m) r += +m[1]; }
+    return r;
+  });
+  wrapF('breakers', o => function(c){
+    let r = o.apply(this, arguments); if (!c) return r;
+    for (const g of gearOf(c)) if (/これを(?:クロス|装備)したクリーチャーの[^。]*シールドをさらに(?:もう)?1つブレイクする/.test(nf(side(g).text))) r += 1;
+    return r;
+  });
+  // 能力を得る（ドラグハートの装備は zonefx が同じことをしているので、クロスだけ）。アクセルはクロスされている時だけ
+  let gd = 0;
+  wrapF('txt', o => function(c){
+    const t = o.apply(this, arguments);
+    if (typeof t !== 'string' || !c || !S || gd) return t;
+    gd++;
+    try {
+      let out = t;
+      if (c.zone === 'battle'){
+        const gs = gearOf(c).filter(isGear);
+        if (gs.length){ const add = gs.map(g => nf(o.call(this, g)).split(/[。\n]/).filter(x => /これをクロスしたクリーチャー/.test(x)).map(x => x.replace(/これをクロスしたクリーチャー/g, 'このクリーチャー').trim() + '。').join('\n')).filter(Boolean); if (add.length) out += '\n（クロスで得た能力）' + add.join('\n'); }
+        if (/アクセル/.test(out) && !gs.length){ const n = nf(out); const i = n.search(/アクセル\s*[(（]/); if (i >= 0){ const j = n.indexOf(')', i) >= 0 ? n.indexOf(')', i) + 1 : n.indexOf('）', i) + 1; out = n.slice(0, j) + '（条件を満たしていない）' + n.slice(j).replace(/^\s*a\s*[^。]*。/, ''); } }
+        if (c.seal && c.seal.length) out = '（封印されている）';
+      }
+      return out;
+    } finally { gd--; }
+  });
+  // S・トリガーX：シールドから手札に加える時、すぐジェネレートしてクロスしてもよい
+  wrapF('shieldTrigger', o => async function(uid){
+    const c = C(uid);
+    if (c && c.zone === 'hand' && !NOFX && /S・トリガーX/.test(nf(DB[c.cid].sides[0].text)) && isGear(c) && offline(c.owner) && await ask(c.owner, 'S・トリガーX', `《${cname(c)}》をコストを支払わずにジェネレートしますか？`)){
+      const r = await useCard(uid, {free: true}); if (r && r.ok && C(uid).zone === 'battle') await cross(uid, c.owner, {free: true, min: 0}); return;
+    }
+    return o.apply(this, arguments);
+  });
+
+  /* ---------- 封印・禁断解放 ---------- */
+  function addSeals(c, n){
+    c.seal ||= []; for (let i = 0; i < n; i++){ const t = topOf(c.owner); if (!t) break; detach(t); C(t).zone = 'seal'; c.seal.push(t); }
+    log(`《${DB[c.cid].sides[0].name}》に封印を${n}つ付けた`, c.owner);
+  }
+  (window.AUTOFX_EXT ||= []).push(s => { const m = s.match(/^(?:その後、)?このクリーチャーに封印を(\d+)つ付ける$/); return m ? {op: {k: 'seal', n: +m[1]}} : null; });
+  (window.AUTOFX_OPS ||= {}).seal = async (o, x) => { const c = C(x.src); if (c && c.zone === 'battle') addSeals(c, o.n); };
+  async function unsealOne(p, civs){
+    const cs = [...inBattle('me'), ...inBattle('op')].filter(c => c.owner === p && c.seal && c.seal.length && DB[c.cid].civs.some(v => civs.includes(v)));
+    if (!cs.length) return;
+    const x = makeCtx(cs[0].uid, p, {}); const [k] = cs.length > 1 ? await x.choose({q: '封印を1つ墓地に置くカード', cands: cs.map(c => c.uid), min: 1, max: 1, score: u => -C(u).seal.length}) : [cs[0].uid];
+    const c = C(k); const u = c.seal.pop(); C(u).zone = 'limbo'; place(u, 'grave'); log(`《${DB[c.cid].sides[0].name}》の封印を1つ墓地に置いた（残り${c.seal.length}）`, p);
+    if (!c.seal.length) await release(c);
+  }
+  async function release(c){
+    const t = nf(DB[c.cid].sides[0].text); log(`禁断解放：《${DB[c.cid].sides[0].name}》`, c.owner);
+    if (DB[c.cid].sides.length > 1 || /クリーチャー側に裏返す/.test(t)){ if (DB[c.cid].sides.length > 1) c.side = 1; }
+    const m = t.match(/禁断解放\s*[-−:：―]\s*この鼓動の封印がすべてなくなった時、([^]*?)(?=\(|$)/);
+    if (m && !/クリーチャー側に裏返す/.test(m[1]) && window.AUTOFX_BODY && !(await window.AUTOFX_BODY(c.uid, c.owner, m[1]))) S.pend.me.push({kind: 'manual', src: c.uid, text: `禁断解放《${DB[c.cid].sides[0].name}》を手で処理してください：\n${m[1]}`});
+  }
+  // コマンドが出た時、同じ文明のカードから封印を1つ外す
+  wrapF('resolveEffect', o => async function(uid, ev, extra){
+    const r = await o.apply(this, arguments);
+    if (ev === 'etb' && !NOFX && S && !S.winner){ const c = C(uid);
+      // 出た時の能力が読めなくても、「このクリーチャーに封印をNつ付ける」は必ず行う
+      const sm = c && c.zone === 'battle' && nf(side(c).text).match(/このクリーチャーに封印を(\d+)つ付ける/); if (sm && !(c.seal && c.seal.length) && c.m.sealAt !== S.turn){ c.m.sealAt = S.turn; addSeals(c, +sm[1]); }
+      if (c && c.zone === 'battle' && /コマンド/.test(DB[c.cid].race || '') && offline(c.owner)) await unsealOne(c.owner, DB[c.cid].civs); }
+    return r;
+  });
+  // 封印されているクリーチャーは攻撃できない
+  wrapF('canAttack', o => function(c){ if (c && c.seal && c.seal.length) return '封印されている'; return o.apply(this, arguments); });
+  // 禁断の鼓動：ゲームのはじめに封印を付けてバトルゾーンに出す
+  wrapF('startTurn', o => async function(p){
+    if (S && !S.kwForbidden){ S.kwForbidden = true;
+      for (const pl of ['me', 'op']) for (const z of ['hand', 'deck']) for (const u of zoneArr(pl, z).slice()){ const c = C(u); const s = DB[c.cid].sides[0];
+        if (!/禁断の鼓動/.test(s.type)) continue; const m = nf(s.text).match(/封印を(\d+)つ付け/); place(u, 'battle'); addSeals(c, m ? +m[1] : 4); if (/カードを1枚引く/.test(nf(s.text).split('禁断解放')[0])) drawN(pl, 1); } }
+    return o.apply(this, arguments);
+  });
+
+  /* ---------- デュエリスト：超次元ゾーンからデュエルメイト・カードを実行（各ターンに1度） ---------- */
+  async function duelist(d){
+    const p = d.owner; const nm = (nf(side(d).text).match(/デュエリスト\s*[:：]\s*([^\s(（]+)/) || [])[1]; if (!nm) return;
+    const n = zoneArr(p, 'mana').length;
+    const cs = zoneArr(p, 'hyper').filter(u => /デュエルメイト/.test(DB[C(u).cid].sides[0].type) && (DB[C(u).cid].race || '').includes(nm) && DB[C(u).cid].sides[0].cost <= n);
+    if (!cs.length){ await modal({title: 'デュエリスト', html: `<p>マナ${n}枚以下のコストで出せる${esc(nm)}のデュエルメイト・カードがありません。</p>`, buttons: [{label: '閉じる', value: 1}]}); return; }
+    const x = makeCtx(d.uid, p, {}); const [u] = await x.choose({q: 'デュエリスト：実行するデュエルメイト・カード', cands: cs, min: 0, max: 1, score: v => DB[C(v).cid].sides[0].cost});
+    if (!u) return; S.tf.used['duelist' + d.uid] = true; log(`デュエリスト：《${cname(C(u))}》を実行`, p); await useCard(u, {free: true});
+  }
+
+  /* ---------- パンドラ・シフト：[無色(1)]で超次元ゾーンに置き、自分のエイリアンが出た時に出してもよい ---------- */
+  async function pandora(u){
+    if (!await userPay([], 1, u, cname(C(u)))) return; detach(u); C(u).zone = 'hyper'; zoneArr('me', 'hyper').push(u); log(`パンドラ・シフト：《${cname(C(u))}》を超次元ゾーンに置いた`, 'me');
+  }
+  wrapF('resolveEffect', o => async function(uid, ev, extra){
+    const r = await o.apply(this, arguments);
+    if (ev === 'etb' && !NOFX && S && !S.winner){ const c = C(uid); if (c && c.zone === 'battle' && /エイリアン/.test(DB[c.cid].race || '') && offline(c.owner))
+      for (const h of zoneArr(c.owner, 'hyper').slice()){ const hc = C(h); if (h === uid || !/パンドラ・シフト/.test(nf(DB[hc.cid].sides[0].text))) continue;
+        if (await ask(c.owner, 'パンドラ・シフト', `《${cname(hc)}》を超次元ゾーンから出しますか？`, '出す', '出さない')){ await putIntoBattle(h, 'put'); break; } } }
+    return r;
+  });
+
+  /* ---------- ボタン ---------- */
+  wrapF('renderDetail', o => function(){
+    const r = o.apply(this, arguments);
+    try {
+      const c = selected && C(selected); if (!c || !S || S.winner || c.owner !== 'me' || !myTurn()) return r;
+      const acts = document.querySelector('#detail .acts'); if (!acts) return r;
+      const btn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = () => guard(async () => { selected = null; await fn(); }); acts.appendChild(b); };
+      if (c.zone === 'battle' && isGear(c)) btn(c.eq ? `クロスし直す（いま《${cname(C(c.eq))}》、コスト${side(c).cost}）` : `クロスする（コスト${side(c).cost}）`, () => cross(c.uid, 'me'));
+      if (/デュエリスト/.test(DB[c.cid].sides[0].type) && !S.tf.used['duelist' + c.uid]) btn('デュエリスト：デュエルメイトを実行', () => duelist(c));
+      if (c.zone === 'hand' && /パンドラ・シフト/.test(nf(DB[c.cid].sides[0].text))) btn('パンドラ・シフト：[無色(1)]で超次元ゾーンへ', () => pandora(c.uid));
+      if (c.zone === 'battle' && c.seal && c.seal.length) btn(`封印を1つ外す（残り${c.seal.length}）`, async () => { const u = c.seal.pop(); C(u).zone = 'limbo'; place(u, 'grave'); log(`《${DB[c.cid].sides[0].name}》の封印を1つ外した`, 'me'); if (!c.seal.length) await release(c); });
+    } catch (e) { console.error(e); }
+    return r;
+  });
+  window.DMAI_XGEAR = {cross, addSeals, unsealOne, duelist, pandora};
 })();
 </script>
 </body></html>
