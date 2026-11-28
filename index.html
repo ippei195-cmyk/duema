@@ -277,7 +277,7 @@ body:not(.lay-pc) .tbar .ib{width:42px;height:42px}
 .logpanel{display:none}
 .r22{display:flex;flex-direction:column;gap:10px}
 .zoomrow{display:flex;align-items:center;gap:6px}
-.exwrap{display:flex;gap:4px;align-items:flex-start}.expile{position:relative}.expile .pc{transform:scale(.8);transform-origin:top left}.expile .exl{position:absolute;left:0;bottom:-2px;font-size:9px;background:rgba(0,0,0,.6);color:#fff;padding:0 3px;border-radius:3px}
+.exwrap{display:flex;gap:4px;align-items:flex-start}.expile{position:relative}.expile .pc{transform:scale(.8);transform-origin:top left}.expile .exl{position:absolute;left:0;bottom:-2px;font-size:9px;background:rgba(0,0,0,.6);color:#fff;padding:0 3px;border-radius:3px}body.gx .expile .exl{display:none}
 .zoomrow .zv{font-family:var(--f-mono);min-width:4em;text-align:center}
 .ordwrap{display:flex;flex-direction:column;gap:10px}
 .ordcol{border:1px solid var(--line);border-radius:10px;padding:8px}
@@ -11528,7 +11528,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
       if (c.zone === 'battle' && isWeapon(c) && own)
         btn(c.eq ? `装備先を変える（いま《${cname(C(c.eq))}》）` : '装備する', async () => { c.eq = null; await equipTo(c.uid, c.owner, null); });
       if (c.zone === 'hyper' && own){
-        btn('バトルゾーンに出す', async () => { await putFromHyper(c.uid, c.owner, {}); });
+        // 本体にも「バトルゾーンに出す」があるので、ドラグハート・ウエポン（装備先を選ぶ）の時だけ足す
+        if (isWeapon(c)) btn('バトルゾーンに出して装備する', async () => { await putFromHyper(c.uid, c.owner, {}); });
         const s0 = DB[c.cid].sides[0];
         if (/このクリーチャーを(?:自分の)?超次元ゾーンから召喚してもよい/.test(nf(s0.text)) && c.owner === 'me') btn('超次元ゾーンから召喚', async () => { if (await userPay(s0.civs, s0.cost, c.uid, s0.name)) await useCard(c.uid, {cost: s0.cost, paid: true, how: 'summon'}); });
       }
