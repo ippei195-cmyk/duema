@@ -3737,7 +3737,7 @@ function applyZoom(){
   document.querySelectorAll('#layBtns [data-lay]').forEach(b => b.classList.toggle('on', b.dataset.lay===lay));
   const fit = lay==='pc' ? Math.min(1, window.innerWidth / 1210) : 1; const z = Math.round(ZOOM*fit*1000)/1000;
   document.body.style.zoom = z===1 ? '' : String(z); $('#zVal').textContent = Math.round(ZOOM*100)+'%'; try{ localStorage.setItem('dmsim-zoom', String(ZOOM)); }catch(e){} }
-const stepZoom = k => { ZOOM = Math.min(1.6, Math.max(0.6, Math.round((ZOOM + k)*10)/10)); applyZoom(); };
+const stepZoom = k => { ZOOM = Math.min(1.6, Math.max(0.4, Math.round((ZOOM + k)*10)/10)); applyZoom(); };
 $('#zOut').onclick = () => stepZoom(-0.1); $('#zIn').onclick = () => stepZoom(0.1); $('#zReset').onclick = () => { ZOOM = 1; applyZoom(); };
 applyZoom(); setPendMode(PENDMODE);
 $('#loopBtn').onclick = () => { if (NET.on) return modal({title:'ループ確認', html:'<p>オンライン対戦中は使えません。</p>', buttons:[{label:'閉じる',value:1}]}); if (FULL) openLoopPanel(); };
