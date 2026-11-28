@@ -2592,6 +2592,8 @@ async function userUse(uid, fromMana=false){
   if (isReiaku && elems.length>=2) html += `<p><label><input type="checkbox" id="alt"> 代替コスト：自分のエレメントを２つ破壊し、[光/闇/自然(5)]で唱える</label></p>`;
   if (akane) html += `<p><label><input type="checkbox" id="alt" checked> 代替コスト：[無色(${altM[1]})]${altCost < +altM[1] ? `→軽減して[無色(${altCost})]` : ''}で召喚（マナに${altNeed.join('・')}がある）</label></p>`;
   if (evoBase) html += `<p>${esc(evoInfo(s).kind)}：《${esc(cname(C(evoBase)))}》の上に重ねる</p>`;
+  const badM = !fromMana && isCreature(s) && String(txt(c)).normalize('NFKC').match(/B・A・D\s*(\d+)/); // B・A・D：コストを少なくして召喚、ターンの終わりに破壊
+  if (badM) html += `<p><label><input type="checkbox" id="bad"> B・A・D ${badM[1]}：召喚コストを${badM[1]}少なくする（このターンの終わりにこのクリーチャーを破壊）</label></p>`;
   html += `<p><label>支払うコスト <input type="number" id="payc" min="0" value="${Math.max(1, base-reduce)}" style="width:60px"></label>（自動の軽減を適用済み。手動で調整できます）</p>`;
   S._mv = {};
   const r = await modal({title: fromMana ? 'マナゾーンから召喚' : '使う', html, buttons:[{label:'支払って使う',value:'pay',primary:true},{label:'コストなしで出す／唱える',value:'free'},{label:'やめる',value:'x'}]});
@@ -2602,6 +2604,7 @@ async function userUse(uid, fromMana=false){
   let civs = s.civs;
   // ササゲール / 代替コスト
   if (mv.sasa){ const n=Math.min(aal.length, Math.max(1, mv.sasaN||1)); cost = Math.max(1, cost-3*n); const victims = aal.slice(0,n); for (const v of victims){ await leave(v.uid,'grave',{destroy:true}); } }
+  if (mv.bad && badM) cost = Math.max(1, cost - Number(badM[1]));
   if (mv.alt && akane){ cost = altCost; civs = []; }
   else if (mv.alt){
     civs = ['光','闇','自然'];
@@ -2611,6 +2614,7 @@ async function userUse(uid, fromMana=false){
   }
   if (!await userPay(civs, cost, uid, s.name)) return;
   const res = await useCard(uid,{cost, paid:true, sideIdx:si, how:'summon', base:evoBase, baseChosen:true, metaChecked:true});
+  if (res.ok && mv.bad && badM && C(uid) && C(uid).zone==='battle'){ C(uid).m.destroyEOT = true; log(`B・A・D：《${cname(C(uid))}》はこのターンの終わりに破壊される`, 'me'); }
   if (!res.ok) await modal({title:'使えません', html:`<p>${esc(res.err)}</p>`, buttons:[{label:'閉じる',value:1}]});
 }
 // capture form values inside a modal at click time (the modal is removed right after)
@@ -2620,7 +2624,7 @@ document.addEventListener('click', e => {
 document.addEventListener('click', e => {
   const m = e.target.closest('.modal'); if (!m || !S) return;
   const g = id => m.querySelector('#'+id);
-  S._mv = {payc: g('payc') ? Number(g('payc').value) : undefined, sasa: !!g('sasa')?.checked, sasaN: Number(g('sasaN')?.value||1), alt: !!g('alt')?.checked};
+  S._mv = {payc: g('payc') ? Number(g('payc').value) : undefined, sasa: !!g('sasa')?.checked, sasaN: Number(g('sasaN')?.value||1), alt: !!g('alt')?.checked, bad: !!g('bad')?.checked};
 }, true);
 
 async function userAttack(uid){
@@ -10340,6 +10344,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
   if (window.__kwfx) return; window.__kwfx = true;
   const wrapF = (n, f) => { const o = window[n]; if (typeof o === 'function') window[n] = f(o); };
   const has = (c, re) => !!c && re.test(txt(c));
+  // キーワードを持つか：「〜」を与える の文は除き、「このクリーチャーは「〜」を得る」は持つ
+  const hasKw = (c, k) => { if (!c) return false; const t = String(txt(c)).normalize('NFKC'); return new RegExp('(^|[^「ー・ァ-ヴ])' + k + '(?!」)').test(t) || new RegExp('このクリーチャーは(?:「[^」]*」と)*「' + k + '」').test(t); };
   // [名前, 件数, 状況(auto/part/none), 説明]
   const KWD = [
     ['S・トリガー',1208,'auto','シールドから手札に加える時、コストを支払わずに使ってもよい'],
@@ -10457,7 +10463,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
   /* ---------- キーワード能力の処理 ---------- */
   // スレイヤー：バトルの後、バトルの相手を破壊（「スレイヤー」を与える の文は除く）
-  const slayer = c => has(c, /(^|[^「])スレイヤー(?!」)/);
+  const slayer = c => hasKw(c, 'スレイヤー');
   // ハンティング：バトル中、自分のハンター1体につき+1000
   let inBattleNow = [];
   wrapF('power', o => function(c){
@@ -10495,7 +10501,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
   // エスケープ：破壊される時、墓地に置くかわりに自分のシールドを1つ手札に加えてもよい（S・トリガーは使えない）
   wrapF('leave', o => async function(uid, dest, opt = {}){
     const c = C(uid);
-    if (!NOFX && c && c.zone === 'battle' && dest === 'grave' && opt && opt.destroy && has(c, /エスケープ/) && !/「エスケープ」/.test(txt(c)) && zoneArr(c.owner, 'shield').length && !c.m.escaping){
+    if (!NOFX && c && c.zone === 'battle' && dest === 'grave' && opt && opt.destroy && hasKw(c, 'エスケープ') && zoneArr(c.owner, 'shield').length && !c.m.escaping){
       const p = c.owner; const sh = zoneArr(p, 'shield');
       let use, pick;
       if (p === 'me'){ S.userTouched = true; const r = await modal({title:'エスケープ', html:`<p>《${esc(cname(c))}》が破壊されます。かわりに自分のシールドを1つ手札に加えますか？（その「S・トリガー」は使えない）</p>`, pick:{uids:sh, max:1, min:0, hide:x => !x.faceUp}, buttons:[{label:'手札に加える', value:1, primary:true, needPick:true}, {label:'使わない', value:0}]}); use = r && r.value && r.picked && r.picked[0]; pick = use ? r.picked[0] : null; }
@@ -10509,7 +10515,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
     const A = a && C(a.attUid);
     if (!NOFX && A && a.target && a.target !== 'player' && C(a.target) && C(a.target).zone === 'battle'){
       const q = C(a.target).owner;
-      const gs = inBattle(q, g => g.uid !== a.target && !g.tapped && isCreature(side(g)) && has(g, /(^|[^ー「])ガードマン/)); // スーパーガードマンは別の能力
+      const gs = inBattle(q, g => g.uid !== a.target && !g.tapped && isCreature(side(g)) && hasKw(g, 'ガードマン')); // スーパーガードマンは別の能力
       if (gs.length && !(NET.on && q === 'op')){
         let g = null;
         if (q === 'me'){ S.userTouched = true; const r = await modal({title:'ガードマン', html:`<p>《${esc(cname(A))}》が《${esc(cname(C(a.target)))}》を攻撃します。ガードマンをタップして、攻撃先をそのクリーチャーに変えますか？</p>`, pick:{uids:gs.map(x => x.uid), max:1, min:0}, buttons:[{label:'変える', value:1, primary:true, needPick:true}, {label:'変えない', value:0}]}); g = r && r.value && r.picked && r.picked[0]; }
@@ -10532,6 +10538,285 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
         log(`ヨビニオン：${rest.length + (hit ? 1 : 0)}枚を表向きにした${hit ? `（《${cname(C(hit))}》）` : '（出せるクリーチャーなし）'}`, p);
         if (hit) await putIntoBattle(hit, 'put');
         for (const u of shuffle(rest)) place(u, 'deck', {bottom: true});
+      }
+    }
+    return r;
+  });
+})();
+</script>
+<script id="kwfx2">
+/* キーワード能力 第1弾（2026-11-28）
+   - 条件で能力を得るもの：条件を満たしていない間は、その能力の文を無いものとして扱う（キーワードも誘発も）
+     メタモーフ・ウェーブストライカー・ホーリー・フィールド・ノー・チョイス・シビルカウント・マナドライブ・ターボラッシュ・
+     超天フィーバー・ラビリンス・レインボーナス・バラバラエティ・鬼タイム・鬼エンド
+   - G・ゼロ・シールド・セイバー・セイバー:種族・アタック・チャンス・シールド・ゴー・ドロン・ゴー・マジボンバー・
+     ラスト・バースト・メガ・ラスト・バースト・ヌル・ブレイカー・フリーズ・ロスト・プリズム・L・ゲート・スーパーガードマン
+   - B・A・D は本体の「使う」画面（userUse）に入れた */
+(function(){
+  if (window.__kwfx2) return; window.__kwfx2 = true;
+  const wrapF = (n, f) => { const o = window[n]; if (typeof o === 'function') window[n] = f(o); };
+  const nf = t => String(t || '').normalize('NFKC');
+  const ttx = c => nf(txt(c));
+  const sh = p => zoneArr(p, 'shield').length;
+  const CIVL = {光:'光', 水:'水', 闇:'闇', 火:'火', 自:'自然', 自然:'自然'};
+  const civsOf = c => DB[c.cid].civs || [];
+  // 「火のクリーチャー」「リキッド・ピープル」「ジョーカーズ」などに合うか
+  function matchWord(c, w){
+    w = w.replace(/^自分の/, '').replace(/^(?:バトルゾーンにある|バトルゾーンの)/, '').trim();
+    if (!w) return true;
+    const s = DB[c.cid].sides[c.side || 0] || DB[c.cid].sides[0];
+    const m = w.match(/^(?:(光|水|闇|火|自然)(?:または(光|水|闇|火|自然))?の)?(?:コスト(\d+)以上の|パワー(\d+)以上の)?(.*)$/);
+    const civs = [m[1], m[2]].filter(Boolean);
+    if (civs.length && !civs.some(v => civsOf(c).includes(v))) return false;
+    if (m[3] && !(s.cost >= +m[3])) return false;
+    if (m[4] && !(power(c) >= +m[4])) return false;
+    let rest = m[5] || '';
+    if (rest.startsWith('多色')){ if (civsOf(c).length < 2) return false; rest = rest.slice(2); }
+    rest = rest.replace(/・?(クリーチャー|カード)$/, '');
+    if (!rest || rest === 'クリーチャー') return isCreature(s);
+    if (rest === 'タマシード') return /タマシード/.test(s.type);
+    if (rest === 'エレメント') return isElementType(s);
+    return (DB[c.cid].race || '').includes(rest) || cname(c).includes(rest);
+  }
+  const matchAny = (c, words) => words.split(/または|、|と(?=[光水闇火自])/).some(w => matchWord(c, w));
+  // 「〜が〜以上あれば」などの条件。わからない時は null
+  function evalCond(clause, p, self){
+    const t = nf(clause).replace(/\s/g, ''); const q = other(p);
+    let m;
+    if (/手札を1枚も持っていないプレイヤーがひとりでもいれば/.test(t)) return zoneArr('me', 'hand').length === 0 || zoneArr('op', 'hand').length === 0;
+    if (/シールドが1つもないプレイヤーがいれば/.test(t)) return sh('me') === 0 || sh('op') === 0;
+    if (/自分と相手のシールドの数が合計6つ以下/.test(t)) return sh('me') + sh('op') <= 6;
+    if (/自分のシールドの数が相手より多ければ/.test(t)) return sh(p) > sh(q);
+    if (/自分のシールドの数が相手以上であれば/.test(t)) return sh(p) >= sh(q);
+    if ((m = t.match(/自分のマナゾーンに(\d+)枚以上カードがあれば/)) || (m = t.match(/自分のマナゾーンのカードが(\d+)枚以上/))) return zoneArr(p, 'mana').length >= +m[1];
+    if ((m = t.match(/自分の(?:シールド|シールドゾーンのカード)が(\d+)つ以下/))) return sh(p) <= +m[1];
+    if (/自分のシールドが1つもなければ/.test(t)) return sh(p) === 0;
+    if ((m = t.match(/バトルゾーン(?:または|と)マナゾーンに、?自分の(.+?)が合計(\d+)枚以上あれば/))) return [...inBattle(p), ...zoneArr(p, 'mana').map(C)].filter(c => matchAny(c, m[1])).length >= +m[2];
+    if ((m = t.match(/バトルゾーンに自分の(.+?)が(\d+)(?:体|つ|枚)以上あれば/)) || (m = t.match(/^自分の(.+?)が(?:合計)?(\d+)(?:体|つ|枚)以上あれば/))) return inBattle(p).filter(c => (!self || c.uid !== self || true) && matchAny(c, m[1])).length >= +m[2];
+    if ((m = t.match(/^(?:バトルゾーンに)?クリーチャーが(\d+)体以上あれば/))) return [...inBattle('me'), ...inBattle('op')].filter(c => isCreature(side(c))).length >= +m[1];
+    if ((m = t.match(/^相手の(.+?)が(\d+)(?:体|つ|枚)以上あれば/))) return inBattle(q).filter(c => matchAny(c, m[1])).length >= +m[2];
+    if ((m = t.match(/バトルゾーンに自分の(.+?)があれば/)) || (m = t.match(/^自分の(.+?)があれば/))) return inBattle(p).filter(c => c.uid !== self && matchAny(c, m[1])).length > 0;
+    return null;
+  }
+  window.DMAI_EVALCOND = evalCond;
+
+  /* ---------- 条件で能力を得るもの ---------- */
+  const brokeThisTurn = (p) => (S.kwBroke && S.kwBroke.turn === S.turn && S.kwBroke[p]) || [];
+  const prevAfter = window.DMAI_AFTER_BREAK;
+  window.DMAI_AFTER_BREAK = A => { try { prevAfter && prevAfter(A); } finally { if (A && S){ if (!S.kwBroke || S.kwBroke.turn !== S.turn) S.kwBroke = {turn: S.turn}; (S.kwBroke[A.owner] ||= []).push(A.uid); if (S.kwFreeze === A.uid) S.kwFreezeHit = A.uid; } } };
+  // [キーワードの正規表現, 条件(c, 一致, 能力の文)]
+  const GATES = [
+    [/メタモーフ/, c => zoneArr(c.owner, 'mana').length >= 7],
+    [/ウェーブストライカー/, c => [...inBattle('me'), ...inBattle('op')].filter(x => x.uid !== c.uid && /ウェーブストライカー/.test(ttxRaw(x))).length >= 2],
+    [/ホーリー・フィールド/, c => sh(c.owner) >= sh(other(c.owner))],
+    [/ノー・チョイス/, () => zoneArr('me', 'hand').length === 0 || zoneArr('op', 'hand').length === 0],
+    [/シビルカウント\s*(\d+)/, (c, m, body) => { const civs = CIV_WORDS.filter(v => (body.split('あれば')[0] || '').includes(v + 'の')); return inBattle(c.owner).filter(x => isElementType(side(x)) && (!civs.length || civs.some(v => civsOf(x).includes(v)))).length >= +m[1]; }],
+    [/マナドライブ\s*(\d+)\s*\(([^)]*)\)/, (c, m) => { const ms = zoneArr(c.owner, 'mana').map(C); if (ms.length < +m[1]) return false; const k = m[2].trim(); if (k === 'J') return ms.some(x => /ジョーカーズ/.test(DB[x.cid].race || '')); const v = CIVL[k] || k; return ms.some(x => civsOf(x).includes(v)); }],
+    [/ターボラッシュ/, c => brokeThisTurn(c.owner).some(u => u !== c.uid)],
+    [/超天フィーバー/, (c, m, body) => { const r = evalCond(body.split('、')[0] + '、', c.owner, c.uid); return r === null ? true : r; }],
+    [/ラビリンス/, (c, m, body) => { const r = evalCond(body, c.owner, c.uid); return r === null ? sh(c.owner) > sh(other(c.owner)) : r; }],
+    [/レインボーナス/, c => inBattle(c.owner).some(x => isCreature(side(x)) && civsOf(x).length >= 2)],
+    [/バラバラエティ\s*(\d+)/, (c, m) => new Set(inBattle(c.owner).filter(x => isElementType(side(x))).map(x => side(x).cost)).size >= +m[1]],
+    [/鬼タイム/, () => sh('me') + sh('op') <= 6],
+    [/鬼エンド/, () => sh('me') === 0 || sh('op') === 0],
+  ];
+  let rawTxt = null; const ttxRaw = c => nf(rawTxt ? rawTxt(c) : side(c).text);
+  // 能力の文の範囲：キーワード（と説明の括弧）の後から「。」まで。「その後」「そうしたら」などは続ける
+  function gateSegs(t){
+    const out = [];
+    for (const [re, fn] of GATES){
+      const g = new RegExp(re.source, 'g'); let m;
+      while ((m = g.exec(t))){
+        if (t[m.index - 1] === '「') continue;
+        let i = m.index + m[0].length;
+        if (t[i] === ':' || t[i] === '：') i++;
+        while (/[\s]/.test(t[i] || '')) i++;
+        if (t[i] === '(' || t[i] === '（'){ let d = 0; for (; i < t.length; i++){ if (t[i] === '(' || t[i] === '（') d++; else if ((t[i] === ')' || t[i] === '）') && --d === 0){ i++; break; } } }
+        if (t[i] === ':' || t[i] === '：') i++;
+        const bodyStart = i; let end = i;
+        for (;;){ const k = t.indexOf('。', end); if (k < 0){ end = t.length; break; } end = k + 1; if (!/^[\s]*(その後|そうしたら|そうした場合|ただし|こうして)/.test(t.slice(end))) break; }
+        while (t[end] === ')' || t[end] === '）') end++;
+        { let j = end; while (/[\s]/.test(t[j] || '')) j++; if (t[j] === '(' || t[j] === '（'){ let d = 0; for (; j < t.length; j++){ if (t[j] === '(' || t[j] === '（') d++; else if ((t[j] === ')' || t[j] === '）') && --d === 0){ j++; break; } } end = j; } } // 続く説明の括弧も含める
+        out.push({start: m.index, bodyStart, end, fn, m, body: t.slice(bodyStart, end)});
+      }
+    }
+    return out;
+  }
+  const inactiveSegs = (c, t) => { if (!c || !S || NOFX) return []; return gateSegs(t).filter(g => { try { return !g.fn(c, g.m, g.body); } catch(e){ return false; } }); };
+  const strip = (t, segs) => { let r = t; for (const g of segs.slice().sort((a, b) => b.bodyStart - a.bodyStart)) r = r.slice(0, g.bodyStart) + '（条件を満たしていない）' + r.slice(g.end); return r; };
+  let depth = 0;
+  wrapF('txt', o => { rawTxt = o; return function(c){
+    const t = o.apply(this, arguments);
+    if (typeof t !== 'string' || !c || NOFX || !S || c.zone !== 'battle' || depth > 1) return t;
+    depth++;
+    try { const n = nf(t); const segs = inactiveSegs(c, n); if (!segs.length) return t; return strip(n, segs); }
+    finally { depth--; }
+  }; });
+  // 誘発：条件を満たしていない能力の文にだけある誘発は使わない
+  wrapF('resolveEffect', o => async function(uid, ev, extra){
+    const c = C(uid);
+    if (c && !NOFX && c.zone === 'battle' && TRIG[ev]){
+      const sc = scriptFor(uid);
+      if (!sc || sc.autofx){
+        const s = DB[c.cid].sides[(extra && extra.sideIdx) ?? c.side ?? 0] || side(c); const t = nf(s.text);
+        const segs = inactiveSegs(c, t);
+        if (segs.length && TRIG[ev].test(t) && !TRIG[ev].test(strip(t, segs))) return;
+      }
+    }
+    return o.apply(this, arguments);
+  });
+
+  /* ---------- G・ゼロ：条件を満たしていれば、コストを支払わずに召喚してもよい ---------- */
+  wrapF('costMods', o => function(p, c, s){
+    const r = o.apply(this, arguments);
+    if (NOFX || !c || !s || !S) return r;
+    const m = nf(s.text).match(/G・ゼロ\s*[:：]\s*(.+?)、このクリーチャーをコストを支払わずに召喚してもよい/);
+    if (!m) return r;
+    const ok = evalCond(m[1], p, c.uid);
+    if (!ok) return r;
+    return {...r, cost: 0, notes: [...(r.notes || []), 'G・ゼロ（コストを支払わずに召喚できる）']};
+  });
+
+  /* ---------- 破壊の置き換え・破壊された時 ---------- */
+  const ask = async (p, title, q, yes = '使う', no = '使わない') => p === 'me' ? (S.userTouched = true, await askYesNo(title, q, yes, no)) : !(NET.on && p === 'op');
+  const spellSide = c => DB[c.cid].sides.findIndex(s => s.type === '呪文');
+  wrapF('leave', o => async function(uid, dest, opt = {}){
+    const c = C(uid);
+    if (NOFX || !c || c.zone !== 'battle' || !S || S.winner) return o.apply(this, arguments);
+    const p = c.owner; const destroy = dest === 'grave' && opt && opt.destroy;
+    // セイバー:種族（自分の〇〇が破壊される時、かわりにこのクリーチャーを破壊してもよい）
+    if (destroy && !opt.kwSaved){
+      const sv = inBattle(p, x => x.uid !== uid && !x.m.kwSaving && (() => { const m = ttx(x).match(/(?:^|[^・ァ-ヴー「])セイバー\s*[:：]\s*([^(（\s]+)/); return m && matchAny(c, m[1]); })())[0];
+      if (sv && await ask(p, 'セイバー', `《${cname(c)}》が破壊されます。かわりに《${cname(sv)}》を破壊しますか？`, '身代わりにする')){
+        log(`セイバー：《${cname(c)}》のかわりに《${cname(sv)}》を破壊`, p); sv.m.kwSaving = true;
+        try { await leave(sv.uid, 'grave', {destroy: true, kwSaved: true}); } finally { if (C(sv.uid)) delete C(sv.uid).m.kwSaving; }
+        return null;
+      }
+    }
+    // L・ゲート:種族（破壊される時、墓地に置くかわりに、その種族を墓地から手札に戻してもよい。そうしたら、このクリーチャーを山札の一番下へ）
+    if (destroy){
+      const m = ttx(c).match(/L・ゲート\s*[:：]\s*([^(（\s]+)/);
+      if (m){ const g = zoneArr(p, 'grave').filter(u => isCreature(DB[C(u).cid].sides[0]) && matchWord(C(u), m[1]));
+        if (g.length && await ask(p, 'L・ゲート', `《${cname(c)}》が破壊されます。かわりに墓地の${m[1]}を1体手札に戻し、このクリーチャーを山札の一番下に置きますか？`)){
+          const x = makeCtx(uid, p, {}); const [t] = await x.choose({q: `手札に戻す${m[1]}`, cands: g, min: 1, max: 1, score: u => DB[C(u).cid].sides[0].cost});
+          if (t){ place(t, 'hand'); log(`L・ゲート：《${cname(C(t))}》を墓地から手札に戻し、《${cname(c)}》を山札の一番下へ`, p); return await o.call(this, uid, 'deck', {bottom: true}); }
+        } }
+    }
+    const before = {t: ttx(c), name: cname(c)};
+    const r = await o.apply(this, arguments);
+    const cc = C(uid); if (!cc || S.winner) return r;
+    // 破壊された時
+    if (destroy && cc.zone === 'grave'){
+      // シールド・ゴー：新しいシールドとして表向きのまま加える
+      if (/シールド・ゴー/.test(before.t) && !/「シールド・ゴー」/.test(before.t)){ place(uid, 'shield'); if (C(uid)){ C(uid).faceUp = true; } log(`シールド・ゴー：《${before.name}》を表向きのシールドにした`, p); render(); return r; }
+      // ラスト・バースト：呪文側をコストを支払わずに唱えてもよい
+      const si = spellSide(cc);
+      if (si >= 0 && /(^|[^・])ラスト・バースト/.test(before.t) && await ask(p, 'ラスト・バースト', `《${before.name}》が破壊されました。呪文側《${DB[cc.cid].sides[si].name}》をコストを支払わずに唱えますか？`, '唱える')){ log(`ラスト・バースト：《${DB[cc.cid].sides[si].name}》を唱える`, p); await useCard(uid, {free: true, sideIdx: si}); }
+    }
+    // ドロン・ゴー：破壊された（ウルトラ・ドロン・ゴーなどは離れた）時、名前に《〇》とある〜を手札から出してもよい
+    const dm = before.t.match(/ドロン・ゴー\s*[:：]\s*このクリーチャーが(破壊された|離れた)時、名前に《([^》]+)》(?:\([^)]*\))?とある(.+?)を1体、自分の手札から(?:バトルゾーンに)?出してもよい/);
+    if (dm && (dm[1] === '離れた' ? cc.zone !== 'battle' : destroy && cc.zone === 'grave')){
+      const hs = zoneArr(p, 'hand').filter(u => isCreature(DB[C(u).cid].sides[0]) && cname(C(u)).includes(dm[2]));
+      if (hs.length){ const x = makeCtx(uid, p, {}); const [t] = await x.choose({q: `ドロン・ゴー：手札から出す《${dm[2]}》（出さなくてもよい）`, cands: hs, min: 0, max: 1, score: u => DB[C(u).cid].sides[0].cost}); if (t){ log(`ドロン・ゴー：《${cname(C(t))}》を出す`, p); await putIntoBattle(t, 'put'); } }
+    }
+    // メガ・ラスト・バースト：離れて手札・マナ・墓地に置かれた時、呪文側を唱えてもよい
+    if (['hand', 'mana', 'grave'].includes(cc.zone) && /メガ・ラスト・バースト/.test(before.t)){
+      const si = spellSide(cc);
+      if (si >= 0 && await ask(p, 'メガ・ラスト・バースト', `《${before.name}》が離れました。呪文側《${DB[cc.cid].sides[si].name}》をコストを支払わずに唱えますか？`, '唱える')){ log(`メガ・ラスト・バースト：《${DB[cc.cid].sides[si].name}》を唱える`, p); await useCard(uid, {free: true, sideIdx: si}); }
+    }
+    return r;
+  });
+
+  /* ---------- 攻撃まわり ---------- */
+  // ヌル・ブレイカー
+  wrapF('breakers', o => function(c){ return (!NOFX && c && /ヌル・ブレイカー/.test(ttx(c))) ? 0 : o.apply(this, arguments); });
+  // シールド・セイバー：自分のシールドがブレイクされる時、かわりにこのクリーチャーを破壊してもよい
+  const isShieldSaver = c => /シールド・セイバー|(?:^|[\s)）。])セイバー\s*\(自分のシールドがブレイクされる時/.test(ttx(c));
+  const prevBottom = window.DMAI_BREAK_TO_BOTTOM;
+  window.DMAI_BREAK_TO_BOTTOM = (A, u) => {
+    if (prevBottom && prevBottom(A, u)) return true;
+    const q = C(u) && C(u).owner; const Q = q && S.kwSaver && S.kwSaver[q];
+    if (Q && Q.length){ const sv = Q.shift(); if (C(sv) && C(sv).zone === 'battle'){ (S.kwSaverUsed ||= []).push(sv); log(`シールド・セイバー：《${cname(C(sv))}》がシールドのかわりに破壊される`, q); return true; } }
+    return false;
+  };
+  wrapF('resolveAttack', o => async function(a){
+    const A = a && C(a.attUid);
+    if (NOFX || !A || !S) return o.apply(this, arguments);
+    const q = other(A.owner);
+    S.kwSaver = {}; S.kwSaverUsed = [];
+    if (a.target === 'player' && sh(q)){
+      const svs = inBattle(q, x => isCreature(side(x)) && isShieldSaver(x));
+      if (svs.length && !(NET.on && q === 'op')){
+        const n = Math.min(breakers(A), sh(q), svs.length);
+        let use = [];
+        if (q === 'me'){ S.userTouched = true; const r = await modal({title: 'シールド・セイバー', html: `<p>《${esc(cname(A))}》がシールドをブレイクします。かわりに破壊するクリーチャーを選んでください（${n}体まで。選ばなければふつうにブレイク）。</p>`, pick: {uids: svs.map(x => x.uid), max: n, min: 0}, buttons: [{label: '決定', value: 1, primary: true}]}); use = (r && r.picked) || []; }
+        else if (sh(q) <= breakers(A) + 1) use = svs.sort((x, y) => side(x).cost - side(y).cost).slice(0, n).map(x => x.uid);
+        S.kwSaver[q] = use.slice();
+      }
+    }
+    S.kwFreeze = A.uid; S.kwFreezeHit = null;
+    let r;
+    try { r = await o.apply(this, arguments); }
+    finally {
+      const used = S.kwSaverUsed || []; S.kwSaver = {}; S.kwSaverUsed = [];
+      for (const u of used) if (C(u) && C(u).zone === 'battle') await leave(u, 'grave', {destroy: true});
+    }
+    // フリーズ：相手プレイヤーを攻撃してブロックされなかった時、相手のクリーチャーを1体タップし、次の相手のターンのはじめにアンタップしない
+    if (S.kwFreezeHit === A.uid && C(A.uid) && /フリーズ/.test(ttx(C(A.uid)))){
+      const cs = inBattle(q, x => isCreature(side(x))).map(x => x.uid);
+      if (cs.length){ const x = makeCtx(A.uid, A.owner, {}); const [t] = await x.choose({q: 'フリーズ：タップして次のターンのはじめにアンタップさせないクリーチャー（選ばなくてもよい）', cands: cs, min: 0, max: 1, score: u => power(C(u))}); if (t){ C(t).tapped = true; C(t).m.frozen = true; log(`フリーズ：《${cname(C(t))}》をタップ（次のターンのはじめにアンタップしない）`, A.owner); } }
+    }
+    S.kwFreeze = null;
+    return r;
+  });
+  // スーパーガードマン：自分の他のクリーチャーがバトルする時、かわりにこのクリーチャーをタップしてバトルさせてもよい
+  wrapF('battle', o => async function(a, b){
+    if (NOFX || !S) return o.apply(this, arguments);
+    for (const [mine, theirs, idx] of [[a, b, 0], [b, a, 1]]){
+      const M = C(mine); if (!M) continue; const p = M.owner;
+      const sg = inBattle(p, x => x.uid !== mine && x.uid !== theirs && !x.tapped && /スーパーガードマン/.test(ttx(x)))[0];
+      if (!sg) continue;
+      let use;
+      if (p === 'me') use = await ask(p, 'スーパーガードマン', `《${cname(M)}》がバトルします。かわりに《${cname(sg)}》をタップしてバトルさせますか？`, 'かわりにバトル');
+      else use = !(NET.on && p === 'op') && power(sg) > power(C(theirs)) && power(M) <= power(C(theirs));
+      if (use){ sg.tapped = true; log(`スーパーガードマン：《${cname(M)}》のかわりに《${cname(sg)}》がバトル`, p); return idx === 0 ? o.call(this, sg.uid, b) : o.call(this, a, sg.uid); }
+    }
+    return o.apply(this, arguments);
+  });
+  // 攻撃する時：マジボンバー・アタック・チャンス
+  wrapF('resolveEffect', o => async function(uid, ev, extra){
+    const r = await o.apply(this, arguments);
+    const c = C(uid);
+    if (ev !== 'attack' || NOFX || !c || c.zone !== 'battle' || S.winner || (NET.on && c.owner === 'op')) return r;
+    const p = c.owner; const x = makeCtx(uid, p, {});
+    // マジボンバー N：山札の上から1枚目を見る。その後、コストN以下のクリーチャーを1体、手札または山札の上から出してもよい
+    const mb = ttx(c).match(/マジボンバー\s*(\d+)/);
+    if (mb){
+      const n = +mb[1]; const top = zoneArr(p, 'deck')[0];
+      if (top){ (S.look[p] ||= []).push(top); log(`マジボンバー ${n}：${PN[p]}は山札の上から1枚目を見た`, p); }
+      const ok = u => { const s = DB[C(u).cid].sides[0]; return isCreature(s) && !/進化/.test(s.type) && s.cost <= n; };
+      const cands = [...zoneArr(p, 'hand').filter(ok), ...(top && ok(top) ? [top] : [])];
+      if (cands.length){ const [t] = await x.choose({q: `マジボンバー ${n}：手札か山札の上から出すコスト${n}以下のクリーチャー（出さなくてもよい）`, cands, min: 0, max: 1, score: u => DB[C(u).cid].sides[0].cost}); if (t){ log(`マジボンバー：《${cname(C(t))}》を出す`, p); await putIntoBattle(t, 'put'); } }
+    }
+    // アタック・チャンス：自分の指定のクリーチャーが攻撃する時、手札のこのカードをコストを支払わずに実行してもよい
+    for (const h of zoneArr(p, 'hand').slice()){
+      if (!C(h) || C(h).zone !== 'hand' || S.winner) continue;
+      const sides = DB[C(h).cid].sides; const si = sides.findIndex(s => /アタック・チャンス\s*[:：]/.test(nf(s.text)));
+      if (si < 0) continue;
+      const m = nf(sides[si].text).match(/アタック・チャンス\s*[:：]\s*([^(（]+)/); if (!m) continue;
+      if (!C(uid) || !matchAny(C(uid), m[1].trim())) continue;
+      if (await ask(p, 'アタック・チャンス', `《${cname(C(uid))}》の攻撃時、手札の《${sides[si].name}》をコストを支払わずに使いますか？`)){ log(`アタック・チャンス：《${sides[si].name}》を使う`, p); await useCard(h, {free: true, sideIdx: si, how: 'summon'}); }
+    }
+    return r;
+  });
+  // ロスト・プリズム：出た時、山札の上から1枚目を表向きにしてもよい。多色なら手札に加える
+  wrapF('resolveEffect', o => async function(uid, ev, extra){
+    const r = await o.apply(this, arguments);
+    const c = C(uid);
+    if (ev === 'etb' && !NOFX && c && c.zone === 'battle' && /ロスト・プリズム/.test(ttx(c)) && !(NET.on && c.owner === 'op')){
+      const p = c.owner; const top = zoneArr(p, 'deck')[0];
+      if (top && await ask(p, 'ロスト・プリズム', '山札の上から1枚目を表向きにしますか？（多色なら手札に加える）', '表向きにする')){
+        const multi = civsOf(C(top)).length >= 2; log(`ロスト・プリズム：《${cname(C(top))}》を表向きにした${multi ? '（多色なので手札へ）' : ''}`, p); if (multi) place(top, 'hand');
       }
     }
     return r;
