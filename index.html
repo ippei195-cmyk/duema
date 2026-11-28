@@ -1262,13 +1262,13 @@ const TRIG = {
   turnEnd: /自分のターンの終わりに/,
   destroyed: /このクリーチャーが破壊された時|このタマシードが破壊された時/,
 };
-const EVLABEL = {etb:'出た時', spell:'呪文', attack:'攻撃する時', turnStart:'ターンのはじめ', turnEnd:'ターンの終わり', destroyed:'破壊された時', manaLeave:'マナを離れた時', rev0:'革命0トリガー', allyEnter:'自分のクリーチャーが出た時', oppEnter:'相手のクリーチャーが出た時', allyDragon:'自分のドラゴンが出た時', shieldPlaced:'シールドが置かれた時', cond:'条件を満たした時', attackEnd:'攻撃の終わり', block:'ブロックした時', leave:'離れた時', allyLeave:'自分の他のクリーチャーが離れた時', oppAttack:'相手のクリーチャーが攻撃する時', oppSpell:'相手が呪文を唱えた時', allySpell:'自分が呪文を唱えた時'};
+const EVLABEL = {kw:'キーワード能力', etb:'出た時', spell:'呪文', attack:'攻撃する時', turnStart:'ターンのはじめ', turnEnd:'ターンの終わり', destroyed:'破壊された時', manaLeave:'マナを離れた時', rev0:'革命0トリガー', allyEnter:'自分のクリーチャーが出た時', oppEnter:'相手のクリーチャーが出た時', allyDragon:'自分のドラゴンが出た時', shieldPlaced:'シールドが置かれた時', cond:'条件を満たした時', attackEnd:'攻撃の終わり', block:'ブロックした時', leave:'離れた時', allyLeave:'自分の他のクリーチャーが離れた時', oppAttack:'相手のクリーチャーが攻撃する時', oppSpell:'相手が呪文を唱えた時', allySpell:'自分が呪文を唱えた時'};
 function optPref(){ return S.optPref || 'ask'; }
 
 function makeCtx(srcUid, p, extra={}){
   const q = other(p);
   const ctx = {
-    p, q, src: srcUid, how: extra.how, evolved: !!extra.evolved, vars: {},
+    p, q, src: srcUid, how: extra.how, evolved: !!extra.evolved, who: extra.who, vars: {},
     name: srcUid && C(srcUid) ? cname(C(srcUid)) : '',
     async optional(question){
       if (p==='me'){
@@ -1547,7 +1547,9 @@ async function resolveEffect(uid, ev, extra={}){
   }
   const rule = ruleOf(s.name, ev);
   if (rule){
-    if (rule.summonOnly && ev==='etb' && extra.how!=='summon') return; // 召喚によって出た時だけ
+    { const how = ev==='etb' ? extra.how : (extra.who && C(extra.who) ? C(extra.who).m.enterHow : null);
+      const by = rule.enterBy || (rule.summonOnly ? 'summon' : null);
+      if (by && how!==undefined && how!==null && ((by==='summon') !== (how==='summon'))) return; } // 召喚によって出た時だけ／召喚以外で出た時だけ
     if (rule.untapOnly && ev==='turnStart' && !(S.untappedAtStart||[]).includes(uid)) return; // ターンのはじめにアンタップした時だけ
     if (rule.mode!=='skip' && rule.conds && rule.conds.length && ev!=='cond' && !condsOk(rule.conds, p)) return; // 能力の条件
     if (rule.once && rule.mode!=='skip'){ const k = 't1_'+ev; if (c.m[k]===S.turn) return; c.m[k] = S.turn; } // 各ターンに1度（カードごと。出し直したら別のカード）
@@ -1661,7 +1663,7 @@ async function allyEnterHooks(uid){
 
 // 手順を日本語で読めるように
 const REFNAME = {L:'見たカード', MY_HAND:'自分の手札', MY_BATTLE:'自分のバトルゾーン', MY_MANA:'自分のマナ', MY_GRAVE:'自分の墓地', MY_SHIELD:'自分のシールド',
-  OPP_HAND:'相手の手札', OPP_BATTLE:'相手のバトルゾーン', OPP_MANA:'相手のマナ', OPP_GRAVE:'相手の墓地', OPP_SHIELD:'相手のシールド'};
+  OPP_HAND:'相手の手札', OPP_BATTLE:'相手のバトルゾーン', OPP_MANA:'相手のマナ', OPP_GRAVE:'相手の墓地', OPP_SHIELD:'相手のシールド', SELF:'このカード', WHO:'そのクリーチャー（出た／攻撃した）'};
 const DESTNAME = {hand:'手札', mana:'マナ', manaTapped:'マナ（タップ）', grave:'墓地', shield:'シールド', deckTop:'山札の上', deckBottom:'山札の下', battle:'バトルゾーン'};
 function refName(r){
   if (Array.isArray(r)) return r.map(refName).join('・');
@@ -1680,9 +1682,18 @@ function filterName(f){
 const CZONE = {mana:'マナ', hand:'手札', grave:'墓地', battle:'バトルゾーン', shield:'シールド', deck:'山札'};
 const COPN = {'>=':'以上', '<=':'以下', '==':'ちょうど'};
 function condCount(cd, p){ const who = cd.who==='opp' ? other(p) : p; return zoneArr(who, cd.zone||'mana').filter(u => C(u) && passFilter(u, cd.filter)).length; }
-function condOk(cd, p){ const k = condCount(cd, p), n = Number(cd.n||0); return cd.op==='<=' ? k<=n : cd.op==='==' ? k===n : k>=n; }
+const CKIND = {oniEnd:'シールドが1つもないプレイヤーがいる（鬼エンド）', oniTime:'自分と相手のシールドの合計が6つ以下（鬼タイム）', myTurn:'自分のターン中', oppTurn:'相手のターン中'};
+function condKind(cd, p){
+  const sh = w => zoneArr(w, 'shield').length;
+  if (cd.kind==='oniEnd') return sh('me')===0 || sh('op')===0;
+  if (cd.kind==='oniTime') return sh('me') + sh('op') <= 6;
+  if (cd.kind==='myTurn') return S.active===p;
+  if (cd.kind==='oppTurn') return S.active!==p;
+  return true;
+}
+function condOk(cd, p){ if (cd.kind) return condKind(cd, p); const k = condCount(cd, p), n = Number(cd.n||0); return cd.op==='<=' ? k<=n : cd.op==='==' ? k===n : k>=n; }
 function condsOk(conds, p){ return (conds||[]).every(cd => condOk(cd, p)); }
-function condLine(cd){ return `${cd.who==='opp'?'相手':'自分'}の${CZONE[cd.zone]||cd.zone}の${cd.filter?filterName(cd.filter):'カード'}が${Number(cd.n||0)}枚${COPN[cd.op]||'以上'}`; }
+function condLine(cd){ if (cd.kind) return CKIND[cd.kind] || cd.kind; return `${cd.who==='opp'?'相手':'自分'}の${CZONE[cd.zone]||cd.zone}の${cd.filter?filterName(cd.filter):'カード'}が${Number(cd.n||0)}枚${COPN[cd.op]||'以上'}`; }
 function condsLine(conds){ return (conds||[]).map(condLine).join('、かつ') || '（条件なし）'; }
 function stepLine(st){
   const who = st.who==='opp' ? '相手' : '自分';
@@ -1743,7 +1754,8 @@ async function formModal(title, intro, fields, okLabel='決定'){
 
 // 手順を1つ足す（テンプレートから）
 const SRC_OPTS = [['$L','見たカード（直前の「山札の上を見る」）'],['$MY_HAND','自分の手札'],['$MY_MANA','自分のマナ'],['$MY_GRAVE','自分の墓地'],['$MY_BATTLE','自分のバトルゾーン'],['$MY_SHIELD','自分のシールド'],
-  ['$OPP_BATTLE','相手のバトルゾーン'],['$OPP_MANA','相手のマナ'],['$OPP_HAND','相手の手札'],['$OPP_SHIELD','相手のシールド'],['$OPP_GRAVE','相手の墓地']];
+  ['$OPP_BATTLE','相手のバトルゾーン'],['$OPP_MANA','相手のマナ'],['$OPP_HAND','相手の手札'],['$OPP_SHIELD','相手のシールド'],['$OPP_GRAVE','相手の墓地'],
+  ['$WHO','そのクリーチャー（出た／攻撃した）'],['$SELF','このカード']];
 const ACT_OPTS = [['hand','手札へ'],['manaTapped','マナへ（タップ）'],['mana','マナへ'],['grave','墓地へ'],['shield','シールドへ'],['deckTop','山札の上へ'],['deckBottom','山札の下へ'],
   ['battle','バトルゾーンに出す'],['destroy','破壊する'],['tap','タップする'],['untap','アンタップする'],['cast','コストなしで唱える'],['noattack','このターン攻撃できなくする'],['keep','選ぶだけ（次の手順で使う）']];
 function actStep(act, ref, except){
@@ -1755,6 +1767,9 @@ function actStep(act, ref, except){
 async function condsWizard(conds){
   conds = conds.slice();
   for (;;){
+    const kind = await modal({title:'条件の種類', html: conds.length ? `<p>いまの条件：${esc(condsLine(conds))}</p>` : '', buttons:[{label:'枚数で決める（マナ・手札・墓地・盤面・シールド）', value:'count', primary:true}, ...Object.entries(CKIND).map(([k,l]) => ({label:l, value:k})), {label:'やめる', value:null}]});
+    if (!kind) return conds.length ? conds : null;
+    if (kind!=='count'){ conds.push({kind}); const m = await modal({title:'条件', html:`<p>${esc(condsLine(conds))}</p>`, buttons:[{label:'これで決定', value:'ok', primary:true}, {label:'条件をもう1つ足す（両方満たす時）', value:'more'}]}); if (m!=='more') return conds; continue; }
     const v = await formModal('条件を足す', conds.length ? `いまの条件：${esc(condsLine(conds))}<br>（すべて満たした時）` : '例：自分のマナが10枚以上、相手のシールドが0枚ちょうど、自分の墓地のクリーチャーが5枚以上', [
       {id:'who', type:'sel', label:'だれの', options:[['me','自分'],['opp','相手']], value:'me'},
       {id:'zone', type:'sel', label:'どこ', options:Object.entries(CZONE), value:'mana'},
@@ -1897,21 +1912,23 @@ async function stepsEditor(s, ev, steps){
   steps = JSON.parse(JSON.stringify(steps || []));
   let conds = JSON.parse(JSON.stringify(ruleOf(s.name, ev)?.conds || []));
   let once = !!ruleOf(s.name, ev)?.once;
-  let summonOnly = !!ruleOf(s.name, ev)?.summonOnly, untapOnly = !!ruleOf(s.name, ev)?.untapOnly;
+  let enterBy = ruleOf(s.name, ev)?.enterBy || (ruleOf(s.name, ev)?.summonOnly ? 'summon' : ''), untapOnly = !!ruleOf(s.name, ev)?.untapOnly;
+  const ENTER_EVS = ['etb','allyEnter','oppEnter','allyDragon']; const BYL = {'':'どれでも', summon:'召喚だけ', other:'召喚以外だけ'};
   let also = [];
   if (ev==='cond' && !conds.length){ conds = await condsWizard([]) || []; if (!conds.length) return false; }
   for (;;){
     const btns = [{label:'保存', value:'save', primary:true}, {label:'手順を追加', value:'add'}];
     btns.push({label: ev==='cond' ? '条件を直す' : `条件：${conds.length ? 'あり' : 'なし'}`, value:'conds'});
     btns.push({label:`各ターンに1度だけ：${once?'する':'しない'}`, value:'once'});
-    if (ev==='etb') btns.push({label:`召喚によって出た時だけ：${summonOnly?'する':'しない'}`, value:'summon'});
+    if (ENTER_EVS.includes(ev)) btns.push({label:`出た方法：${BYL[enterBy]}`, value:'summon'});
     if (ev==='turnStart') btns.push({label:`アンタップした時だけ：${untapOnly?'する':'しない'}`, value:'untap'});
     btns.push({label:`ほかのタイミングでも同じ手順：${also.length ? also.map(e=>EVLABEL[e]).join('・') : 'なし'}`, value:'also'});
     if (steps.length) btns.push({label:'手順を消す', value:'del'});
     if (sampleFn) btns.push({label:'説明を書いて作り直す', value:'desc'});
     btns.push({label:'JSONで直す（上級）', value:'json'}, {label:'やめる', value:null});
     const onceHtml = (once ? '<p><b>各ターンに1度だけ</b>（カード1枚ごと。離れて出し直したら、また使える）</p>' : '')
-      + (ev==='etb' && summonOnly ? '<p><b>召喚によって出た時だけ</b>（効果で出した時・革命チェンジなどでは使わない）</p>' : '')
+      + (ENTER_EVS.includes(ev) && enterBy==='summon' ? '<p><b>召喚によって出た時だけ</b>（効果で出した時・革命チェンジなどでは使わない）</p>' : '')
+      + (ENTER_EVS.includes(ev) && enterBy==='other' ? '<p><b>召喚以外の方法で出た時だけ</b>（効果で出した時・革命チェンジなど）</p>' : '')
       + (ev==='turnStart' && untapOnly ? '<p><b>自分のターンのはじめにアンタップした時だけ</b>（タップしていた時だけ使う）</p>' : '')
       + (also.length ? `<p><b>同じ手順を使うタイミング：</b>${also.map(e=>esc(EVLABEL[e])).join('・')}</p>` : '');
     const condHtml = onceHtml + (ev==='cond' ? `<p><b>いつ：</b>このカードがバトルゾーンにある間に「${esc(condsLine(conds))}」を満たした時（満たしていない状態から満たした時に1回）</p>` : (conds.length ? `<p><b>条件：</b>「${esc(condsLine(conds))}」を満たしている時だけ使う</p>` : ''));
@@ -1921,7 +1938,7 @@ async function stepsEditor(s, ev, steps){
       if (ev!=='cond' && conds.length){ const a = await modal({title:'条件', html:`<p>いまの条件：${esc(condsLine(conds))}</p>`, buttons:[{label:'条件を作り直す', value:'new', primary:true}, {label:'条件をなくす', value:'clear'}, {label:'もどる', value:null}]}); if (a==='clear'){ conds = []; continue; } if (a!=='new') continue; }
       const c2 = await condsWizard([]); if (c2 && c2.length) conds = c2; continue; }
     if (v==='once'){ once = !once; continue; }
-    if (v==='summon'){ summonOnly = !summonOnly; continue; }
+    if (v==='summon'){ enterBy = enterBy==='' ? 'summon' : enterBy==='summon' ? 'other' : ''; continue; }
     if (v==='untap'){ untapOnly = !untapOnly; continue; }
     if (v==='also'){
       const evs = RULE_EVS.filter(e => e!==ev && e!=='cond');
@@ -1929,9 +1946,9 @@ async function stepsEditor(s, ev, steps){
       if (f==='ok') also = (window._alsoEv || []).slice();
       continue; }
     if (v==='save'){
-      const opt = ev2 => ({mode:'steps', steps, ...(conds.length?{conds}:{}), ...(once?{once:true}:{}), ...(ev2==='etb'&&summonOnly?{summonOnly:true}:{}), ...(ev2==='turnStart'&&untapOnly?{untapOnly:true}:{})});
+      const opt = ev2 => ({mode:'steps', steps, ...(conds.length?{conds}:{}), ...(once?{once:true}:{}), ...(ENTER_EVS.includes(ev2)&&enterBy?{enterBy}:{}), ...(ev2==='turnStart'&&untapOnly?{untapOnly:true}:{})});
       setRule(s.name, ev, opt(ev));
-      for (const e of also){ const r = opt(e); if (e==='etb' && ev!=='etb' && /召喚によって(バトルゾーンに)?出た時/.test(s.text)) r.summonOnly = true; if (e==='turnStart' && ev!=='turnStart' && /ターンのはじめに(この[^、。]*を)?アンタップした時/.test(s.text)) r.untapOnly = true; setRule(s.name, e, r); }
+      for (const e of also){ const r = opt(e); if (e==='etb' && ev!=='etb' && /召喚によって(バトルゾーンに)?出た時/.test(s.text)) r.enterBy = 'summon'; if (e==='turnStart' && ev!=='turnStart' && /ターンのはじめに(この[^、。]*を)?アンタップした時/.test(s.text)) r.untapOnly = true; setRule(s.name, e, r); }
       log(`《${s.name}》の${[ev, ...also].map(e=>EVLABEL[e]).join('・')}の処理を変更しました`); return true; }
     if (v==='add'){ const add = await addStepWizard(steps); if (add) steps.push(...add); }
     if (v==='del'){ const i = await modal({title:'どの手順を消しますか？', buttons:[...steps.map((st,i)=>({label:`${i+1}. ${stepLine(st).slice(0,40)}`, value:i})), {label:'やめる', value:-1}]}); if (i>=0) steps.splice(i,1); }
@@ -1949,7 +1966,7 @@ async function stepsEditor(s, ev, steps){
     }
   }
 }
-function ruleLabel(name, ev){ const r = ruleOf(name, ev); return !r ? '標準' : ({skip:'処理しない', manual:'手で処理', steps:'変更済み'})[r.mode] || '変更済み'; }
+function ruleLabel(name, ev){ const r = ruleOf(name, ev); return !r ? '標準' : ({skip:'処理しない', manual:'手で処理', steps:'変更済み', kw:'変更済み'})[r.mode] || '変更済み'; }
 function relevantEvs(s){
   const out = [];
   if (/呪文/.test(s.type)) out.push('spell');
@@ -1963,7 +1980,7 @@ function relevantEvs(s){
   if (/相手が呪文を唱えた時/.test(s.text)) out.push('oppSpell');
   if (/相手のクリーチャーが攻撃する時/.test(s.text)) out.push('oppAttack');
   if (/攻撃の終わりに|攻撃した後/.test(s.text)) out.push('attackEnd');
-  for (const ev of Object.keys(RULES[s.name]||{})) if (!out.includes(ev)) out.push(ev);
+  for (const ev of Object.keys(RULES[s.name]||{})) if (ev!=='kw' && !out.includes(ev)) out.push(ev);
   if (!out.length) out.push(isCreature(s) ? 'etb' : 'spell');
   return out;
 }
@@ -2004,8 +2021,9 @@ async function ruleEditor(cid){
   for (;;){
     const evs = relevantEvs(s);
     const v = await modal({title:`《${s.name}》の処理`, html:`<p class="rtx">${esc(s.text)}</p><p>アプリの処理がうまくいかないときに、このカードの処理を変えられます。変えたい能力を選んでください。変えた処理は次から毎回使われます。</p>`,
-      buttons:[...evs.map(ev => ({label:`${EVLABEL[ev]}：${ruleLabel(s.name, ev)}`, value:ev})), {label:'ほかのタイミングを追加', value:'+'}, {label:'閉じる', value:null, primary:true}]});
+      buttons:[...(window.kwEditor ? [{label:`キーワード能力：${ruleLabel(s.name, 'kw')}`, value:'kw'}] : []), ...evs.map(ev => ({label:`${EVLABEL[ev]}：${ruleLabel(s.name, ev)}`, value:ev})), {label:'ほかのタイミングを追加', value:'+'}, {label:'閉じる', value:null, primary:true}]});
     if (!v){ render(); return; }
+    if (v==='kw'){ await window.kwEditor(s); continue; }
     let ev = v;
     if (v==='+'){ ev = await modal({title:'いつ処理する能力？', buttons:[...RULE_EVS.filter(e=>!evs.includes(e)).map(e=>({label:EVLABEL[e], value:e})), {label:'やめる', value:null}]}); if (!ev) continue; }
     await ruleEditEvent(s, ev);
@@ -2033,6 +2051,8 @@ function resolveIds(ref, x){
   if (Array.isArray(ref)) return ref.filter(u => C(u));
   if (typeof ref !== 'string') return [];
   if (!ref.startsWith('$')) return C(ref) ? [ref] : [];
+  if (ref==='$SELF') return x.src && C(x.src) ? [x.src] : [];
+  if (ref==='$WHO') return x.who && C(x.who) ? [x.who] : []; // 出た／攻撃した「そのクリーチャー」
   const m = ref.match(/^\$(MY|OPP)_(HAND|BATTLE|MANA|GRAVE|SHIELD)$/);
   if (m){ const who = m[1]==='MY' ? x.p : x.q; return zoneArr(who, m[2].toLowerCase()).slice(); }
   return (x.vars[ref.slice(1)] || []).filter(u => C(u));
@@ -10238,15 +10258,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
     return add ? t2 + '\n（効果で得た能力）' + add : t2;
   });
 
-  // スレイヤー：バトルの後、バトルの相手を破壊
-  const slayer = c => c && /(^|[^「])スレイヤー(?!」)/.test(txt(c));
-  wrapF('battle', o => async function(a, b){
-    const A = C(a), B = C(b);
-    const sa = !NOFX && slayer(A), sb = !NOFX && slayer(B);
-    await o.apply(this, arguments);
-    if (sa && C(b) && C(b).zone === 'battle' && C(b) === B){ log(`スレイヤー（《${cname(A)}》）：《${cname(B)}》を破壊`, A.owner); await leave(b, 'grave', {destroy: true}); }
-    if (sb && C(a) && C(a).zone === 'battle' && C(a) === A){ log(`スレイヤー（《${cname(B)}》）：《${cname(A)}》を破壊`, B.owner); await leave(a, 'grave', {destroy: true}); }
-  });
+  // スレイヤーは <script id="kwfx"> のキーワード能力の処理へ移した
 
   // 出た方法を覚える（ゲドウ大権現の「召喚以外の方法で出た時」用）
   wrapF('resolveEffect', o => async function(uid, ev, extra){
@@ -10272,9 +10284,10 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
     if (NET.on && p === 'op') return;
     for (const h of zoneArr(p, 'hand').slice()){
       if (h === uid || !C(h)) continue;
-      const si = DB[C(h).cid].sides.findIndex(s => isCreature(s) && sbackCond(s));
+      let si = DB[C(h).cid].sides.findIndex(s => isCreature(s) && sbackCond(s));
+      if (si < 0 && isCreature(side(C(h))) && sbackCond({text: txt(C(h))})) si = C(h).side || 0; // 処理の変更で与えたS・バック
       if (si < 0) continue;
-      const s = DB[C(h).cid].sides[si]; const cond = sbackCond(s);
+      const s = DB[C(h).cid].sides[si]; const cond = sbackCond(s) || sbackCond({text: txt(C(h))});
       if (!sbackOk(cond, uid)) continue;
       let use;
       if (p === 'me'){ S.userTouched = true; use = await askYesNo('S・バック', `シールドから手札に加えた《${cname(c)}》を捨てて、《${s.name}》（S・バック：${cond}）をコストを支払わずに召喚しますか？`, '召喚する', '使わない'); }
@@ -10315,6 +10328,213 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
         if (t.length) await x.put(t);
       },
     },
+  });
+})();
+</script>
+<script id="kwfx">
+/* キーワード能力（2026-11-28）：カードごとではなく、テキストのキーワード能力として処理する
+   - KWD：全カード（11,863枚）から数えたキーワード能力と説明・対応状況
+   - 新しく処理するもの：スレイヤー・ガードマン・ハンティング・シンパシー・チャージャー・エスケープ・ヨビニオン
+   - 処理の変更「キーワード能力」：カードにキーワード能力を与える／外す（いつも・鬼エンド・鬼タイム・自分／相手のターン中・枚数の条件） */
+(function(){
+  if (window.__kwfx) return; window.__kwfx = true;
+  const wrapF = (n, f) => { const o = window[n]; if (typeof o === 'function') window[n] = f(o); };
+  const has = (c, re) => !!c && re.test(txt(c));
+  // [名前, 件数, 状況(auto/part/none), 説明]
+  const KWD = [
+    ['S・トリガー',1208,'auto','シールドから手札に加える時、コストを支払わずに使ってもよい'],
+    ['W・ブレイカー',1042,'auto','シールドを2つブレイクする'],
+    ['ブロッカー',802,'auto','相手クリーチャーの攻撃をタップしてかわりに受けられる'],
+    ['スレイヤー',300,'auto','バトルする時、バトルの後、相手クリーチャーを破壊する'],
+    ['マッハファイター',292,'auto','出たターンの間、タップまたはアンタップしているクリーチャーを攻撃できる'],
+    ['スピードアタッカー',266,'auto','召喚酔いしない'],
+    ['クロスギア',214,'part','クリーチャーにクロスする'],
+    ['G・ストライク',211,'auto','シールドから手札に加える時、相手クリーチャー1体をこのターン攻撃できなくしてもよい'],
+    ['T・ブレイカー',203,'auto','シールドを3つブレイクする'],
+    ['パワード・ブレイカー',196,'auto','パワー6000ごとにシールドをさらに1つブレイクする'],
+    ['EXライフ',156,'auto','出す時、山札の上から1枚をシールド化。離れる時、かわりにそのシールドを墓地へ'],
+    ['ガードマン',133,'auto','タップして、相手クリーチャーの攻撃先を、自分の他のクリーチャーからこのクリーチャーに変更してもよい'],
+    ['セイバー',127,'none','自分のシールドがブレイクされる時、かわりにこのクリーチャーを破壊してもよい'],
+    ['チャージャー',118,'auto','唱えた後、墓地に置くかわりにマナゾーンに置く'],
+    ['ジャストダイバー',118,'auto','出た時、次の自分のターンのはじめまで、相手に選ばれず、攻撃されない'],
+    ['シンカライズ',103,'none','タマシードの上に進化クリーチャーを置いてもよい'],
+    ['シンパシー',89,'auto','召喚コストが、自分の指定のクリーチャー1体につき1少なくなる（0以下にならない）'],
+    ['G・ゼロ',85,'none','条件を満たしていれば、コストを支払わずに召喚してもよい'],
+    ['D・D・D',63,'auto','自分のクリーチャーが攻撃する時、手札から実行してもよい'],
+    ['シンカパワー',60,'none','進化した時の能力'],
+    ['アタック・チャンス',57,'none','自分の指定のクリーチャーが攻撃する時、コストを支払わずに実行してもよい'],
+    ['エスケープ',52,'auto','破壊される時、墓地に置くかわりに自分のシールドを1つ手札に加えてもよい（S・トリガーは使えない）'],
+    ['スーパー・S・トリガー',53,'part','S・トリガー。シールドが0の時はスーパーボーナスも使える'],
+    ['ハンティング',51,'auto','バトル中、パワーが自分のハンター1体につき+1000'],
+    ['キリフダッシュ',51,'none','自分のクリーチャーがシールドをブレイクしたターン、キリフダッシュのコストで召喚してもよい'],
+    ['スペース・チャージ',43,'none','自分のマナゾーンにカードが置かれた時、文明に合う能力を使ってもよい'],
+    ['サバイバー',43,'none','自分の他のサバイバーも同じ能力を得る'],
+    ['キズナ',43,'none','出た時、自分のクリーチャー1体のキズナ能力を使う'],
+    ['スマッシュ・バースト',42,'part','攻撃する時、呪文側をコストを支払わずに唱えてもよい'],
+    ['シールド・セイバー',42,'none','自分のシールドがブレイクされる時、かわりにこのクリーチャーを破壊してもよい'],
+    ['ハイパーエナジー',39,'auto','自分のクリーチャーをタップして、1体につき召喚コストを2少なくする'],
+    ['ワールド・ブレイカー',38,'auto','相手のシールドをすべてブレイクする'],
+    ['アビスラッシュ',38,'none','墓地から召喚してもよい。そのターンの終わりに山札の下へ'],
+    ['ウェーブストライカー',35,'none','他にウェーブストライカーが2体以上あれば能力を得る'],
+    ['ギャラクシールド',34,'none','コストのかわりに、表向きのシールドとして置いてもよい'],
+    ['S・バック',31,'auto','指定のカードをシールドから手札に加える時、それを捨てて、コストを支払わずに実行してもよい'],
+    ['S・トリガー・プラス',31,'none','S・トリガー。相手のターンにシールドが2つ以上ブレイクされていれば追加の能力'],
+    ['ヨビニオン',30,'auto','召喚によって出た時、山札の上から、これよりコストが小さいクリーチャーが出るまで表向きにして出してもよい'],
+    ['Q・ブレイカー',29,'auto','シールドを4つブレイクする'],
+    ['ダイナモ',29,'none','タップして、パワーと能力を他のダイナモに加える'],
+    ['B・A・D',28,'none','コストを少なくして召喚してもよい。ターンの終わりに破壊'],
+    ['ササゲール',45,'part','自分のクリーチャーを破壊して召喚コストを少なくする'],
+    ['革命チェンジ',0,'auto','攻撃する時、手札のこのクリーチャーと入れ替えてもよい'],
+    ['侵略',0,'auto','攻撃する時、手札のこのクリーチャーを進化させて出してもよい'],
+    ['ニンジャ・ストライク',0,'auto','相手のクリーチャーが攻撃またはブロックした時、手札からコストを支払わずに召喚してもよい'],
+    ['Jチェンジ',0,'auto','攻撃する時、手札かマナのジョーカーズと入れ替えてもよい'],
+  ];
+  window.DMAI_KWD = KWD;
+  // カードのテキストから読み取ったキーワード能力
+  const occ = (t, k) => { let n = 0, i = t.indexOf(k); while (i >= 0){ if (t[i-1] !== '「') n++; i = t.indexOf(k, i + k.length); } return n; };
+  const kwRead = text => { const t = String(text || '').normalize('NFKC'); const f = KWD.map(([k,,st,d]) => ({k, st, d, n: occ(t, k.normalize('NFKC'))})).filter(o => o.n > 0);
+    return f.filter(o => o.n > f.filter(x => x.k !== o.k && x.k.includes(o.k)).reduce((a, x) => a + x.n, 0)); }; // 「スーパー・S・トリガー」の中の「S・トリガー」などは数えない
+  window.DMAI_KWREAD = kwRead;
+
+  /* ---------- 処理の変更で与える／外すキーワード能力 ---------- */
+  // 与えられるもの：[名前, txt に足す文, 引数の説明]
+  const GRANT = [
+    ['ブロッカー','ブロッカー'], ['スピードアタッカー','スピードアタッカー'], ['スレイヤー','スレイヤー'], ['マッハファイター','マッハファイター'],
+    ['W・ブレイカー','W・ブレイカー'], ['T・ブレイカー','T・ブレイカー'], ['Q・ブレイカー','Q・ブレイカー'], ['ワールド・ブレイカー','ワールド・ブレイカー'], ['パワード・ブレイカー','パワード・ブレイカー'],
+    ['ガードマン','ガードマン'], ['ハンティング','ハンティング'], ['エスケープ','エスケープ'], ['ヨビニオン','ヨビニオン'],
+    ['ブロックされない','このクリーチャーはブロックされない'], ['相手に選ばれない','このクリーチャーは相手に選ばれない'], ['すべてのバトルに勝つ','このクリーチャーはすべてのバトルに勝つ'],
+    ['S・バック','S・バック：{a}（', '捨てるカードの条件（文明・種族・名前。例：闇または火、デモニオ）'],
+    ['シンパシー','シンパシー：{a}（バトルゾーンにある自分の{a}1体につき1少なくなる）', '数えるもの（例：クリーチャー、ドラゴン、ジョーカーズ）'],
+    ['チャージャー','チャージャー'],
+  ];
+  const breakWord = k => k.length > 1 ? k[0] + '​' + k.slice(1) : k; // 外したキーワードは判定に引っかからないようにする
+  const kwRules = c => { if (!c || c.cid === HIDDEN_CID || !DB[c.cid]) return null; const s = side(c); const r = s && RULES[s.name] && RULES[s.name].kw; return r && r.list && r.list.length ? r.list : null; };
+  const whenOk = (g, c) => !g.conds || !g.conds.length || condsOk(g.conds, c.owner);
+  wrapF('txt', o => function(c){
+    let t = o.apply(this, arguments);
+    if (typeof t !== 'string' || NOFX || !S) return t;
+    const L = kwRules(c); if (!L) return t;
+    let add = '';
+    for (const g of L){
+      if (!whenOk(g, c)) continue;
+      if (g.neg){ t = t.split(g.k).join(breakWord(g.k)); continue; }
+      const def = GRANT.find(x => x[0] === g.k); if (!def) continue;
+      add += '\n' + def[1].split('{a}').join(g.a || 'クリーチャー');
+    }
+    return add ? t + '\n（処理の変更で与えた能力）' + add : t;
+  });
+  const gLine = g => `${g.neg ? '持たない：' : ''}${g.k}${g.a ? '：' + g.a : ''}${g.conds && g.conds.length ? '（' + condsLine(g.conds) + '）' : '（いつも）'}`;
+  window.kwEditor = async function(s){
+    let list = JSON.parse(JSON.stringify(RULES[s.name]?.kw?.list || []));
+    for (;;){
+      const read = kwRead(s.text);
+      const SL = {auto:'自動で処理', part:'一部だけ', none:'まだ処理なし'};
+      const html = `<p class="rtx">${esc(s.text)}</p>`
+        + `<p><b>テキストから読み取ったキーワード能力</b></p>` + (read.length ? '<ul>' + read.map(r => `<li>${esc(r.k)}：${SL[r.st]}<br><small>${esc(r.d)}</small></li>`).join('') + '</ul>' : '<p>（なし）</p>')
+        + `<p><b>処理の変更で与える／外すもの</b></p>` + (list.length ? '<ul>' + list.map(g => `<li>${esc(gLine(g))}</li>`).join('') + '</ul>' : '<p>（なし）</p>')
+        + '<p class="rtx">「鬼エンドの時だけブロッカー」のように、条件つきで与えることもできます。読み間違いでついている能力は「持たない」にできます。</p>';
+      const btns = [{label:'保存', value:'save', primary:true}, {label:'キーワード能力を与える', value:'add'}, {label:'キーワード能力を持たないことにする', value:'neg'}];
+      if (list.length) btns.push({label:'1つ消す', value:'del'});
+      btns.push({label:'やめる', value:null});
+      const v = await modal({title:`《${s.name}》キーワード能力`, html, buttons:btns});
+      if (!v) return false;
+      if (v === 'save'){ setRule(s.name, 'kw', list.length ? {mode:'kw', list} : null); log(`《${s.name}》のキーワード能力を変更しました`); render(); return true; }
+      if (v === 'del'){ const i = await modal({title:'どれを消しますか？', buttons:[...list.map((g,i) => ({label:gLine(g).slice(0,40), value:i})), {label:'やめる', value:-1}]}); if (i >= 0) list.splice(i, 1); continue; }
+      let k;
+      if (v === 'neg'){ const cands = [...new Set([...read.map(r => r.k), ...GRANT.map(g => g[0])])]; k = await modal({title:'持たないことにするキーワード能力', buttons:[...cands.map(x => ({label:x, value:x})), {label:'やめる', value:null}]}); }
+      else k = await modal({title:'与えるキーワード能力', buttons:[...GRANT.map(g => ({label:g[0], value:g[0]})), {label:'やめる', value:null}]});
+      if (!k) continue;
+      const g = {k}; if (v === 'neg') g.neg = true;
+      const def = GRANT.find(x => x[0] === k);
+      if (v !== 'neg' && def && def[2]){ const f = await formModal(k, def[2], [{id:'a', type:'text', label:'条件', value:''}], '決める'); if (!f || !f.a) continue; g.a = f.a; }
+      const w = await modal({title:'いつ？', buttons:[{label:'いつも', value:'always', primary:true}, ...Object.entries(CKIND).map(([kk,l]) => ({label:l, value:kk})), {label:'枚数などの条件を決める', value:'conds'}, {label:'やめる', value:null}]});
+      if (!w) continue;
+      if (w === 'conds'){ const c2 = await condsWizard([]); if (!c2 || !c2.length) continue; g.conds = c2; }
+      else if (w !== 'always') g.conds = [{kind:w}];
+      list.push(g);
+    }
+  };
+
+  /* ---------- キーワード能力の処理 ---------- */
+  // スレイヤー：バトルの後、バトルの相手を破壊（「スレイヤー」を与える の文は除く）
+  const slayer = c => has(c, /(^|[^「])スレイヤー(?!」)/);
+  // ハンティング：バトル中、自分のハンター1体につき+1000
+  let inBattleNow = [];
+  wrapF('power', o => function(c){
+    let pw = o.apply(this, arguments);
+    if (!NOFX && c && inBattleNow.includes(c.uid) && has(c, /ハンティング/)) pw += 1000 * inBattle(c.owner, x => /ハンター/.test(DB[x.cid].race || '')).length;
+    return pw;
+  });
+  wrapF('battle', o => async function(a, b){
+    const A = C(a), B = C(b);
+    const sa = !NOFX && slayer(A), sb = !NOFX && slayer(B);
+    const prev = inBattleNow; inBattleNow = [a, b];
+    try { await o.apply(this, arguments); } finally { inBattleNow = prev; }
+    if (sa && C(b) && C(b).zone === 'battle' && C(b) === B){ log(`スレイヤー（《${cname(A)}》）：《${cname(B)}》を破壊`, A.owner); await leave(b, 'grave', {destroy: true}); }
+    if (sb && C(a) && C(a).zone === 'battle' && C(a) === A){ log(`スレイヤー（《${cname(B)}》）：《${cname(A)}》を破壊`, B.owner); await leave(a, 'grave', {destroy: true}); }
+  });
+  // シンパシー：召喚コストが、自分の指定のクリーチャー1体につき1少なくなる（0以下にならない）
+  const civMatch = (c, w) => (DB[c.cid].civs || []).includes(w);
+  wrapF('costMods', o => function(p, c, s){
+    const r = o.apply(this, arguments);
+    if (NOFX || !s || !isCreature(s) || !c) return r;
+    const t = String((c.zone === 'battle' ? s.text : txt(c)) || '').normalize('NFKC');
+    const m = t.match(/(?:^|[^「])((?:ダブル・|W・)?)シンパシー\s*[:：]\s*([^（(\n」]+)/); if (!m) return r; // 「シンパシー」を与える の文は除く
+    const per = m[1] ? 2 : 1; const what = m[2].trim();
+    const words = what.split(/または|、|と/).map(w => w.replace(/^(自分の)?/, '').trim()).filter(Boolean);
+    const n = inBattle(p, x => isCreature(side(x)) && x.uid !== c.uid && words.some(w => w === 'クリーチャー' || (CIV_WORDS.includes(w.replace(/のクリーチャー$/, '')) && civMatch(x, w.replace(/のクリーチャー$/, ''))) || (DB[x.cid].race || '').includes(w) || cname(x).includes(w))).length;
+    if (!n) return r;
+    return {...r, cost: Math.max(1, r.cost - per * n), notes: [...(r.notes || []), `シンパシー（${what}${n}体） −${per * n}`]};
+  });
+  // チャージャー：呪文を唱えた後、墓地に置くかわりにマナゾーンに置く
+  wrapF('place', o => function(uid, zone){
+    const c = C(uid);
+    if (zone === 'grave' && c && c.zone === 'limbo' && !NOFX && S){ const s = DB[c.cid].sides[c.side || 0]; if (s && s.type === '呪文' && /(^|[^晶])チャージャー/.test(s.text || '') && !/水晶チャージャー/.test(s.text || '')){ log(`チャージャー：《${s.name}》をマナゾーンに置いた`, c.owner); return o.call(this, uid, 'mana'); } }
+    return o.apply(this, arguments);
+  });
+  // エスケープ：破壊される時、墓地に置くかわりに自分のシールドを1つ手札に加えてもよい（S・トリガーは使えない）
+  wrapF('leave', o => async function(uid, dest, opt = {}){
+    const c = C(uid);
+    if (!NOFX && c && c.zone === 'battle' && dest === 'grave' && opt && opt.destroy && has(c, /エスケープ/) && !/「エスケープ」/.test(txt(c)) && zoneArr(c.owner, 'shield').length && !c.m.escaping){
+      const p = c.owner; const sh = zoneArr(p, 'shield');
+      let use, pick;
+      if (p === 'me'){ S.userTouched = true; const r = await modal({title:'エスケープ', html:`<p>《${esc(cname(c))}》が破壊されます。かわりに自分のシールドを1つ手札に加えますか？（その「S・トリガー」は使えない）</p>`, pick:{uids:sh, max:1, min:0, hide:x => !x.faceUp}, buttons:[{label:'手札に加える', value:1, primary:true, needPick:true}, {label:'使わない', value:0}]}); use = r && r.value && r.picked && r.picked[0]; pick = use ? r.picked[0] : null; }
+      else { use = !(NET.on && p === 'op'); pick = sh[Math.floor(Math.random() * sh.length)]; }
+      if (use && pick){ place(pick, 'hand'); log(`エスケープ：《${cname(c)}》は破壊されず、${PN[p]}はシールドを1つ手札に加えた`, p); render(); return null; }
+    }
+    return o.apply(this, arguments);
+  });
+  // ガードマン：相手クリーチャーの攻撃先を、自分の他のクリーチャーからこのクリーチャーに変更してもよい（タップして）
+  wrapF('resolveAttack', o => async function(a){
+    const A = a && C(a.attUid);
+    if (!NOFX && A && a.target && a.target !== 'player' && C(a.target) && C(a.target).zone === 'battle'){
+      const q = C(a.target).owner;
+      const gs = inBattle(q, g => g.uid !== a.target && !g.tapped && isCreature(side(g)) && has(g, /(^|[^ー「])ガードマン/)); // スーパーガードマンは別の能力
+      if (gs.length && !(NET.on && q === 'op')){
+        let g = null;
+        if (q === 'me'){ S.userTouched = true; const r = await modal({title:'ガードマン', html:`<p>《${esc(cname(A))}》が《${esc(cname(C(a.target)))}》を攻撃します。ガードマンをタップして、攻撃先をそのクリーチャーに変えますか？</p>`, pick:{uids:gs.map(x => x.uid), max:1, min:0}, buttons:[{label:'変える', value:1, primary:true, needPick:true}, {label:'変えない', value:0}]}); g = r && r.value && r.picked && r.picked[0]; }
+        else { const T = C(a.target); const best = gs.slice().sort((x, y) => power(y) - power(x))[0]; if (power(best) > power(A) || (power(T) <= power(A) && side(best).cost < side(T).cost)) g = best.uid; }
+        if (g){ C(g).tapped = true; log(`ガードマン：《${cname(C(g))}》をタップして、攻撃先を《${cname(C(a.target))}》から変えた`, q); a = {...a, target: g}; }
+      }
+    }
+    return o.call(this, a);
+  });
+  // ヨビニオン：召喚によって出た時、山札の上から、これよりコストが小さいクリーチャーが出るまで表向きにしてもよい。そのクリーチャーを出す。残りをシャッフルして山札の下へ
+  wrapF('resolveEffect', o => async function(uid, ev, extra){
+    const r = await o.apply(this, arguments);
+    const c = C(uid);
+    if (ev === 'etb' && !NOFX && c && c.zone === 'battle' && extra && extra.how === 'summon' && has(c, /ヨビニオン/) && !/「ヨビニオン」/.test(txt(c)) && !S.winner && !(NET.on && c.owner === 'op')){
+      const p = c.owner; const x = makeCtx(uid, p, {});
+      if (zoneArr(p, 'deck').length && await x.optional('ヨビニオン：山札の上から、これよりコストが小さいクリーチャーが出るまで表向きにしますか？')){
+        const cost = side(c).cost; const deck = zoneArr(p, 'deck').slice(); const rest = []; let hit = null;
+        const race = (String(txt(c)).normalize('NFKC').match(/([ァ-ヴー]+)・ヨビニオン/) || [])[1]; // ドラゴン・ヨビニオンなど
+        for (const u of deck){ const s0 = DB[C(u).cid].sides[0]; if (isCreature(s0) && !/進化/.test(s0.type) && s0.cost < cost && (!race || (DB[C(u).cid].race || '').includes(race))){ hit = u; break; } rest.push(u); }
+        log(`ヨビニオン：${rest.length + (hit ? 1 : 0)}枚を表向きにした${hit ? `（《${cname(C(hit))}》）` : '（出せるクリーチャーなし）'}`, p);
+        if (hit) await putIntoBattle(hit, 'put');
+        for (const u of shuffle(rest)) place(u, 'deck', {bottom: true});
+      }
+    }
+    return r;
   });
 })();
 </script>
